@@ -13,6 +13,7 @@ import (
 	"github.com/devi/booklet/internal/platform/config"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/repository"
+	"github.com/devi/booklet/internal/usecase"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"go.opentelemetry.io/otel"
@@ -20,6 +21,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	otelgorm "gorm.io/plugin/opentelemetry/tracing"
+
+	authmiddleware "github.com/devi/booklet/internal/handler/middleware"
 )
 
 type server struct {
@@ -165,20 +168,8 @@ func initDB(cfg *config.Config, logger *zap.Logger) *gorm.DB {
 }
 
 func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) {
-	// userRepository := repository.NewUserRepository(db)
-	// userUsecase := usecase.NewUserUsecase(userRepository, tel)
-	// folderRepository := repository.NewFolderRepository(db)
-	// storageService := storage.NewR2Storage(cfg.R2, tel)
-	// imageRepository := repository.NewImageRepository(db)
-	// pendingUploadRepository := repository.NewPendingUploadRepository(db)
-	// tagRepository := repository.NewTagRepository(db)
-	// folderUsecase := usecase.NewFolderUsecase(folderRepository, imageRepository, storageService, tel)
-	// tagUsecase := usecase.NewTagUsecase(tagRepository, tel)
-
-	// var visionService usecase.VisionService
-	// if cfg.Vision.APIKey != "" {
-	// 	visionService = vision.NewVisionClient(cfg.Vision.APIKey)
-	// }
+	userRepository := repository.NewUserRepository(db)
+	userUsecase := usecase.NewUserUsecase(userRepository, tel)
 
 	// // Dedicated River pool (max 3 connections, separate from GORM's pool).
 	// poolCfg, err := pgxpool.ParseConfig(cfg.DB.URL)
@@ -194,16 +185,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	// // Deferred enqueuer: client field is set after river.NewClient to break the
 	// // uploadUsecase ↔ riverClient init cycle.
 	// enqueuer := &riverEnqueuer{}
-
-	// imageUsecase := usecase.NewImageUsecase(imageRepository, tagRepository, folderRepository, storageService, tel)
-	// trashUsecase := usecase.NewTrashUsecase(imageRepository, storageService, enqueuer, tel)
-	// folderShareRepository := repository.NewFolderShareRepository(db)
-	// shareUsecase := usecase.NewShareUsecase(folderShareRepository, folderRepository, imageRepository, storageService, tel)
-	// uploadUsecase := usecase.NewImageUploadUsecase(imageRepository, imageRepository, pendingUploadRepository, folderRepository, userRepository, storageService, visionService, enqueuer, tel)
-
-	// accountRepository := repository.NewAccountRepository(db)
-	// kindeClient := kinde.NewClient(cfg.Kinde)
-	// accountUsecase := usecase.NewAccountUsecase(accountRepository, userRepository, kindeClient, enqueuer, tel)
 
 	// broadcaster := sse.NewEventBroadcaster()
 
@@ -270,10 +251,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	// 	logger.Fatal("start river client", zap.Error(err))
 	// }
 
-	// authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
-	// if err != nil {
-	// 	logger.Fatal("initialise auth middleware", zap.Error(err))
-	// }
+	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
+	if err != nil {
+		logger.Fatal("initialise auth middleware", zap.Error(err))
+	}
 
 	// eventsHandler := httphandler.NewEventsHandler(broadcaster)
 	// meHandler := httphandler.NewMeHandler(userUsecase, accountUsecase, categorisationUsecase, tel)
@@ -289,9 +270,9 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	// e.GET("/share/:token", shareHandler.GetSharedFolder)
 	// e.GET("/share/:token/export", shareHandler.ExportSharedFolder)
 
-	// protected := e.Group("")
+	protected := e.Group("")
 	// protected.Use(authmiddleware.NewMaintenanceMiddleware(cfg.Maintenance))
-	// protected.Use(authMiddleware)
+	protected.Use(authMiddleware)
 	// protected.Use(observability.LoggingMiddleware(tel, authmiddleware.AuthenticatedUserIDFromContext))
 	// protected.GET("/events", eventsHandler.GetEvents)
 	// protected.GET("/me", meHandler.GetMe)
