@@ -5,7 +5,7 @@ Refer to CONVENTIONS.md for coding conventions.
 
 ## What is Booklet
 
-Web-based image moodboarding app (inspired by Raindrop.io). A moodboard app with optional AI organising.
+Web application for users to showcase their original character's gallery. User can upload images & assign that image to the characters that they own.
 
 ## Stack
 
