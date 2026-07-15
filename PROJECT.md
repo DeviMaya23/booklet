@@ -12,5 +12,5 @@ Web application for users to showcase their original character's gallery. User c
 Booklet will have a backend layer (Go + Echo) and frontend layer (React + Tailwind)
 
 ## Commands
-Refer to Makefile for commands to run BE/FE/build extensions.
+Refer to Makefile for commands to run BE/FE.
 For local development/db migrations, refer to Makefile.local

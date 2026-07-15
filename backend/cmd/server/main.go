@@ -171,144 +171,25 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	userRepository := repository.NewUserRepository(db)
 	userUsecase := usecase.NewUserUsecase(userRepository, tel)
 
-	// // Dedicated River pool (max 3 connections, separate from GORM's pool).
-	// poolCfg, err := pgxpool.ParseConfig(cfg.DB.URL)
-	// if err != nil {
-	// 	logger.Fatal("parse river pool config", zap.Error(err))
-	// }
-	// poolCfg.MaxConns = 3
-	// riverPool, err := pgxpool.NewWithConfig(ctx, poolCfg)
-	// if err != nil {
-	// 	logger.Fatal("open river database pool", zap.Error(err))
-	// }
-
-	// // Deferred enqueuer: client field is set after river.NewClient to break the
-	// // uploadUsecase ↔ riverClient init cycle.
-	// enqueuer := &riverEnqueuer{}
-
-	// broadcaster := sse.NewEventBroadcaster()
-
-	// workers := river.NewWorkers()
-	// river.AddWorker(workers, worker.NewVisionWorker(uploadUsecase))
-	// river.AddWorker(workers, worker.NewCleanupStaleUploadsWorker(uploadUsecase))
-	// river.AddWorker(workers, worker.NewTrashPurgeWorker(trashUsecase))
-	// river.AddWorker(workers, worker.NewR2DeleteWorker(trashUsecase))
-	// river.AddWorker(workers, worker.NewAccountKindeDeletionWorker(accountUsecase))
-	// river.AddWorker(workers, worker.NewAccountKindeDeletionReconcileWorker(accountUsecase))
-	// river.AddWorker(workers, worker.NewBackfillPhashWorker(uploadUsecase))
-
-	// categorisationLogRepo := repository.NewCategorisationLogRepository(db)
-
-	// var agentService usecase.CategorisationAgentService
-	// if cfg.AnthropicAPIKey != "" {
-	// 	aiClient := anthropic.NewClient(
-	// 		anthropicOption.WithAPIKey(cfg.AnthropicAPIKey),
-	// 	)
-	// 	agentService = agent.NewAgentService(imageRepository, folderRepository, &aiClient, tel, cfg.AnthropicModel)
-	// }
-
-	// categorisationUsecase := usecase.NewCategorisationUsecase(agentService, imageRepository, folderRepository, categorisationLogRepo, tel)
-
-	// if cfg.AnthropicAPIKey != "" {
-	// 	river.AddWorker(workers, worker.NewCategorisationWorker(categorisationUsecase, broadcaster))
-	// }
-
-	// riverClient, err := river.NewClient(riverpgxv5.New(riverPool), &river.Config{
-	// 	Queues: map[string]river.QueueConfig{
-	// 		river.QueueDefault: {MaxWorkers: 10},
-	// 	},
-	// 	Workers: workers,
-	// 	PeriodicJobs: []*river.PeriodicJob{
-	// 		river.NewPeriodicJob(
-	// 			river.PeriodicInterval(10*time.Minute),
-	// 			func() (river.JobArgs, *river.InsertOpts) { return worker.CleanupStaleUploadsArgs{}, nil },
-	// 			nil,
-	// 		),
-	// 		river.NewPeriodicJob(
-	// 			river.PeriodicInterval(24*time.Hour),
-	// 			func() (river.JobArgs, *river.InsertOpts) { return worker.TrashPurgeArgs{}, nil },
-	// 			nil,
-	// 		),
-	// 		river.NewPeriodicJob(
-	// 			river.PeriodicInterval(24*time.Hour),
-	// 			func() (river.JobArgs, *river.InsertOpts) { return worker.AccountKindeDeletionReconcileArgs{}, nil },
-	// 			nil,
-	// 		),
-	// 		river.NewPeriodicJob(
-	// 			river.PeriodicInterval(5*time.Minute),
-	// 			func() (river.JobArgs, *river.InsertOpts) { return worker.BackfillPhashArgs{}, nil },
-	// 			nil,
-	// 		),
-	// 	},
-	// })
-	// if err != nil {
-	// 	logger.Fatal("create river client", zap.Error(err))
-	// }
-
-	// enqueuer.client = riverClient
-
-	// if err := riverClient.Start(ctx); err != nil {
-	// 	logger.Fatal("start river client", zap.Error(err))
-	// }
+	characterRepository := repository.NewCharacterRepository(db)
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
+	characterHandler := httphandler.NewCharacterHandler(characterUsecase, tel)
 
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
 	}
 
-	// eventsHandler := httphandler.NewEventsHandler(broadcaster)
-	// meHandler := httphandler.NewMeHandler(userUsecase, accountUsecase, categorisationUsecase, tel)
-	// folderHandler := httphandler.NewFolderHandler(folderUsecase, tel)
-	// tagHandler := httphandler.NewTagHandler(tagUsecase, tel)
-	// imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
-	// trashHandler := httphandler.NewTrashHandler(trashUsecase, tel)
-	// shareHandler := httphandler.NewShareHandler(shareUsecase, folderUsecase, tel)
-	// uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 	healthHandler := httphandler.NewHealthHandler(db)
 
 	e.GET("/health", healthHandler.GetHealth)
-	// e.GET("/share/:token", shareHandler.GetSharedFolder)
-	// e.GET("/share/:token/export", shareHandler.ExportSharedFolder)
-
 	protected := e.Group("")
 	// protected.Use(authmiddleware.NewMaintenanceMiddleware(cfg.Maintenance))
 	protected.Use(authMiddleware)
-	// protected.Use(observability.LoggingMiddleware(tel, authmiddleware.AuthenticatedUserIDFromContext))
-	// protected.GET("/events", eventsHandler.GetEvents)
-	// protected.GET("/me", meHandler.GetMe)
-	// protected.PATCH("/me", meHandler.UpdateMe)
-	// protected.DELETE("/me", meHandler.DeleteMe)
-	// protected.POST("/me/vision/backfill", uploadHandler.BackfillVision)
-	// protected.POST("/folders", folderHandler.CreateFolder)
-	// protected.GET("/folders", folderHandler.ListFolders)
-	// protected.GET("/folders/:id", folderHandler.GetFolder)
-	// protected.GET("/folders/:id/export", folderHandler.ExportFolder)
-	// protected.PATCH("/folders/:id", folderHandler.UpdateFolder)
-	// protected.DELETE("/folders/:id", folderHandler.DeleteFolder)
-	// protected.POST("/folders/:id/share", shareHandler.CreateShare)
-	// protected.GET("/folders/:id/share", shareHandler.GetShare)
-	// protected.DELETE("/folders/:id/share", shareHandler.DeleteShare)
-	// protected.POST("/tags", tagHandler.CreateTag)
-	// protected.GET("/tags", tagHandler.ListTags)
-	// protected.PUT("/tags/:id", tagHandler.UpdateTag)
-	// protected.DELETE("/tags/:id", tagHandler.DeleteTag)
-	// protected.POST("/images", uploadHandler.InitiateUpload)
-	// protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
-	// protected.GET("/images/trash", trashHandler.ListTrashed)
-	// protected.DELETE("/images/trash", trashHandler.EmptyTrash)
-	// protected.DELETE("/images/trash/:id", trashHandler.DeleteFromTrash)
-	// protected.POST("/images/bulk/add-to-folder", imageHandler.BulkAddToFolder)
-	// protected.POST("/images/bulk/trash", trashHandler.BulkTrash)
-	// protected.GET("/images", imageHandler.ListImages)
-	// protected.GET("/images/in-folder/:id", imageHandler.ListFolderImages)
-	// protected.GET("/images/:id", imageHandler.GetImage)
-	// protected.GET("/images/:id/download", imageHandler.DownloadImage)
-	// protected.POST("/images/:id/move-folder", imageHandler.MoveImageFolder)
-	// protected.PATCH("/images/:id/position", imageHandler.UpdateImagePosition)
-	// protected.PATCH("/images/:id", imageHandler.UpdateImage)
-	// protected.DELETE("/images/:id", trashHandler.SoftDelete)
-	// protected.POST("/images/:id/restore", trashHandler.Restore)
+	protected.POST("/characters", characterHandler.CreateCharacter)
+	protected.GET("/characters", characterHandler.ListCharacters)
+	protected.GET("/characters/:id", characterHandler.GetCharacterByID)
+	protected.PATCH("/characters/:id", characterHandler.UpdateCharacter)
+	protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
 
-	// return riverClient, riverPool
-	return
 }
