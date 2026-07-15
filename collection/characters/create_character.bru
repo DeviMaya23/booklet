@@ -1,0 +1,19 @@
+meta {
+  name: Create Character
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/characters
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Aria Stormweaver",
+    "biography": "A wandering mage from the northern realms.",
+    "is_public": false
+  }
+}

@@ -1,0 +1,22 @@
+meta {
+  name: Update Character
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/characters/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{characterId}}
+}
+
+body:json {
+  {
+    "name": "Aria Stormweaver (Updated)",
+    "is_public": true
+  }
+}
