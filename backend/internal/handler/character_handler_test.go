@@ -75,6 +75,7 @@ func (s *spyCharacterUsecase) Delete(_ context.Context, _, _ string) error {
 
 func setupEcho(userID string) *echo.Echo {
 	e := echo.New()
+	e.Validator = handler.NewEchoValidator()
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			c.Set(string(middleware.AuthenticatedUserIDContextKey), userID)
@@ -127,7 +128,17 @@ func TestCreateCharacter_MissingName(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusBadRequest, rec.Code)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got.Errors, 1)
+	require.Equal(t, "name", got.Errors[0].Field)
+	require.Equal(t, "name is required", got.Errors[0].Message)
 }
 
 func TestCreateCharacter_MalformedJSON(t *testing.T) {
@@ -278,6 +289,48 @@ func TestUpdateCharacter_MalformedJSON(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUpdateCharacter_EmptyName(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho("user-1")
+	e.PATCH("/characters/:id", h.UpdateCharacter)
+
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{"name":""}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got.Errors, 1)
+	require.Equal(t, "name", got.Errors[0].Field)
+	require.Equal(t, "name must not be empty", got.Errors[0].Message)
+}
+
+func TestUpdateCharacter_AbsentName(t *testing.T) {
+	character := makeCharacter()
+	spy := &spyCharacterUsecase{updateResult: character}
+	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho("user-1")
+	e.PATCH("/characters/:id", h.UpdateCharacter)
+
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, spy.lastUpdateParams.Name)
 }
 
 // --- DeleteCharacter ---

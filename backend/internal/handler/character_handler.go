@@ -32,14 +32,14 @@ func NewCharacterHandler(characterUsecase CharacterUsecase, tel *observability.T
 }
 
 type createCharacterRequest struct {
-	Name            string  `json:"name"`
+	Name            string  `json:"name" validate:"required"`
 	HeroImageR2Path *string `json:"hero_image_r2_path"`
 	Biography       *string `json:"biography"`
 	IsPublic        bool    `json:"is_public"`
 }
 
 type updateCharacterRequest struct {
-	Name            *string `json:"name"`
+	Name            *string `json:"name" validate:"omitempty,min=1"`
 	HeroImageR2Path *string `json:"hero_image_r2_path"`
 	Biography       *string `json:"biography"`
 	IsPublic        *bool   `json:"is_public"`
@@ -63,8 +63,8 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
-	if req.Name == "" {
-		return echo.NewHTTPError(http.StatusBadRequest, "name is required")
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
 	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
@@ -144,6 +144,9 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 	var req updateCharacterRequest
 	if err := c.Bind(&req); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
 	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
