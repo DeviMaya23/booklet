@@ -176,6 +176,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, tel)
 
+	imageRepository := repository.NewImageRepository(db)
+	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
+	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
@@ -193,4 +197,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	protected.PATCH("/characters/:id", characterHandler.UpdateCharacter)
 	protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
 
+	protected.GET("/images", imageHandler.ListImages)
+	protected.GET("/images/:id", imageHandler.GetImageByID)
+	protected.PATCH("/images/:id", imageHandler.UpdateImage)
+	protected.DELETE("/images/:id", imageHandler.DeleteImage)
 }

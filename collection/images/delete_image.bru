@@ -1,0 +1,19 @@
+meta {
+  name: Delete Image
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/images/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{imageId}}
+}
+
+vars:pre-request {
+  imageId: 68b209d1-0c58-47e2-8baf-bfbe1c70e2be
+}

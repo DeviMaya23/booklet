@@ -1,0 +1,29 @@
+meta {
+  name: Update Image
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/images/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{imageId}}
+}
+
+body:json {
+  {
+    "artist_name": "Airhy",
+    "artist_link": "https://example.com",
+    "notes": "Splash image",
+    "title": "New title",
+    "character_ids": ["b21164c1-acb0-45c6-9cf3-d9e0e722b984"]
+  }
+}
+
+vars:pre-request {
+  imageId: 68b209d1-0c58-47e2-8baf-bfbe1c70e2be
+}
