@@ -88,6 +88,7 @@ func main() {
 
 func initEcho(cfg *config.Config) *echo.Echo {
 	e := echo.New()
+	e.Validator = httphandler.NewEchoValidator()
 	e.Use(echomiddleware.Recover())
 	e.Use(echomiddleware.CORSWithConfig(echomiddleware.CORSConfig{
 		AllowOrigins: cfg.CORSAllowedOrigins,

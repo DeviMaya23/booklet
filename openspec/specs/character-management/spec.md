@@ -34,7 +34,7 @@ An authenticated user SHALL be able to create a character with a required name a
 
 #### Scenario: Missing required name
 - **WHEN** an authenticated user sends `POST /characters` with no name field (or empty string)
-- **THEN** the system returns 400
+- **THEN** the system returns 422 with a structured validation error
 
 #### Scenario: Malformed request body
 - **WHEN** an authenticated user sends `POST /characters` with invalid JSON
@@ -90,6 +90,19 @@ An authenticated user SHALL be able to partially update a character they own usi
 #### Scenario: Malformed request body
 - **WHEN** an authenticated user sends `PATCH /characters/:id` with invalid JSON
 - **THEN** the system returns 400
+
+---
+
+### Requirement: Update character name must not be empty if provided
+If the `name` field is present in a `PATCH /characters/:id` request body, it SHALL contain at least one character. An explicitly empty string SHALL be rejected.
+
+#### Scenario: Empty name on update returns 422
+- **WHEN** an authenticated user sends `PATCH /characters/:id` with `"name": ""`
+- **THEN** the system returns 422 with a structured validation error for the `name` field
+
+#### Scenario: Absent name on update is accepted
+- **WHEN** an authenticated user sends `PATCH /characters/:id` without a `name` field
+- **THEN** the system returns 200 and the character's existing name is unchanged
 
 ---
 
