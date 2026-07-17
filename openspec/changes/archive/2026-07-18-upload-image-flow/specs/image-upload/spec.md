@@ -44,19 +44,19 @@ Response body:
 
 #### Scenario: Missing mime_type
 - **WHEN** an authenticated user sends `POST /images` without `mime_type`
-- **THEN** the system returns 400
+- **THEN** the system returns 422
 
 #### Scenario: Invalid mime_type value
 - **WHEN** an authenticated user sends `POST /images` with `mime_type` set to a value not in the allowed list (e.g. `"image/webp"` or `"application/pdf"`)
-- **THEN** the system returns 400
+- **THEN** the system returns 422
 
 #### Scenario: Invalid artist_link format
 - **WHEN** an authenticated user sends `POST /images` with `artist_link` set to a non-URL string
-- **THEN** the system returns 400
+- **THEN** the system returns 422
 
 #### Scenario: Invalid UUID in character_ids
 - **WHEN** an authenticated user sends `POST /images` with `character_ids` containing a string that is not a valid UUID
-- **THEN** the system returns 400
+- **THEN** the system returns 422
 
 #### Scenario: Malformed request body
 - **WHEN** an authenticated user sends `POST /images` with invalid JSON

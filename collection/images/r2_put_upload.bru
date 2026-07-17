@@ -1,0 +1,25 @@
+meta {
+  name: R2 PUT Upload
+  type: http
+  seq: 7
+}
+
+put {
+  url: {{presignedUrl}}
+  body: file
+  auth: none
+}
+
+headers {
+  Content-Type: {{contentType}}
+}
+
+body:file {
+  @file: {{filePath}}
+}
+
+vars:pre-request {
+  presignedUrl:
+  contentType: image/jpeg
+  filePath:
+}

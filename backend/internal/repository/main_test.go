@@ -28,13 +28,17 @@ func TestMain(m *testing.M) {
 	db, err := testutil.NewTestDB(container)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "create test db: %v\n", err)
-		container.Terminate(ctx)
+		if termErr := container.Terminate(ctx); termErr != nil {
+			fmt.Fprintf(os.Stderr, "terminate container: %v\n", termErr)
+		}
 		os.Exit(1)
 	}
 	testDB = db
 
 	code := m.Run()
 
-	container.Terminate(ctx)
+	if termErr := container.Terminate(ctx); termErr != nil {
+		fmt.Fprintf(os.Stderr, "terminate container: %v\n", termErr)
+	}
 	os.Exit(code)
 }

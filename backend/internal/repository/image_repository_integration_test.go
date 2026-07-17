@@ -20,6 +20,7 @@ func seedImage(t *testing.T, tx *gorm.DB, userID string) *domain.Image {
 		ID:          uuid.New(),
 		UserID:      userID,
 		ImageR2Path: "images/test.jpg",
+		MimeType:    "image/jpeg",
 	}
 	require.NoError(t, tx.Create(img).Error)
 	return img

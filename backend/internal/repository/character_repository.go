@@ -75,6 +75,20 @@ func (r *characterRepository) Update(ctx context.Context, id, userID string, par
 	return r.GetByID(ctx, id, userID)
 }
 
+func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []string, userID string) ([]domain.Character, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var characters []domain.Character
+	err := r.db.WithContext(ctx).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Find(&characters).Error
+	if err != nil {
+		return nil, fmt.Errorf("get characters by ids: %w", err)
+	}
+	return characters, nil
+}
+
 func (r *characterRepository) Delete(ctx context.Context, id, userID string) error {
 	result := r.db.WithContext(ctx).
 		Where("id = ? AND user_id = ?", id, userID).

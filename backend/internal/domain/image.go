@@ -10,6 +10,7 @@ type Image struct {
 	ID               uuid.UUID  `gorm:"type:uuid;primaryKey"`
 	UserID           string     `gorm:"type:text;not null;column:user_id"`
 	ImageR2Path      string     `gorm:"type:text;not null;column:image_r2_path"`
+	MimeType         string     `gorm:"type:text;not null;column:mime_type"`
 	Title            *string    `gorm:"type:text;column:title"`
 	ThumbnailR2Path  *string    `gorm:"type:text;column:thumbnail_r2_path"`
 	ArtistName       *string    `gorm:"type:text;column:artist_name"`

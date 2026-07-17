@@ -54,9 +54,9 @@ type StorageService interface {
 
 Short enough to limit the exposure window if a URL leaks, long enough for a typical client upload flow.
 
-### HealthHandler wires R2 via a `Pinger` interface
+### HealthHandler wires R2 via a `r2Storage` interface
 
-`HealthHandler` gains a second dependency: a narrow `R2Pinger` interface with a single `Ping(ctx) error` method. `*r2Storage` already implements `Ping`. This keeps the health handler testable without pulling in the full R2 client.
+`HealthHandler` gains a second dependency: a narrow `r2Storage` interface with a single `Ping(ctx) error` method. `*r2Storage` already implements `Ping`. This keeps the health handler testable without pulling in the full R2 client.
 
 ## Risks / Trade-offs
 

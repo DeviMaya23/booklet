@@ -50,18 +50,24 @@ func validationErrResponse(err error) validationErrBody {
 	for i, fe := range ve {
 		errs[i] = validationFieldError{
 			Field:   fe.Field(),
-			Message: tagMessage(fe.Field(), fe.Tag()),
+			Message: tagMessage(fe),
 		}
 	}
 	return validationErrBody{Errors: errs}
 }
 
-func tagMessage(field, tag string) string {
-	switch tag {
+func tagMessage(fe validator.FieldError) string {
+	field := fe.Field()
+	switch fe.Tag() {
 	case "required":
 		return fmt.Sprintf("%s is required", field)
 	case "min":
 		return fmt.Sprintf("%s must not be empty", field)
+	case "oneof":
+		allowed := strings.ReplaceAll(fe.Param(), " ", ", ")
+		return fmt.Sprintf("%s must be one of: %s", field, allowed)
+	case "uuid4", "uuid":
+		return fmt.Sprintf("%s must be a valid UUID", field)
 	default:
 		return fmt.Sprintf("%s failed validation", field)
 	}

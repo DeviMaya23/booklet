@@ -47,6 +47,7 @@ type characterRef struct {
 type imageResponse struct {
 	ID              string         `json:"id"`
 	ImageR2Path     string         `json:"image_r2_path"`
+	MimeType        string         `json:"mime_type"`
 	Title           *string        `json:"title"`
 	ThumbnailR2Path *string        `json:"thumbnail_r2_path"`
 	ArtistName      *string        `json:"artist_name"`
@@ -177,6 +178,7 @@ func toImageResponse(image *domain.Image) imageResponse {
 	return imageResponse{
 		ID:              image.ID.String(),
 		ImageR2Path:     image.ImageR2Path,
+		MimeType:        image.MimeType,
 		Title:           image.Title,
 		ThumbnailR2Path: image.ThumbnailR2Path,
 		ArtistName:      image.ArtistName,
