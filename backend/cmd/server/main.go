@@ -183,8 +183,9 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
 	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
 
+	transactor := repository.NewGormTransactor(db)
 	uploadRepository := repository.NewUploadRepository(db)
-	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, tel)
+	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, imageRepository, transactor, tel)
 	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)

@@ -2,7 +2,6 @@ package usecase_test
 
 import (
 	"context"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -26,29 +25,46 @@ func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, key, _ st
 }
 
 type spyUploadRepository struct {
-	pendingToReturn  *domain.PendingUpload
-	lastValidCharIDs []uuid.UUID
+	pendingToReturn *domain.PendingUpload
+	lastDeletedID   uuid.UUID
 }
 
-func (s *spyUploadRepository) CreatePendingUpload(_ context.Context, p *domain.PendingUpload) error {
-	return nil
+func (s *spyUploadRepository) Create(_ context.Context, p *domain.PendingUpload) (*domain.PendingUpload, error) {
+	return p, nil
 }
 
-func (s *spyUploadRepository) GetPendingUpload(_ context.Context, _, _ string) (*domain.PendingUpload, error) {
+func (s *spyUploadRepository) GetByID(_ context.Context, _ uuid.UUID, _ string) (*domain.PendingUpload, error) {
 	return s.pendingToReturn, nil
 }
 
-func (s *spyUploadRepository) CompleteUpload(_ context.Context, _, _ string, validCharIDs []uuid.UUID) (*domain.Image, error) {
-	s.lastValidCharIDs = validCharIDs
-	return &domain.Image{ID: uuid.New(), Characters: []domain.Character{}}, nil
+func (s *spyUploadRepository) Delete(_ context.Context, id uuid.UUID) error {
+	s.lastDeletedID = id
+	return nil
 }
 
 type spyUploadCharacterRepository struct {
 	charsToReturn []domain.Character
+	lastIDs       []uuid.UUID
 }
 
-func (s *spyUploadCharacterRepository) GetByIDsAndUserID(_ context.Context, _ []string, _ string) ([]domain.Character, error) {
+func (s *spyUploadCharacterRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, _ string) ([]domain.Character, error) {
+	s.lastIDs = ids
 	return s.charsToReturn, nil
+}
+
+type spyUploadImageRepository struct {
+	lastImage *domain.Image
+}
+
+func (s *spyUploadImageRepository) Create(_ context.Context, image *domain.Image) (*domain.Image, error) {
+	s.lastImage = image
+	return image, nil
+}
+
+type spyTransactor struct{}
+
+func (s *spyTransactor) InTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
 }
 
 // --- tests ---
@@ -57,8 +73,9 @@ func TestInitialUpload_R2KeyFormat(t *testing.T) {
 	storageSpy := &spyStorageService{}
 	repoSpy := &spyUploadRepository{}
 	charSpy := &spyUploadCharacterRepository{}
+	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	result, err := uc.InitialUpload(context.Background(), usecase.InitialUploadParams{
 		UserID:   "user-1",
@@ -75,58 +92,52 @@ func TestInitialUpload_R2KeyFormat(t *testing.T) {
 	require.True(t, strings.HasSuffix(storageSpy.lastKey, expectedSuffix),
 		"expected key to end with %q, got %q", expectedSuffix, storageSpy.lastKey)
 
-	// The middle segment should be a valid UUID
 	middle := storageSpy.lastKey[len(expectedPrefix) : len(storageSpy.lastKey)-len(expectedSuffix)]
 	_, err = uuid.Parse(middle)
 	require.NoError(t, err, "expected UUID segment in key, got %q", middle)
 }
 
 func TestCompleteUpload_SomeCharsValid(t *testing.T) {
-	charID1 := uuid.New()
-	charID2 := uuid.New()
+	charID1, charID2 := uuid.New(), uuid.New()
 
 	repoSpy := &spyUploadRepository{
 		pendingToReturn: &domain.PendingUpload{
 			ID:           uuid.New(),
-			CharacterIDs: []string{charID1.String(), charID2.String()},
+			CharacterIDs: []uuid.UUID{charID1, charID2},
 		},
 	}
 	charSpy := &spyUploadCharacterRepository{
-		// Only charID1 is valid/owned
-		charsToReturn: []domain.Character{
-			{ID: charID1, UserID: "user-1", Name: fmt.Sprintf("Char %s", charID1)},
-		},
+		charsToReturn: []domain.Character{{ID: charID1}},
 	}
-	storageSpy := &spyStorageService{}
+	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	_, err := uc.CompleteUpload(context.Background(), uuid.NewString(), "user-1")
+	err := uc.CompleteUpload(context.Background(), uuid.New(), "user-1")
 
 	require.NoError(t, err)
-	require.Len(t, repoSpy.lastValidCharIDs, 1)
-	require.Equal(t, charID1, repoSpy.lastValidCharIDs[0])
+	require.NotNil(t, imageSpy.lastImage)
+	require.Len(t, charSpy.lastIDs, 2)
+	require.Len(t, imageSpy.lastImage.Characters, 1)
+	require.Equal(t, charID1, imageSpy.lastImage.Characters[0].ID)
 }
 
 func TestCompleteUpload_AllCharsInvalid(t *testing.T) {
-	charID1 := uuid.New()
-
 	repoSpy := &spyUploadRepository{
 		pendingToReturn: &domain.PendingUpload{
 			ID:           uuid.New(),
-			CharacterIDs: []string{charID1.String()},
+			CharacterIDs: []uuid.UUID{uuid.New()},
 		},
 	}
 	charSpy := &spyUploadCharacterRepository{
-		// No valid chars returned
 		charsToReturn: []domain.Character{},
 	}
-	storageSpy := &spyStorageService{}
+	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	_, err := uc.CompleteUpload(context.Background(), uuid.NewString(), "user-1")
+	err := uc.CompleteUpload(context.Background(), uuid.New(), "user-1")
 
 	require.NoError(t, err)
-	require.Empty(t, repoSpy.lastValidCharIDs)
+	require.Empty(t, imageSpy.lastImage.Characters)
 }

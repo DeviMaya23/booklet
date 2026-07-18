@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/handler/middleware"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
@@ -17,7 +16,7 @@ import (
 
 type UploadUsecase interface {
 	InitialUpload(ctx context.Context, params usecase.InitialUploadParams) (*usecase.InitialUploadResult, error)
-	CompleteUpload(ctx context.Context, pendingID, userID string) (*domain.Image, error)
+	CompleteUpload(ctx context.Context, pendingID uuid.UUID, userID string) error
 }
 
 type UploadHandler struct {
@@ -61,6 +60,12 @@ func (h *UploadHandler) InitialUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
+	charIDs := make([]uuid.UUID, 0, len(req.CharacterIDs))
+	for _, s := range req.CharacterIDs {
+		id, _ := uuid.Parse(s) // already validated as uuid4
+		charIDs = append(charIDs, id)
+	}
+
 	result, err := h.uploadUsecase.InitialUpload(ctx, usecase.InitialUploadParams{
 		UserID:       userID,
 		MimeType:     req.MimeType,
@@ -68,7 +73,7 @@ func (h *UploadHandler) InitialUpload(c echo.Context) error {
 		ArtistName:   req.ArtistName,
 		ArtistLink:   req.ArtistLink,
 		Notes:        req.Notes,
-		CharacterIDs: req.CharacterIDs,
+		CharacterIDs: charIDs,
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initiate upload")
@@ -85,8 +90,8 @@ func (h *UploadHandler) CompleteUpload(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.CompleteUpload")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid pending upload id")
 	}
 
@@ -95,13 +100,12 @@ func (h *UploadHandler) CompleteUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	image, err := h.uploadUsecase.CompleteUpload(ctx, id, userID)
-	if err != nil {
+	if err := h.uploadUsecase.CompleteUpload(ctx, id, userID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "pending upload not found")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to complete upload")
 	}
 
-	return c.JSON(http.StatusCreated, toImageResponse(image))
+	return c.NoContent(http.StatusCreated)
 }

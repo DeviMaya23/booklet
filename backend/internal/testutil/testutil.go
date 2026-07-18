@@ -62,7 +62,7 @@ func SetupPostgresContainer(ctx context.Context) (*PostgresContainer, error) {
 		_ = inner.Terminate(ctx)
 		return nil, fmt.Errorf("create migrator: %w", err)
 	}
-	defer m.Close()
+	defer func() { _, _ = m.Close() }()
 
 	if err := m.Up(); err != nil && err != migrate.ErrNoChange {
 		_ = inner.Terminate(ctx)

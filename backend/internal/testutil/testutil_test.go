@@ -12,7 +12,7 @@ func TestSetupPostgresContainer(t *testing.T) {
 
 	container, err := SetupPostgresContainer(ctx)
 	require.NoError(t, err)
-	defer container.Terminate(ctx)
+	defer func() { _ = container.Terminate(ctx) }()
 
 	db, err := NewTestDB(container)
 	require.NoError(t, err)

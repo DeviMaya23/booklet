@@ -18,7 +18,7 @@ The `pending_upload` table SHALL use the following schema:
 - `artist_name` — `text`, nullable
 - `artist_link` — `text`, nullable
 - `notes` — `text`, nullable
-- `character_ids` — `jsonb`, not null, defaults to `'[]'` — stores raw character UUID strings; not validated at this stage
+- `character_ids` — `jsonb`, not null, defaults to `'[]'` — stores character UUIDs; typed as []uuid.UUID in the domain model, serialized as a JSON string array
 - `created_at` — `timestamptz`, not null
 
 #### Scenario: pending_upload row created on InitialUpload
@@ -73,11 +73,11 @@ Response body:
 ---
 
 ### Requirement: CompleteUpload
-An authenticated user SHALL be able to complete an in-progress upload by calling `POST /images/:id/complete`, where `:id` is the `pending_upload` UUID returned by InitialUpload. The system SHALL, in a single database transaction: validate which of the stored character IDs belong to the user (silently dropping any that do not), delete the `pending_upload` row, and insert a new row into `images`. The response SHALL be the created image object using the existing image response shape.
+An authenticated user SHALL be able to complete an in-progress upload by calling `POST /images/:id/complete`, where `:id` is the `pending_upload` UUID returned by InitialUpload. The system SHALL, in a single database transaction: validate which of the stored character IDs belong to the user (silently dropping any that do not), delete the `pending_upload` row, and insert a new row into `images`. The response SHALL be 201 with no body.
 
 #### Scenario: Successful CompleteUpload
 - **WHEN** an authenticated user sends `POST /images/:id/complete` for a pending upload they own
-- **THEN** the system returns 201 with a full image object; the `pending_upload` row is deleted; a new `images` row exists with the same `r2_key` as `image_r2_path`, and `mime_type` from the pending upload
+- **THEN** the system returns 201 with no body; the `pending_upload` row is deleted; a new `images` row exists with the same `r2_key` as `image_r2_path`, and `mime_type` from the pending upload
 
 #### Scenario: Character IDs silently filtered
 - **WHEN** the pending_upload contains character IDs where some belong to the user and some do not

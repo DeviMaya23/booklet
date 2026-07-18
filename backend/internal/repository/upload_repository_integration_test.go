@@ -27,7 +27,7 @@ func seedPendingUpload(t *testing.T, tx *gorm.DB, userID string) *domain.Pending
 	return p
 }
 
-func TestUploadRepository_CreatePendingUpload(t *testing.T) {
+func TestUploadRepository_Create(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
@@ -39,62 +39,65 @@ func TestUploadRepository_CreatePendingUpload(t *testing.T) {
 		MimeType: "image/jpeg",
 	}
 
-	err := repo.CreatePendingUpload(context.Background(), p)
+	got, err := repo.Create(context.Background(), p)
 
 	require.NoError(t, err)
-	var got domain.PendingUpload
-	require.NoError(t, tx.First(&got, "id = ?", p.ID).Error)
+	require.NotNil(t, got)
 	assert.Equal(t, p.ID, got.ID)
 	assert.Equal(t, "user_1", got.UserID)
 	assert.Equal(t, "users/user_1/images/abc.jpg", got.R2Key)
 	assert.Equal(t, "image/jpeg", got.MimeType)
+
+	var fromDB domain.PendingUpload
+	require.NoError(t, tx.First(&fromDB, "id = ?", p.ID).Error)
+	assert.Equal(t, p.ID, fromDB.ID)
 }
 
-func TestUploadRepository_CompleteUpload_Success(t *testing.T) {
+func TestUploadRepository_GetByID_Success(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	char := seedCharacter(t, tx, "user_1")
 	p := seedPendingUpload(t, tx, "user_1")
 
-	image, err := repo.CompleteUpload(context.Background(), p.ID.String(), "user_1", []uuid.UUID{char.ID})
+	got, err := repo.GetByID(context.Background(), p.ID, "user_1")
 
 	require.NoError(t, err)
-	require.NotNil(t, image)
-
-	// pending_upload should be deleted
-	var pending domain.PendingUpload
-	err = tx.First(&pending, "id = ?", p.ID).Error
-	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
-
-	// image should exist with correct fields
-	assert.Equal(t, "user_1", image.UserID)
-	assert.Equal(t, p.R2Key, image.ImageR2Path)
-	assert.Equal(t, "image/jpeg", image.MimeType)
-
-	// character should be associated
-	require.Len(t, image.Characters, 1)
-	assert.Equal(t, char.ID, image.Characters[0].ID)
+	require.NotNil(t, got)
+	assert.Equal(t, p.ID, got.ID)
+	assert.Equal(t, p.R2Key, got.R2Key)
 }
 
-func TestUploadRepository_CompleteUpload_WrongUser(t *testing.T) {
+func TestUploadRepository_GetByID_WrongUser(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
 	p := seedPendingUpload(t, tx, "user_1")
 
-	_, err := repo.CompleteUpload(context.Background(), p.ID.String(), "user_2", []uuid.UUID{})
+	_, err := repo.GetByID(context.Background(), p.ID, "user_2")
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "expected ErrRecordNotFound, got %v", err)
 }
 
-func TestUploadRepository_CompleteUpload_NotFound(t *testing.T) {
+func TestUploadRepository_GetByID_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	_, err := repo.CompleteUpload(context.Background(), uuid.NewString(), "user_1", []uuid.UUID{})
+	_, err := repo.GetByID(context.Background(), uuid.New(), "user_1")
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "expected ErrRecordNotFound, got %v", err)
+}
+
+func TestUploadRepository_Delete(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewUploadRepository(tx)
+
+	p := seedPendingUpload(t, tx, "user_1")
+
+	err := repo.Delete(context.Background(), p.ID)
+
+	require.NoError(t, err)
+	var fromDB domain.PendingUpload
+	assert.ErrorIs(t, tx.First(&fromDB, "id = ?", p.ID).Error, gorm.ErrRecordNotFound)
 }

@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/handler"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
@@ -24,16 +23,15 @@ type spyUploadUsecase struct {
 	initialUploadResult *usecase.InitialUploadResult
 	initialUploadErr    error
 
-	completeUploadResult *domain.Image
-	completeUploadErr    error
+	completeUploadErr error
 }
 
 func (s *spyUploadUsecase) InitialUpload(_ context.Context, _ usecase.InitialUploadParams) (*usecase.InitialUploadResult, error) {
 	return s.initialUploadResult, s.initialUploadErr
 }
 
-func (s *spyUploadUsecase) CompleteUpload(_ context.Context, _, _ string) (*domain.Image, error) {
-	return s.completeUploadResult, s.completeUploadErr
+func (s *spyUploadUsecase) CompleteUpload(_ context.Context, _ uuid.UUID, _ string) error {
+	return s.completeUploadErr
 }
 
 // --- InitialUpload ---
@@ -116,14 +114,7 @@ func TestInitialUpload_MalformedJSON(t *testing.T) {
 // --- CompleteUpload ---
 
 func TestCompleteUpload_HappyPath(t *testing.T) {
-	image := &domain.Image{
-		ID:          uuid.New(),
-		UserID:      "user-1",
-		ImageR2Path: "users/user-1/images/abc.jpg",
-		MimeType:    "image/jpeg",
-		Characters:  []domain.Character{},
-	}
-	spy := &spyUploadUsecase{completeUploadResult: image}
+	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho("user-1")
@@ -134,10 +125,7 @@ func TestCompleteUpload_HappyPath(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusCreated, rec.Code)
-	var got map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Equal(t, image.ID.String(), got["id"])
-	require.Equal(t, "image/jpeg", got["mime_type"])
+	require.Empty(t, rec.Body.Bytes())
 }
 
 func TestCompleteUpload_NotFound(t *testing.T) {

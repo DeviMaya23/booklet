@@ -18,9 +18,16 @@ func NewImageRepository(db *gorm.DB) *imageRepository {
 	return &imageRepository{db: db}
 }
 
+func (r *imageRepository) Create(ctx context.Context, image *domain.Image) (*domain.Image, error) {
+	if err := dbFromContext(ctx, r.db).Create(image).Error; err != nil {
+		return nil, fmt.Errorf("insert image: %w", err)
+	}
+	return image, nil
+}
+
 func (r *imageRepository) GetByID(ctx context.Context, id, userID string) (*domain.Image, error) {
 	var image domain.Image
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&image).Error
@@ -32,7 +39,7 @@ func (r *imageRepository) GetByID(ctx context.Context, id, userID string) (*doma
 
 func (r *imageRepository) List(ctx context.Context, userID string) ([]*domain.Image, error) {
 	var images []*domain.Image
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -45,7 +52,7 @@ func (r *imageRepository) List(ctx context.Context, userID string) ([]*domain.Im
 
 func (r *imageRepository) Update(ctx context.Context, id, userID string, params usecase.UpdateImageParams) (*domain.Image, error) {
 	var image domain.Image
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&image).Error
 	if err != nil {
@@ -70,7 +77,7 @@ func (r *imageRepository) Update(ctx context.Context, id, userID string, params 
 	}
 
 	if len(updates) > 0 {
-		if err := r.db.WithContext(ctx).Model(&image).Updates(updates).Error; err != nil {
+		if err := dbFromContext(ctx, r.db).Model(&image).Updates(updates).Error; err != nil {
 			return nil, fmt.Errorf("update image: %w", err)
 		}
 	}
@@ -79,7 +86,7 @@ func (r *imageRepository) Update(ctx context.Context, id, userID string, params 
 		charIDs := *params.CharacterIDs
 		if len(charIDs) > 0 {
 			var count int64
-			r.db.WithContext(ctx).Model(&domain.Character{}).
+			dbFromContext(ctx, r.db).Model(&domain.Character{}).
 				Where("id IN ? AND user_id = ?", charIDs, userID).
 				Count(&count)
 			if count != int64(len(charIDs)) {
@@ -92,7 +99,7 @@ func (r *imageRepository) Update(ctx context.Context, id, userID string, params 
 			parsed, _ := uuid.Parse(cid)
 			characters[i] = domain.Character{ID: parsed}
 		}
-		if err := r.db.WithContext(ctx).Model(&image).Association("Characters").Replace(characters); err != nil {
+		if err := dbFromContext(ctx, r.db).Model(&image).Association("Characters").Replace(characters); err != nil {
 			return nil, fmt.Errorf("replace characters: %w", err)
 		}
 	}
@@ -101,7 +108,7 @@ func (r *imageRepository) Update(ctx context.Context, id, userID string, params 
 }
 
 func (r *imageRepository) Delete(ctx context.Context, id, userID string) error {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.Image{})
 	if result.Error != nil {
