@@ -22,13 +22,14 @@ import (
 )
 
 type characterResponse struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	HeroImageR2Path *string `json:"hero_image_r2_path"`
-	Biography       *string `json:"biography"`
-	IsPublic        bool    `json:"is_public"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	HeroImageR2Path *string  `json:"hero_image_r2_path"`
+	Biography       *string  `json:"biography"`
+	IsPublic        bool     `json:"is_public"`
+	FolderIDs       []string `json:"folder_ids"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
 }
 
 // spyCharacterUsecase is a value-return spy for CharacterUsecase.
@@ -114,6 +115,7 @@ func TestCreateCharacter_HappyPath(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, character.ID.String(), got.ID)
 	require.Equal(t, "Aria", spy.lastCreateParams.Name)
+	require.Equal(t, []string{}, got.FolderIDs)
 }
 
 func TestCreateCharacter_MissingName(t *testing.T) {
@@ -259,6 +261,7 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 	var got characterResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, character.ID.String(), got.ID)
+	require.Equal(t, []string{}, got.FolderIDs)
 }
 
 func TestUpdateCharacter_NotFound(t *testing.T) {
@@ -361,4 +364,72 @@ func TestDeleteCharacter_NotFound(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
+	character := makeCharacter()
+	spy := &spyCharacterUsecase{createResult: character}
+	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho("user-1")
+	e.POST("/characters", h.CreateCharacter)
+
+	folderID := uuid.New().String()
+	body := fmt.Sprintf(`{"name":"Aria","folder_ids":["%s","%s"]}`, folderID, folderID)
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.NotNil(t, spy.lastCreateParams.FolderIDs)
+	require.Len(t, *spy.lastCreateParams.FolderIDs, 1)
+}
+
+func TestCreateCharacter_InvalidFolderID(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho("user-1")
+	e.POST("/characters", h.CreateCharacter)
+
+	body := `{"name":"Aria","folder_ids":["not-a-uuid"]}`
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.NotEmpty(t, got.Errors)
+}
+
+func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho("user-1")
+	e.PATCH("/characters/:id", h.UpdateCharacter)
+
+	body := `{"folder_ids":["not-a-uuid"]}`
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.NotEmpty(t, got.Errors)
 }

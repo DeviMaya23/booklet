@@ -14,6 +14,7 @@ type CreateCharacterParams struct {
 	HeroImageR2Path *string
 	Biography       *string
 	IsPublic        bool
+	FolderIDs       *[]uuid.UUID
 }
 
 type characterUsecase struct {
@@ -39,6 +40,13 @@ func (u *characterUsecase) Create(ctx context.Context, userID string, params Cre
 		HeroImageR2Path: params.HeroImageR2Path,
 		Biography:       params.Biography,
 		IsPublic:        params.IsPublic,
+	}
+	if params.FolderIDs != nil {
+		folders := make([]domain.CharacterFolder, len(*params.FolderIDs))
+		for i, id := range *params.FolderIDs {
+			folders[i] = domain.CharacterFolder{CharacterID: character.ID, FolderID: id}
+		}
+		character.Folders = folders
 	}
 	if err := u.characterRepo.Create(ctx, character); err != nil {
 		span.RecordError(err)

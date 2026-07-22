@@ -32,27 +32,30 @@ func NewCharacterHandler(characterUsecase CharacterUsecase, tel *observability.T
 }
 
 type createCharacterRequest struct {
-	Name            string  `json:"name" validate:"required"`
-	HeroImageR2Path *string `json:"hero_image_r2_path"`
-	Biography       *string `json:"biography"`
-	IsPublic        bool    `json:"is_public"`
+	Name            string    `json:"name" validate:"required"`
+	HeroImageR2Path *string   `json:"hero_image_r2_path"`
+	Biography       *string   `json:"biography"`
+	IsPublic        bool      `json:"is_public"`
+	FolderIDs       *[]string `json:"folder_ids" validate:"omitempty,dive,uuid4"`
 }
 
 type updateCharacterRequest struct {
-	Name            *string `json:"name" validate:"omitempty,min=1"`
-	HeroImageR2Path *string `json:"hero_image_r2_path"`
-	Biography       *string `json:"biography"`
-	IsPublic        *bool   `json:"is_public"`
+	Name            *string   `json:"name" validate:"omitempty,min=1"`
+	HeroImageR2Path *string   `json:"hero_image_r2_path"`
+	Biography       *string   `json:"biography"`
+	IsPublic        *bool     `json:"is_public"`
+	FolderIDs       *[]string `json:"folder_ids" validate:"omitempty,dive,uuid4"`
 }
 
 type characterResponse struct {
-	ID              string  `json:"id"`
-	Name            string  `json:"name"`
-	HeroImageR2Path *string `json:"hero_image_r2_path"`
-	Biography       *string `json:"biography"`
-	IsPublic        bool    `json:"is_public"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	HeroImageR2Path *string  `json:"hero_image_r2_path"`
+	Biography       *string  `json:"biography"`
+	IsPublic        bool     `json:"is_public"`
+	FolderIDs       []string `json:"folder_ids"`
+	CreatedAt       string   `json:"created_at"`
+	UpdatedAt       string   `json:"updated_at"`
 }
 
 func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
@@ -77,6 +80,7 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 		HeroImageR2Path: req.HeroImageR2Path,
 		Biography:       req.Biography,
 		IsPublic:        req.IsPublic,
+		FolderIDs:       parseFolderIDs(req.FolderIDs),
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create character")
@@ -159,6 +163,7 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 		HeroImageR2Path: req.HeroImageR2Path,
 		Biography:       req.Biography,
 		IsPublic:        req.IsPublic,
+		FolderIDs:       parseFolderIDs(req.FolderIDs),
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -195,13 +200,34 @@ func (h *CharacterHandler) DeleteCharacter(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+func parseFolderIDs(strs *[]string) *[]uuid.UUID {
+	if strs == nil {
+		return nil
+	}
+	seen := make(map[uuid.UUID]struct{}, len(*strs))
+	ids := make([]uuid.UUID, 0, len(*strs))
+	for _, s := range *strs {
+		id := uuid.MustParse(s)
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	return &ids
+}
+
 func toCharacterResponse(character *domain.Character) characterResponse {
+	folderIDs := make([]string, len(character.Folders))
+	for i, f := range character.Folders {
+		folderIDs[i] = f.FolderID.String()
+	}
 	return characterResponse{
 		ID:              character.ID.String(),
 		Name:            character.Name,
 		HeroImageR2Path: character.HeroImageR2Path,
 		Biography:       character.Biography,
 		IsPublic:        character.IsPublic,
+		FolderIDs:       folderIDs,
 		CreatedAt:       character.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:       character.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

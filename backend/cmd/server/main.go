@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/devi/booklet/internal/bookleaf"
 	httphandler "github.com/devi/booklet/internal/handler"
 	"github.com/devi/booklet/internal/platform/config"
 	"github.com/devi/booklet/internal/platform/observability"
@@ -172,6 +173,10 @@ func initDB(cfg *config.Config, logger *zap.Logger) *gorm.DB {
 func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) {
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
 
+	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
+	folderUsecase := usecase.NewFolderUsecase(bookleafClient)
+	folderHandler := httphandler.NewFolderHandler(folderUsecase)
+
 	userRepository := repository.NewUserRepository(db)
 	userUsecase := usecase.NewUserUsecase(userRepository, tel)
 
@@ -204,6 +209,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	protected.GET("/characters/:id", characterHandler.GetCharacterByID)
 	protected.PATCH("/characters/:id", characterHandler.UpdateCharacter)
 	protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
+
+	protected.GET("/folders", folderHandler.ListFolders)
 
 	protected.GET("/images", imageHandler.ListImages)
 	protected.GET("/images/:id", imageHandler.GetImageByID)
