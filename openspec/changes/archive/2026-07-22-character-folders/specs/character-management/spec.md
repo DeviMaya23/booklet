@@ -1,12 +1,4 @@
-# Spec: Character Management
-
-## Purpose
-
-Defines the rules for creating, reading, updating, and deleting characters. Each character is owned by an authenticated user, and all operations are scoped to that owner.
-
----
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Character data model
 The `characters` table SHALL use the following schema:
@@ -122,38 +114,3 @@ Each value in `folder_ids` SHALL be a valid UUID (format validation only).
 #### Scenario: Malformed request body
 - **WHEN** an authenticated user sends `PATCH /characters/:id` with invalid JSON
 - **THEN** the system returns 400
-
----
-
-### Requirement: Update character name must not be empty if provided
-If the `name` field is present in a `PATCH /characters/:id` request body, it SHALL contain at least one character. An explicitly empty string SHALL be rejected.
-
-#### Scenario: Empty name on update returns 422
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with `"name": ""`
-- **THEN** the system returns 422 with a structured validation error for the `name` field
-
-#### Scenario: Absent name on update is accepted
-- **WHEN** an authenticated user sends `PATCH /characters/:id` without a `name` field
-- **THEN** the system returns 200 and the character's existing name is unchanged
-
----
-
-### Requirement: Delete character
-An authenticated user SHALL be able to soft-delete a character they own. Soft-deleted characters SHALL be excluded from all standard list and get queries.
-
-#### Scenario: Successful deletion
-- **WHEN** an authenticated user sends `DELETE /characters/:id` for a character they own
-- **THEN** the system returns 204 and the character is no longer returned by list or get endpoints
-
-#### Scenario: Character not found or not owned
-- **WHEN** an authenticated user sends `DELETE /characters/:id` for a character that does not exist or belongs to another user
-- **THEN** the system returns 404
-
----
-
-### Requirement: Ownership isolation
-The system SHALL ensure that a user cannot read or modify characters belonging to another user. Ownership checks SHALL be enforced at the database layer by scoping all queries to the authenticated user's ID.
-
-#### Scenario: Cross-user access attempt
-- **WHEN** user B attempts to get, update, or delete a character owned by user A
-- **THEN** the system returns 404 (indistinguishable from not found)

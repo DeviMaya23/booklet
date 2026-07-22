@@ -73,6 +73,13 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id, _ string, params
 	if params.IsPublic != nil {
 		c.IsPublic = *params.IsPublic
 	}
+	if params.FolderIDs != nil {
+		folders := make([]domain.CharacterFolder, len(*params.FolderIDs))
+		for i, id := range *params.FolderIDs {
+			folders[i] = domain.CharacterFolder{CharacterID: parsed, FolderID: id}
+		}
+		c.Folders = folders
+	}
 	return c, nil
 }
 

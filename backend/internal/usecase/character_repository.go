@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/devi/booklet/internal/domain"
+	"github.com/google/uuid"
 )
 
 type UpdateCharacterParams struct {
@@ -11,6 +12,7 @@ type UpdateCharacterParams struct {
 	HeroImageR2Path *string
 	Biography       *string
 	IsPublic        *bool
+	FolderIDs       *[]uuid.UUID
 }
 
 type CharacterRepository interface {

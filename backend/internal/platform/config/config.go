@@ -52,12 +52,18 @@ type MaintenanceConfig struct {
 	BypassToken string
 }
 
+type BookleafConfig struct {
+	Host           string
+	InternalSecret string
+}
+
 type Config struct {
 	Kinde              KindeConfig
 	DB                 DBConfig
 	R2                 R2Config
 	Obs                ObsConfig
 	Maintenance        MaintenanceConfig
+	Bookleaf           BookleafConfig
 	Port               string
 	CORSAllowedOrigins []string
 }
@@ -153,6 +159,16 @@ func loadFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	bookleafHost, err := requireEnv("BOOKLEAF_HOST")
+	if err != nil {
+		return nil, err
+	}
+
+	bookleafInternalSecret, err := requireEnv("BOOKLEAF_INTERNAL_SECRET")
+	if err != nil {
+		return nil, err
+	}
+
 	otelEnabled := envWithDefault("OTEL_ENABLED", "false") == "true"
 	otelExporter := envWithDefault("OTEL_EXPORTER", "")
 	otelMetricsExporter := envWithDefault("OTEL_METRICS_EXPORTER", "")
@@ -205,7 +221,12 @@ func loadFromEnv() (*Config, error) {
 		Maintenance: MaintenanceConfig{
 			Enabled:     maintenanceEnabled,
 			BypassToken: maintenanceBypassToken,
-		}, Port: port,
+		},
+		Bookleaf: BookleafConfig{
+			Host:           bookleafHost,
+			InternalSecret: bookleafInternalSecret,
+		},
+		Port: port,
 		CORSAllowedOrigins: strings.Split(corsAllowedOriginsRaw, ","),
 	}, nil
 }
