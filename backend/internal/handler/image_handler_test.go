@@ -23,6 +23,7 @@ import (
 type imageResponse struct {
 	ID              string          `json:"id"`
 	ImageR2Path     string          `json:"image_r2_path"`
+	MimeType        string          `json:"mime_type"`
 	Title           *string         `json:"title"`
 	ThumbnailR2Path *string         `json:"thumbnail_r2_path"`
 	ArtistName      *string         `json:"artist_name"`
@@ -74,6 +75,7 @@ func makeImage() *domain.Image {
 		ID:          uuid.New(),
 		UserID:      "user-1",
 		ImageR2Path: "images/abc.jpg",
+		MimeType:    "image/jpeg",
 		Characters:  []domain.Character{},
 		CreatedAt:   time.Now(),
 		UpdatedAt:   time.Now(),

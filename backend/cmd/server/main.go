@@ -13,6 +13,7 @@ import (
 	"github.com/devi/booklet/internal/platform/config"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/repository"
+	"github.com/devi/booklet/internal/storage"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
@@ -169,6 +170,8 @@ func initDB(cfg *config.Config, logger *zap.Logger) *gorm.DB {
 }
 
 func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) {
+	r2Storage := storage.NewR2Storage(cfg.R2, tel)
+
 	userRepository := repository.NewUserRepository(db)
 	userUsecase := usecase.NewUserUsecase(userRepository, tel)
 
@@ -180,12 +183,17 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
 	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
 
+	transactor := repository.NewGormTransactor(db)
+	uploadRepository := repository.NewUploadRepository(db)
+	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, imageRepository, transactor, tel)
+	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
 	}
 
-	healthHandler := httphandler.NewHealthHandler(db)
+	healthHandler := httphandler.NewHealthHandler(db, r2Storage)
 
 	e.GET("/health", healthHandler.GetHealth)
 	protected := e.Group("")
@@ -201,4 +209,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	protected.GET("/images/:id", imageHandler.GetImageByID)
 	protected.PATCH("/images/:id", imageHandler.UpdateImage)
 	protected.DELETE("/images/:id", imageHandler.DeleteImage)
+	protected.POST("/images", uploadHandler.InitialUpload)
+	protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
 }

@@ -1,0 +1,22 @@
+meta {
+  name: Initial Upload
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/images
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "mime_type": "image/jpeg",
+    "title": "Test Image",
+    "artist_name": "Test Artist",
+    "artist_link": "https://example.com",
+    "notes": "Test notes",
+    "character_ids": []
+  }
+}

@@ -6,6 +6,7 @@ import (
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -18,12 +19,12 @@ func NewCharacterRepository(db *gorm.DB) *characterRepository {
 }
 
 func (r *characterRepository) Create(ctx context.Context, character *domain.Character) error {
-	return r.db.WithContext(ctx).Create(character).Error
+	return dbFromContext(ctx, r.db).Create(character).Error
 }
 
 func (r *characterRepository) GetByID(ctx context.Context, id, userID string) (*domain.Character, error) {
 	var character domain.Character
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&character).Error
 	if err != nil {
@@ -34,7 +35,7 @@ func (r *characterRepository) GetByID(ctx context.Context, id, userID string) (*
 
 func (r *characterRepository) List(ctx context.Context, userID string) ([]*domain.Character, error) {
 	var characters []*domain.Character
-	err := r.db.WithContext(ctx).
+	err := dbFromContext(ctx, r.db).
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&characters).Error
@@ -60,7 +61,7 @@ func (r *characterRepository) Update(ctx context.Context, id, userID string, par
 	}
 
 	if len(updates) > 0 {
-		result := r.db.WithContext(ctx).
+		result := dbFromContext(ctx, r.db).
 			Model(&domain.Character{}).
 			Where("id = ? AND user_id = ?", id, userID).
 			Updates(updates)
@@ -75,8 +76,22 @@ func (r *characterRepository) Update(ctx context.Context, id, userID string, par
 	return r.GetByID(ctx, id, userID)
 }
 
+func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID string) ([]domain.Character, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var characters []domain.Character
+	err := dbFromContext(ctx, r.db).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Find(&characters).Error
+	if err != nil {
+		return nil, fmt.Errorf("get characters by ids: %w", err)
+	}
+	return characters, nil
+}
+
 func (r *characterRepository) Delete(ctx context.Context, id, userID string) error {
-	result := r.db.WithContext(ctx).
+	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.Character{})
 	if result.Error != nil {

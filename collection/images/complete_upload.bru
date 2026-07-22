@@ -1,0 +1,19 @@
+meta {
+  name: Complete Upload
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/images/:id/complete
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{pendingUploadId}}
+}
+
+vars:pre-request {
+  pendingUploadId: 26092af9-8097-4e8b-9c88-839d4a67f115
+}

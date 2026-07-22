@@ -12,24 +12,27 @@ import (
 
 const healthProbeTimeout = 3 * time.Second
 
-type HealthHandler struct {
-	db *gorm.DB
-	// store usecase.StorageService
+type r2Storage interface {
+	Ping(ctx context.Context) error
+}
 
+type HealthHandler struct {
+	db      *gorm.DB
+	store   r2Storage
 	dbProbe func(ctx context.Context) error
-	// r2Probe func(ctx context.Context) error
+	r2Probe func(ctx context.Context) error
 }
 
 type healthResponse struct {
 	Status string `json:"status"`
 	DB     string `json:"db"`
-	// R2     string `json:"r2"`
+	R2     string `json:"r2"`
 }
 
-func NewHealthHandler(db *gorm.DB) *HealthHandler {
+func NewHealthHandler(db *gorm.DB, store r2Storage) *HealthHandler {
 	h := &HealthHandler{
-		db: db,
-		// store: store,
+		db:    db,
+		store: store,
 	}
 
 	h.dbProbe = func(ctx context.Context) error {
@@ -39,12 +42,12 @@ func NewHealthHandler(db *gorm.DB) *HealthHandler {
 		return h.db.WithContext(ctx).Exec("SELECT 1").Error
 	}
 
-	// h.r2Probe = func(ctx context.Context) error {
-	// 	if h.store == nil {
-	// 		return errors.New("r2 storage is not configured")
-	// 	}
-	// 	return h.store.Ping(ctx)
-	// }
+	h.r2Probe = func(ctx context.Context) error {
+		if h.store == nil {
+			return errors.New("r2 storage is not configured")
+		}
+		return h.store.Ping(ctx)
+	}
 
 	return h
 }
@@ -56,7 +59,7 @@ func (h *HealthHandler) GetHealth(c echo.Context) error {
 	res := healthResponse{
 		Status: "ok",
 		DB:     "ok",
-		// R2:     "ok",
+		R2:     "ok",
 	}
 
 	if err := h.dbProbe(ctx); err != nil {
@@ -64,10 +67,10 @@ func (h *HealthHandler) GetHealth(c echo.Context) error {
 		res.DB = err.Error()
 	}
 
-	// if err := h.r2Probe(ctx); err != nil {
-	// 	res.Status = "degraded"
-	// 	res.R2 = err.Error()
-	// }
+	if err := h.r2Probe(ctx); err != nil {
+		res.Status = "degraded"
+		res.R2 = err.Error()
+	}
 
 	return c.JSON(http.StatusOK, res)
 }
