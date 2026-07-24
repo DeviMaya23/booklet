@@ -11,11 +11,14 @@ import (
 
 	"github.com/devi/booklet/internal/bookleaf"
 	httphandler "github.com/devi/booklet/internal/handler"
+	authmiddleware "github.com/devi/booklet/internal/handler/middleware"
 	"github.com/devi/booklet/internal/platform/config"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/repository"
 	"github.com/devi/booklet/internal/storage"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/devi/booklet/internal/worker"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
 	"go.opentelemetry.io/otel"
@@ -23,25 +26,37 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	otelgorm "gorm.io/plugin/opentelemetry/tracing"
-
-	authmiddleware "github.com/devi/booklet/internal/handler/middleware"
 )
 
 type server struct {
-	echo        *echo.Echo
-	logger      *zap.Logger
-	shutdownTel func(context.Context)
+	echo           *echo.Echo
+	logger         *zap.Logger
+	shutdownTel    func(context.Context)
+	riverPool      *pgxpool.Pool
+	riverClient    interface{ Stop(context.Context) error }
 }
 
 func newServer(ctx context.Context, cfg *config.Config, logger *zap.Logger) *server {
 	e := initEcho(cfg)
 	tel, shutdownTel := initTelemetry(ctx, cfg, e, logger)
 	db := initDB(cfg, logger)
-	initApp(ctx, cfg, db, tel, e, logger)
+
+	riverPool, err := pgxpool.New(ctx, cfg.DB.URL)
+	if err != nil {
+		logger.Fatal("open river pgxpool", zap.Error(err))
+	}
+
+	riverClient := initApp(ctx, cfg, db, riverPool, tel, e, logger)
+	if err := riverClient.Start(ctx); err != nil {
+		logger.Fatal("start river client", zap.Error(err))
+	}
+
 	return &server{
 		echo:        e,
 		logger:      logger,
 		shutdownTel: shutdownTel,
+		riverPool:   riverPool,
+		riverClient: riverClient,
 	}
 }
 
@@ -50,6 +65,10 @@ func (s *server) start(port string) error {
 }
 
 func (s *server) shutdown(ctx context.Context) {
+	if err := s.riverClient.Stop(ctx); err != nil {
+		s.logger.Error("river client stop", zap.Error(err))
+	}
+	s.riverPool.Close()
 	s.shutdownTel(ctx)
 	if err := s.echo.Shutdown(ctx); err != nil {
 		s.logger.Error("echo shutdown", zap.Error(err))
@@ -170,7 +189,7 @@ func initDB(cfg *config.Config, logger *zap.Logger) *gorm.DB {
 	return db
 }
 
-func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) {
+func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pgxpool.Pool, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) interface{ Start(context.Context) error; Stop(context.Context) error } {
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
 
 	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
@@ -200,6 +219,11 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 
 	healthHandler := httphandler.NewHealthHandler(db, r2Storage)
 
+	riverClient, err := worker.New(ctx, riverPool, uploadUsecase, usecase.PresignTTL, logger)
+	if err != nil {
+		logger.Fatal("init river worker", zap.Error(err))
+	}
+
 	e.GET("/health", healthHandler.GetHealth)
 	protected := e.Group("")
 	// protected.Use(authmiddleware.NewMaintenanceMiddleware(cfg.Maintenance))
@@ -218,4 +242,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, tel *observab
 	protected.DELETE("/images/:id", imageHandler.DeleteImage)
 	protected.POST("/images", uploadHandler.InitialUpload)
 	protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
+
+	return riverClient
 }

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/testutil"
@@ -100,4 +101,39 @@ func TestUploadRepository_Delete(t *testing.T) {
 	require.NoError(t, err)
 	var fromDB domain.PendingUpload
 	assert.ErrorIs(t, tx.First(&fromDB, "id = ?", p.ID).Error, gorm.ErrRecordNotFound)
+}
+
+func TestUploadRepository_ListStale_ReturnsOlderThanCutoff(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewUploadRepository(tx)
+
+	seedUser(t, tx, "user_1")
+	stale := &domain.PendingUpload{
+		ID:       uuid.New(),
+		UserID:   "user_1",
+		R2Key:    "users/user_1/images/stale.jpg",
+		MimeType: "image/jpeg",
+	}
+	require.NoError(t, tx.Create(stale).Error)
+	require.NoError(t, tx.Model(stale).Update("created_at", time.Now().Add(-2*time.Hour)).Error)
+
+	cutoff := time.Now().Add(-time.Hour)
+	got, err := repo.ListStale(context.Background(), cutoff)
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, stale.ID, got[0].ID)
+}
+
+func TestUploadRepository_ListStale_ExcludesNewerThanCutoff(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewUploadRepository(tx)
+
+	seedPendingUpload(t, tx, "user_1")
+
+	cutoff := time.Now().Add(-time.Hour)
+	got, err := repo.ListStale(context.Background(), cutoff)
+
+	require.NoError(t, err)
+	assert.Empty(t, got)
 }
