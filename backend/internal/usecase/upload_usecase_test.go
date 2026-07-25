@@ -16,7 +16,9 @@ import (
 // --- spies ---
 
 type spyStorageService struct {
-	lastKey string
+	lastKey           string
+	lastDeletedKey    string
+	deleteObjectCalls []string
 }
 
 func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
@@ -24,9 +26,18 @@ func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, key, _ st
 	return "https://example.com/presigned", nil
 }
 
+func (s *spyStorageService) DeleteObject(_ context.Context, key string) error {
+	s.lastDeletedKey = key
+	s.deleteObjectCalls = append(s.deleteObjectCalls, key)
+	return nil
+}
+
 type spyUploadRepository struct {
-	pendingToReturn *domain.PendingUpload
-	lastDeletedID   uuid.UUID
+	pendingToReturn  *domain.PendingUpload
+	staleToReturn    []*domain.PendingUpload
+	lastDeletedID    uuid.UUID
+	deletedIDs       []uuid.UUID
+	listStaleCalled  bool
 }
 
 func (s *spyUploadRepository) Create(_ context.Context, p *domain.PendingUpload) (*domain.PendingUpload, error) {
@@ -39,7 +50,13 @@ func (s *spyUploadRepository) GetByID(_ context.Context, _ uuid.UUID, _ string) 
 
 func (s *spyUploadRepository) Delete(_ context.Context, id uuid.UUID) error {
 	s.lastDeletedID = id
+	s.deletedIDs = append(s.deletedIDs, id)
 	return nil
+}
+
+func (s *spyUploadRepository) ListStale(_ context.Context, _ time.Time) ([]*domain.PendingUpload, error) {
+	s.listStaleCalled = true
+	return s.staleToReturn, nil
 }
 
 type spyUploadCharacterRepository struct {
@@ -140,4 +157,39 @@ func TestCompleteUpload_AllCharsInvalid(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Empty(t, imageSpy.lastImage.Characters)
+}
+
+func TestCleanupStaleUploads_NoStaleRecords(t *testing.T) {
+	repoSpy := &spyUploadRepository{staleToReturn: nil}
+	storageSpy := &spyStorageService{}
+	charSpy := &spyUploadCharacterRepository{}
+	imageSpy := &spyUploadImageRepository{}
+
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.CleanupStaleUploads(context.Background(), 15*time.Minute)
+
+	require.NoError(t, err)
+	require.Empty(t, storageSpy.deleteObjectCalls)
+	require.Empty(t, repoSpy.deletedIDs)
+}
+
+func TestCleanupStaleUploads_StaleRecordsExist(t *testing.T) {
+	id1, id2 := uuid.New(), uuid.New()
+	stale := []*domain.PendingUpload{
+		{ID: id1, R2Key: "users/u1/images/a.jpg"},
+		{ID: id2, R2Key: "users/u1/images/b.jpg"},
+	}
+	repoSpy := &spyUploadRepository{staleToReturn: stale}
+	storageSpy := &spyStorageService{}
+	charSpy := &spyUploadCharacterRepository{}
+	imageSpy := &spyUploadImageRepository{}
+
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.CleanupStaleUploads(context.Background(), 15*time.Minute)
+
+	require.NoError(t, err)
+	require.Equal(t, []string{"users/u1/images/a.jpg", "users/u1/images/b.jpg"}, storageSpy.deleteObjectCalls)
+	require.Equal(t, []uuid.UUID{id1, id2}, repoSpy.deletedIDs)
 }

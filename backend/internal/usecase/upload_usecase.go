@@ -14,7 +14,7 @@ import (
 	"go.uber.org/zap"
 )
 
-const presignTTL = 15 * time.Minute
+const PresignTTL = 15 * time.Minute
 
 type InitialUploadParams struct {
 	UserID       string
@@ -72,7 +72,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 	id := uuid.New()
 	ext := mimeTypeToExt(params.MimeType)
 	r2Key := fmt.Sprintf("users/%s/images/%s%s", params.UserID, id.String(), ext)
-	expiresAt := time.Now().Add(presignTTL)
+	expiresAt := time.Now().Add(PresignTTL)
 
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info("upload initiated",
 		zap.String("event", "r2.upload.started"),
@@ -82,7 +82,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 		zap.String("r2_key", r2Key),
 	)
 
-	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, params.MimeType, presignTTL)
+	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, params.MimeType, PresignTTL)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -170,6 +170,31 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 		return err
 	}
 
+	return nil
+}
+
+func (u *uploadUsecase) CleanupStaleUploads(ctx context.Context, threshold time.Duration) error {
+	cutoff := time.Now().Add(-threshold)
+	records, err := u.uploadRepo.ListStale(ctx, cutoff)
+	if err != nil {
+		return err
+	}
+
+	deleted := 0
+	for _, p := range records {
+		if err := u.storage.DeleteObject(ctx, p.R2Key); err != nil {
+			return err
+		}
+		if err := u.uploadRepo.Delete(ctx, p.ID); err != nil {
+			return err
+		}
+		deleted++
+	}
+
+	observability.LoggerFromContext(ctx, u.tel.Logger).Info("stale uploads purged",
+		zap.String("event", "r2.upload.purged"),
+		zap.Int("count", deleted),
+	)
 	return nil
 }
 
