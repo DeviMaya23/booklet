@@ -21,6 +21,10 @@ type PurgeExpiredUploadsWorker struct {
 	threshold time.Duration
 }
 
+func NewPurgeExpiredUploadsWorker(uc cleanupUsecase, threshold time.Duration) *PurgeExpiredUploadsWorker {
+	return &PurgeExpiredUploadsWorker{usecase: uc, threshold: threshold}
+}
+
 func (w *PurgeExpiredUploadsWorker) Work(ctx context.Context, _ *river.Job[PurgeExpiredUploadsArgs]) error {
 	return w.usecase.CleanupStaleUploads(ctx, w.threshold)
 }

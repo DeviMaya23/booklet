@@ -18,9 +18,13 @@ import (
 	"github.com/devi/booklet/internal/storage"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/devi/booklet/internal/worker"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/labstack/echo/v4"
 	echomiddleware "github.com/labstack/echo/v4/middleware"
+	"github.com/riverqueue/river"
+	"github.com/riverqueue/river/riverdriver/riverpgxv5"
+	"github.com/riverqueue/river/rivermigrate"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -29,11 +33,11 @@ import (
 )
 
 type server struct {
-	echo           *echo.Echo
-	logger         *zap.Logger
-	shutdownTel    func(context.Context)
-	riverPool      *pgxpool.Pool
-	riverClient    interface{ Stop(context.Context) error }
+	echo        *echo.Echo
+	logger      *zap.Logger
+	shutdownTel func(context.Context)
+	riverPool   *pgxpool.Pool
+	riverClient *river.Client[pgx.Tx]
 }
 
 func newServer(ctx context.Context, cfg *config.Config, logger *zap.Logger) *server {
@@ -189,7 +193,33 @@ func initDB(cfg *config.Config, logger *zap.Logger) *gorm.DB {
 	return db
 }
 
-func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pgxpool.Pool, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) interface{ Start(context.Context) error; Stop(context.Context) error } {
+func initRiverClient(ctx context.Context, pool *pgxpool.Pool, workers *river.Workers, periodicJobs []*river.PeriodicJob, logger *zap.Logger) (*river.Client[pgx.Tx], error) {
+	driver := riverpgxv5.New(pool)
+
+	migrator, err := rivermigrate.New(driver, nil)
+	if err != nil {
+		return nil, fmt.Errorf("create river migrator: %w", err)
+	}
+	if _, err := migrator.Migrate(ctx, rivermigrate.DirectionUp, nil); err != nil {
+		return nil, fmt.Errorf("run river migrations: %w", err)
+	}
+	logger.Info("river migrations applied")
+
+	client, err := river.NewClient(driver, &river.Config{
+		Queues: map[string]river.QueueConfig{
+			river.QueueDefault: {MaxWorkers: 2},
+		},
+		Workers:      workers,
+		PeriodicJobs: periodicJobs,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create river client: %w", err)
+	}
+
+	return client, nil
+}
+
+func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pgxpool.Pool, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) *river.Client[pgx.Tx] {
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
 
 	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
@@ -219,9 +249,22 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	healthHandler := httphandler.NewHealthHandler(db, r2Storage)
 
-	riverClient, err := worker.New(ctx, riverPool, uploadUsecase, usecase.PresignTTL, logger)
+	workers := river.NewWorkers()
+	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
+
+	periodicJobs := []*river.PeriodicJob{
+		river.NewPeriodicJob(
+			river.PeriodicInterval(5*time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return worker.PurgeExpiredUploadsArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+	}
+
+	riverClient, err := initRiverClient(ctx, riverPool, workers, periodicJobs, logger)
 	if err != nil {
-		logger.Fatal("init river worker", zap.Error(err))
+		logger.Fatal("init river client", zap.Error(err))
 	}
 
 	e.GET("/health", healthHandler.GetHealth)
