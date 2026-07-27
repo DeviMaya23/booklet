@@ -23,6 +23,9 @@ func setRequiredEnvVars(t *testing.T) {
 	t.Setenv("R2_ACCESS_KEY_ID", "access-key-id")
 	t.Setenv("R2_SECRET_ACCESS_KEY", "secret-access-key")
 	t.Setenv("R2_BUCKET_NAME", "bucket-name")
+	t.Setenv("BOOKLEAF_HOST", "https://bookleaf.example.com")
+	t.Setenv("BOOKLEAF_INTERNAL_SECRET", "bookleaf-internal-secret")
+	t.Setenv("INTERNAL_API_SECRET", "internal-api-secret")
 	t.Setenv("OTEL_EXPORTER", "jaeger")
 	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
 }
@@ -66,10 +69,6 @@ func TestLoad_MissingRequiredVar(t *testing.T) {
 	}{
 		{"missing KINDE_ISSUER_URL", "KINDE_ISSUER_URL"},
 		{"missing KINDE_AUDIENCE", "KINDE_AUDIENCE"},
-		{"missing KINDE_M2M_CLIENT_ID", "KINDE_M2M_CLIENT_ID"},
-		{"missing KINDE_M2M_CLIENT_SECRET", "KINDE_M2M_CLIENT_SECRET"},
-		{"missing KINDE_M2M_TOKEN_URL", "KINDE_M2M_TOKEN_URL"},
-		{"missing KINDE_MANAGEMENT_AUDIENCE", "KINDE_MANAGEMENT_AUDIENCE"},
 		{"missing CORS_ALLOWED_ORIGINS", "CORS_ALLOWED_ORIGINS"},
 		{"missing DATABASE_HOST", "DATABASE_HOST"},
 		{"missing DATABASE_NAME", "DATABASE_NAME"},

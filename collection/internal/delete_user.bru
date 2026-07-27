@@ -1,0 +1,24 @@
+meta {
+  name: Delete User
+  type: http
+  seq: 1
+}
+
+delete {
+  url: {{baseUrl}}/internal/users/:id
+  body: none
+  auth: none
+}
+
+params:path {
+  id: {{userId}}
+}
+
+headers {
+  X-Booklet-Internal-Secret: {{bookletInternalSecret}}
+}
+
+vars:pre-request {
+  userId: asdf
+  bookletInternalSecret: iibg0v4jxClqGnqEoYq8Zm8vleR59Kh6p+GCurWkhto=
+}

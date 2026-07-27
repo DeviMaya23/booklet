@@ -19,10 +19,11 @@ func seedPendingUpload(t *testing.T, tx *gorm.DB, userID string) *domain.Pending
 	t.Helper()
 	seedUser(t, tx, userID)
 	p := &domain.PendingUpload{
-		ID:       uuid.New(),
-		UserID:   userID,
-		R2Key:    fmt.Sprintf("users/%s/images/test.jpg", userID),
-		MimeType: "image/jpeg",
+		ID:           uuid.New(),
+		UserID:       userID,
+		R2Key:        fmt.Sprintf("users/%s/images/test.jpg", userID),
+		MimeType:     "image/jpeg",
+		CharacterIDs: []uuid.UUID{},
 	}
 	require.NoError(t, tx.Create(p).Error)
 	return p
@@ -34,10 +35,11 @@ func TestUploadRepository_Create(t *testing.T) {
 
 	seedUser(t, tx, "user_1")
 	p := &domain.PendingUpload{
-		ID:       uuid.New(),
-		UserID:   "user_1",
-		R2Key:    "users/user_1/images/abc.jpg",
-		MimeType: "image/jpeg",
+		ID:           uuid.New(),
+		UserID:       "user_1",
+		R2Key:        "users/user_1/images/abc.jpg",
+		MimeType:     "image/jpeg",
+		CharacterIDs: []uuid.UUID{},
 	}
 
 	got, err := repo.Create(context.Background(), p)
@@ -109,10 +111,11 @@ func TestUploadRepository_ListStale_ReturnsOlderThanCutoff(t *testing.T) {
 
 	seedUser(t, tx, "user_1")
 	stale := &domain.PendingUpload{
-		ID:       uuid.New(),
-		UserID:   "user_1",
-		R2Key:    "users/user_1/images/stale.jpg",
-		MimeType: "image/jpeg",
+		ID:           uuid.New(),
+		UserID:       "user_1",
+		R2Key:        "users/user_1/images/stale.jpg",
+		MimeType:     "image/jpeg",
+		CharacterIDs: []uuid.UUID{},
 	}
 	require.NoError(t, tx.Create(stale).Error)
 	require.NoError(t, tx.Model(stale).Update("created_at", time.Now().Add(-2*time.Hour)).Error)
