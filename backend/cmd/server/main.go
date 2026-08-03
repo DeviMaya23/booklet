@@ -252,6 +252,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	workers := river.NewWorkers()
 	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
+	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 
 	periodicJobs := []*river.PeriodicJob{
 		river.NewPeriodicJob(
@@ -260,6 +261,13 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 				return worker.PurgeExpiredUploadsArgs{}, nil
 			},
 			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+		river.NewPeriodicJob(
+			river.PeriodicInterval(24*time.Hour),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return worker.PurgeTombstonesArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: false},
 		),
 	}
 

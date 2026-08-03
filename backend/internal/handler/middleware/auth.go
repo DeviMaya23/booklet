@@ -48,10 +48,10 @@ func NewAuthMiddleware(
 		return nil, fmt.Errorf("initialise jwks client: %w", err)
 	}
 
-	return newAuthMiddlewareWithStorage(issuerURL, audience, jwksClient, userUsecase, logger), nil
+	return NewAuthMiddlewareWithStorage(issuerURL, audience, jwksClient, userUsecase, logger), nil
 }
 
-func newAuthMiddlewareWithStorage(
+func NewAuthMiddlewareWithStorage(
 	issuerURL string,
 	audience string,
 	jwksClient jwkset.Storage,
@@ -122,7 +122,7 @@ func (m *authMiddleware) handle(next echo.HandlerFunc) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusInternalServerError, "failed to provision user")
 		}
 
-		if user.IsPendingDeletion {
+		if user.AccountState != domain.AccountStateActive {
 			return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 		}
 

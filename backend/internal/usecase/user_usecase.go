@@ -19,6 +19,7 @@ type UserRepository interface {
 	GetByID(ctx context.Context, id string) (*domain.User, error)
 	SetPendingDeletion(ctx context.Context, id string) error
 	DeleteAllUserData(ctx context.Context, userID string) ([]string, error)
+	DeleteExpiredTombstones(ctx context.Context) error
 }
 
 type userUsecase struct {
@@ -91,6 +92,18 @@ func (u *userUsecase) MarkPendingDeletion(ctx context.Context, userID string) er
 		if errors.Is(err, bookleaf.ErrUnauthorized) {
 			err = fmt.Errorf("%w: %w", ErrBookleafConfigError, err)
 		}
+		return err
+	}
+	return nil
+}
+
+func (u *userUsecase) CleanupExpiredTombstones(ctx context.Context) error {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CleanupExpiredTombstones")
+	defer span.End()
+
+	if err := u.userRepo.DeleteExpiredTombstones(ctx); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
 	return nil

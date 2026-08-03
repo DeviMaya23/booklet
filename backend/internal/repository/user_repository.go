@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"gorm.io/gorm"
@@ -13,7 +14,7 @@ func (r *userRepository) SetPendingDeletion(ctx context.Context, id string) erro
 	result := dbFromContext(ctx, r.db).WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", id).
-		Update("is_pending_deletion", true)
+		Update("account_state", domain.AccountStatePendingDeletion)
 	if result.Error != nil {
 		return fmt.Errorf("set pending deletion: %w", result.Error)
 	}
@@ -74,9 +75,15 @@ func (r *userRepository) DeleteAllUserData(ctx context.Context, userID string) (
 		return nil, fmt.Errorf("delete characters: %w", err)
 	}
 
-	result := db.Unscoped().Where("id = ?", userID).Delete(&domain.User{})
+	now := time.Now()
+	result := db.Model(&domain.User{}).
+		Where("id = ?", userID).
+		Updates(map[string]any{
+			"account_state": domain.AccountStatePurged,
+			"purged_at":     now,
+		})
 	if result.Error != nil {
-		return nil, fmt.Errorf("delete user: %w", result.Error)
+		return nil, fmt.Errorf("tombstone user: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return nil, gorm.ErrRecordNotFound
@@ -116,4 +123,15 @@ func (r *userRepository) GetByID(ctx context.Context, id string) (*domain.User, 
 	}
 
 	return &user, nil
+}
+
+func (r *userRepository) DeleteExpiredTombstones(ctx context.Context) error {
+	cutoff := time.Now().Add(-24 * time.Hour)
+	result := r.db.WithContext(ctx).Unscoped().
+		Where("account_state = ? AND purged_at < ?", domain.AccountStatePurged, cutoff).
+		Delete(&domain.User{})
+	if result.Error != nil {
+		return fmt.Errorf("delete expired tombstones: %w", result.Error)
+	}
+	return nil
 }

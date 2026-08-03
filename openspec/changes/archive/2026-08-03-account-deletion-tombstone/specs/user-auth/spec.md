@@ -1,10 +1,4 @@
-# User Auth Spec
-
-## Purpose
-
-Covers authentication middleware behavior, including user provisioning and access control checks applied before requests reach handlers.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Accounts pending deletion are blocked from authenticated endpoints
 The system SHALL reject requests from users whose `account_state` is not `active`. This check SHALL occur after `GetOrProvision` in the auth middleware, before the request reaches any handler. Both `pending_deletion` and `purged` states SHALL result in a 401 response.

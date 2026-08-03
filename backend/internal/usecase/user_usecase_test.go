@@ -15,10 +15,12 @@ import (
 
 
 type spyUserRepository struct {
-	setPendingDeletionErr    error
-	deleteAllUserDataKeys    []string
-	deleteAllUserDataErr     error
-	setPendingDeletionCalled bool
+	setPendingDeletionErr         error
+	deleteAllUserDataKeys         []string
+	deleteAllUserDataErr          error
+	deleteExpiredTombstonesErr    error
+	setPendingDeletionCalled      bool
+	deleteExpiredTombstonesCalled bool
 }
 
 func (s *spyUserRepository) GetOrCreate(_ context.Context, id string) (*domain.User, error) {
@@ -36,6 +38,11 @@ func (s *spyUserRepository) SetPendingDeletion(_ context.Context, _ string) erro
 
 func (s *spyUserRepository) DeleteAllUserData(_ context.Context, _ string) ([]string, error) {
 	return s.deleteAllUserDataKeys, s.deleteAllUserDataErr
+}
+
+func (s *spyUserRepository) DeleteExpiredTombstones(_ context.Context) error {
+	s.deleteExpiredTombstonesCalled = true
+	return s.deleteExpiredTombstonesErr
 }
 
 type spyBookleafClient struct {
@@ -69,6 +76,16 @@ func TestMarkPendingDeletion_Bookleaf401_ReturnsConfigError(t *testing.T) {
 	err := uc.MarkPendingDeletion(context.Background(), "user-1")
 
 	require.ErrorIs(t, err, usecase.ErrBookleafConfigError)
+}
+
+func TestCleanupExpiredTombstones_CallsRepo(t *testing.T) {
+	repo := &spyUserRepository{}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.CleanupExpiredTombstones(context.Background())
+
+	require.NoError(t, err)
+	require.True(t, repo.deleteExpiredTombstonesCalled)
 }
 
 func TestMarkPendingDeletion_BookleafNon2xx_ReturnsError(t *testing.T) {

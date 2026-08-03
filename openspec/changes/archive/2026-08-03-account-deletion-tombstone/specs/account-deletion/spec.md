@@ -1,10 +1,4 @@
-# Account Deletion Spec
-
-## Purpose
-
-Covers the full account deletion lifecycle: a user initiates deletion via `DELETE /me`, user data is synchronously purged from the DB via an internal endpoint called by Bookleaf, and R2 storage objects are asynchronously cleaned up via a River worker job.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: User can initiate account deletion
 The system SHALL allow an authenticated user to request deletion of their account via `DELETE /me`. The endpoint SHALL flag the account as pending deletion and coordinate with Bookleaf to schedule Kinde account deletion. No user data SHALL be deleted at this point.
@@ -35,25 +29,3 @@ The system SHALL expose `DELETE /internal/users/:id` protected by the `X-Booklet
 #### Scenario: Missing or invalid internal secret
 - **WHEN** `DELETE /internal/users/:id` is called without `X-Booklet-Internal-Secret` header or with an incorrect value
 - **THEN** the system returns 401
-
-### Requirement: R2 objects are asynchronously purged after account deletion
-The system SHALL process `PurgeUserStorageArgs` River jobs to delete R2 objects belonging to a deleted user. Deletion SHALL be attempted for each key individually. Failures SHALL be logged but SHALL NOT cause the job to fail.
-
-#### Scenario: All R2 keys deleted successfully
-- **WHEN** a `PurgeUserStorageArgs` job is processed with a list of R2 keys
-- **THEN** the worker calls `DeleteObject` for each key and completes without error
-
-#### Scenario: One or more R2 key deletions fail
-- **WHEN** a `PurgeUserStorageArgs` job is processed and one or more `DeleteObject` calls return an error
-- **THEN** the worker logs each failure and continues processing remaining keys, completing the job without returning an error
-
-### Requirement: Internal endpoints are protected by shared secret
-The system SHALL validate the `X-Booklet-Internal-Secret` header on all routes in the internal echo group. The expected value SHALL be read from the `BOOKLET_INTERNAL_SECRET` environment variable.
-
-#### Scenario: Valid secret
-- **WHEN** a request to an internal endpoint includes `X-Booklet-Internal-Secret` matching `BOOKLET_INTERNAL_SECRET`
-- **THEN** the request proceeds to the handler
-
-#### Scenario: Invalid or missing secret
-- **WHEN** a request to an internal endpoint includes a wrong or absent `X-Booklet-Internal-Secret` header
-- **THEN** the system returns 401 before reaching the handler
