@@ -223,11 +223,12 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
 
 	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
-	folderUsecase := usecase.NewFolderUsecase(bookleafClient)
-	folderHandler := httphandler.NewFolderHandler(folderUsecase)
+	folderUsecase := usecase.NewFolderUsecase(bookleafClient, tel)
+	folderHandler := httphandler.NewFolderHandler(folderUsecase, tel)
 
+	transactor := repository.NewGormTransactor(db)
 	userRepository := repository.NewUserRepository(db)
-	userUsecase := usecase.NewUserUsecase(userRepository, tel)
+	userUsecase := usecase.NewUserUsecase(userRepository, bookleafClient, transactor, tel)
 
 	characterRepository := repository.NewCharacterRepository(db)
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
@@ -237,7 +238,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
 	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
 
-	transactor := repository.NewGormTransactor(db)
 	uploadRepository := repository.NewUploadRepository(db)
 	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, imageRepository, transactor, tel)
 	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
@@ -251,6 +251,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
+	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
+	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 
 	periodicJobs := []*river.PeriodicJob{
 		river.NewPeriodicJob(
@@ -260,12 +262,21 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 			},
 			&river.PeriodicJobOpts{RunOnStart: true},
 		),
+		river.NewPeriodicJob(
+			river.PeriodicInterval(24*time.Hour),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return worker.PurgeTombstonesArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: false},
+		),
 	}
 
 	riverClient, err := initRiverClient(ctx, riverPool, workers, periodicJobs, logger)
 	if err != nil {
 		logger.Fatal("init river client", zap.Error(err))
 	}
+
+	userHandler := httphandler.NewUserHandler(userUsecase, riverClient, tel)
 
 	e.GET("/health", healthHandler.GetHealth)
 	protected := e.Group("")
@@ -285,6 +296,12 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/images/:id", imageHandler.DeleteImage)
 	protected.POST("/images", uploadHandler.InitialUpload)
 	protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
+
+	protected.DELETE("/me", userHandler.DeleteMe)
+
+	internal := e.Group("")
+	internal.Use(authmiddleware.NewInternalAuthMiddleware(cfg.BookletInternalSecret))
+	internal.DELETE("/internal/users/:id", userHandler.DeleteUserByID)
 
 	return riverClient
 }
