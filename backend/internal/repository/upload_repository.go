@@ -25,7 +25,7 @@ func (r *uploadRepository) Create(ctx context.Context, p *domain.PendingUpload) 
 	return p, nil
 }
 
-func (r *uploadRepository) GetByID(ctx context.Context, id uuid.UUID, userID string) (*domain.PendingUpload, error) {
+func (r *uploadRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.PendingUpload, error) {
 	var p domain.PendingUpload
 	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).

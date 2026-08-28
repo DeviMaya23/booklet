@@ -8,7 +8,7 @@ import (
 
 type Image struct {
 	ID               uuid.UUID  `gorm:"type:uuid;primaryKey"`
-	UserID           string     `gorm:"type:text;not null;column:user_id"`
+	UserID           uuid.UUID  `gorm:"type:uuid;not null;column:user_id"`
 	ImageR2Path      string     `gorm:"type:text;not null;column:image_r2_path"`
 	MimeType         string     `gorm:"type:text;not null;column:mime_type"`
 	Title            *string    `gorm:"type:text;column:title"`

@@ -11,17 +11,18 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 
-	// "github.com/devi/bookleaf/internal/domain"
-	// "github.com/devi/bookleaf/internal/platform/observability"
-	// "github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
 
 type ContextKey string
 
-const AuthenticatedUserIDContextKey ContextKey = "authenticatedUserID"
+const (
+	AuthenticatedUserIDContextKey     ContextKey = "authenticatedUserID"
+	AuthenticatedIDPSubjectContextKey ContextKey = "authenticatedIDPSubject"
+)
 
 type UserUsecase interface {
 	GetOrProvision(ctx context.Context, kindeID string) (*domain.User, error)
@@ -73,9 +74,14 @@ func NewAuthMiddlewareWithStorage(
 	return m.handle
 }
 
-func AuthenticatedUserIDFromContext(c echo.Context) (string, bool) {
-	userID, ok := c.Get(string(AuthenticatedUserIDContextKey)).(string)
+func AuthenticatedUserIDFromContext(c echo.Context) (uuid.UUID, bool) {
+	userID, ok := c.Get(string(AuthenticatedUserIDContextKey)).(uuid.UUID)
 	return userID, ok
+}
+
+func AuthenticatedIDPSubjectFromContext(c echo.Context) (string, bool) {
+	subject, ok := c.Get(string(AuthenticatedIDPSubjectContextKey)).(string)
+	return subject, ok
 }
 
 func (m *authMiddleware) handle(next echo.HandlerFunc) echo.HandlerFunc {
@@ -126,7 +132,8 @@ func (m *authMiddleware) handle(next echo.HandlerFunc) echo.HandlerFunc {
 			return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 		}
 
-		c.Set(string(AuthenticatedUserIDContextKey), claims.Subject)
+		c.Set(string(AuthenticatedUserIDContextKey), user.ID)
+		c.Set(string(AuthenticatedIDPSubjectContextKey), claims.Subject)
 		return next(c)
 	}
 }

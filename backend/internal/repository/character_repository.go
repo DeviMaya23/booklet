@@ -30,7 +30,7 @@ func (r *characterRepository) Create(ctx context.Context, character *domain.Char
 	})
 }
 
-func (r *characterRepository) GetByID(ctx context.Context, id, userID string) (*domain.Character, error) {
+func (r *characterRepository) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
 	var character domain.Character
 	err := dbFromContext(ctx, r.db).
 		Preload("Folders").
@@ -42,7 +42,7 @@ func (r *characterRepository) GetByID(ctx context.Context, id, userID string) (*
 	return &character, nil
 }
 
-func (r *characterRepository) List(ctx context.Context, userID string) ([]*domain.Character, error) {
+func (r *characterRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error) {
 	var characters []*domain.Character
 	err := dbFromContext(ctx, r.db).
 		Preload("Folders").
@@ -55,7 +55,7 @@ func (r *characterRepository) List(ctx context.Context, userID string) ([]*domai
 	return characters, nil
 }
 
-func (r *characterRepository) Update(ctx context.Context, id, userID string, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (r *characterRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	updates := map[string]interface{}{}
 	if params.Name != nil {
 		updates["name"] = *params.Name
@@ -90,7 +90,7 @@ func (r *characterRepository) Update(ctx context.Context, id, userID string, par
 	return r.GetByID(ctx, id, userID)
 }
 
-func (r *characterRepository) updateWithFolders(ctx context.Context, id, userID string, updates map[string]interface{}, folderIDs []uuid.UUID) (*domain.Character, error) {
+func (r *characterRepository) updateWithFolders(ctx context.Context, id string, userID uuid.UUID, updates map[string]interface{}, folderIDs []uuid.UUID) (*domain.Character, error) {
 	err := dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&domain.Character{}).Where("id = ? AND user_id = ?", id, userID).Count(&count).Error; err != nil {
@@ -137,7 +137,7 @@ func (r *characterRepository) updateWithFolders(ctx context.Context, id, userID 
 	return r.GetByID(ctx, id, userID)
 }
 
-func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID string) ([]domain.Character, error) {
+func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error) {
 	if len(ids) == 0 {
 		return nil, nil
 	}
@@ -151,7 +151,7 @@ func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.
 	return characters, nil
 }
 
-func (r *characterRepository) Delete(ctx context.Context, id, userID string) error {
+func (r *characterRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
 	return dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		result := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&domain.Character{})
 		if result.Error != nil {

@@ -32,7 +32,7 @@ func TestListFolders_HappyPath(t *testing.T) {
 	spy := &spyFolderUsecase{listResult: result}
 	h := handler.NewFolderHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/folders", h.ListFolders)
 
 	req := httptest.NewRequest(http.MethodGet, "/folders", nil)
@@ -51,7 +51,7 @@ func TestListFolders_UpstreamError(t *testing.T) {
 	spy := &spyFolderUsecase{listErr: errors.New("bookleaf unavailable")}
 	h := handler.NewFolderHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/folders", h.ListFolders)
 
 	req := httptest.NewRequest(http.MethodGet, "/folders", nil)

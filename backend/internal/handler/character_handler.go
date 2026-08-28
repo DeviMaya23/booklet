@@ -15,11 +15,11 @@ import (
 )
 
 type CharacterUsecase interface {
-	Create(ctx context.Context, userID string, params usecase.CreateCharacterParams) (*domain.Character, error)
-	GetByID(ctx context.Context, id, userID string) (*domain.Character, error)
-	List(ctx context.Context, userID string) ([]*domain.Character, error)
-	Update(ctx context.Context, id, userID string, params usecase.UpdateCharacterParams) (*domain.Character, error)
-	Delete(ctx context.Context, id, userID string) error
+	Create(ctx context.Context, userID uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error)
+	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
+	List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error)
+	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error)
+	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }
 
 type CharacterHandler struct {

@@ -25,7 +25,7 @@ func (r *imageRepository) Create(ctx context.Context, image *domain.Image) (*dom
 	return image, nil
 }
 
-func (r *imageRepository) GetByID(ctx context.Context, id, userID string) (*domain.Image, error) {
+func (r *imageRepository) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error) {
 	var image domain.Image
 	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
@@ -37,7 +37,7 @@ func (r *imageRepository) GetByID(ctx context.Context, id, userID string) (*doma
 	return &image, nil
 }
 
-func (r *imageRepository) List(ctx context.Context, userID string) ([]*domain.Image, error) {
+func (r *imageRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error) {
 	var images []*domain.Image
 	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
@@ -50,7 +50,7 @@ func (r *imageRepository) List(ctx context.Context, userID string) ([]*domain.Im
 	return images, nil
 }
 
-func (r *imageRepository) Update(ctx context.Context, id, userID string, params usecase.UpdateImageParams) (*domain.Image, error) {
+func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
 	var image domain.Image
 	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
@@ -107,7 +107,7 @@ func (r *imageRepository) Update(ctx context.Context, id, userID string, params 
 	return r.GetByID(ctx, id, userID)
 }
 
-func (r *imageRepository) Delete(ctx context.Context, id, userID string) error {
+func (r *imageRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.Image{})

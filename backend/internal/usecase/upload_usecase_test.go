@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -33,18 +34,18 @@ func (s *spyStorageService) DeleteObject(_ context.Context, key string) error {
 }
 
 type spyUploadRepository struct {
-	pendingToReturn  *domain.PendingUpload
-	staleToReturn    []*domain.PendingUpload
-	lastDeletedID    uuid.UUID
-	deletedIDs       []uuid.UUID
-	listStaleCalled  bool
+	pendingToReturn *domain.PendingUpload
+	staleToReturn   []*domain.PendingUpload
+	lastDeletedID   uuid.UUID
+	deletedIDs      []uuid.UUID
+	listStaleCalled bool
 }
 
 func (s *spyUploadRepository) Create(_ context.Context, p *domain.PendingUpload) (*domain.PendingUpload, error) {
 	return p, nil
 }
 
-func (s *spyUploadRepository) GetByID(_ context.Context, _ uuid.UUID, _ string) (*domain.PendingUpload, error) {
+func (s *spyUploadRepository) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.PendingUpload, error) {
 	return s.pendingToReturn, nil
 }
 
@@ -64,7 +65,7 @@ type spyUploadCharacterRepository struct {
 	lastIDs       []uuid.UUID
 }
 
-func (s *spyUploadCharacterRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, _ string) ([]domain.Character, error) {
+func (s *spyUploadCharacterRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, _ uuid.UUID) ([]domain.Character, error) {
 	s.lastIDs = ids
 	return s.charsToReturn, nil
 }
@@ -94,15 +95,16 @@ func TestInitialUpload_R2KeyFormat(t *testing.T) {
 
 	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
+	userID := uuid.New()
 	result, err := uc.InitialUpload(context.Background(), usecase.InitialUploadParams{
-		UserID:   "user-1",
+		UserID:   userID,
 		MimeType: "image/jpeg",
 	})
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
 
-	expectedPrefix := "users/user-1/images/"
+	expectedPrefix := fmt.Sprintf("users/%s/images/", userID.String())
 	expectedSuffix := ".jpg"
 	require.True(t, strings.HasPrefix(storageSpy.lastKey, expectedPrefix),
 		"expected key to start with %q, got %q", expectedPrefix, storageSpy.lastKey)
@@ -130,7 +132,7 @@ func TestCompleteUpload_SomeCharsValid(t *testing.T) {
 
 	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	err := uc.CompleteUpload(context.Background(), uuid.New(), "user-1")
+	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
 	require.NoError(t, err)
 	require.NotNil(t, imageSpy.lastImage)
@@ -153,7 +155,7 @@ func TestCompleteUpload_AllCharsInvalid(t *testing.T) {
 
 	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	err := uc.CompleteUpload(context.Background(), uuid.New(), "user-1")
+	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
 	require.NoError(t, err)
 	require.Empty(t, imageSpy.lastImage.Characters)

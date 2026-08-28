@@ -12,7 +12,7 @@ import (
 )
 
 type FolderUsecase interface {
-	ListFolders(ctx context.Context, userID string) (*bookleaf.FolderList, error)
+	ListFolders(ctx context.Context, idpSubject string) (*bookleaf.FolderList, error)
 }
 
 type FolderHandler struct {
@@ -28,12 +28,12 @@ func (h *FolderHandler) ListFolders(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.ListFolders")
 	defer span.End()
 
-	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	idpSubject, ok := middleware.AuthenticatedIDPSubjectFromContext(c)
 	if !ok {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	result, err := h.folderUsecase.ListFolders(ctx, userID)
+	result, err := h.folderUsecase.ListFolders(ctx, idpSubject)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

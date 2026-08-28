@@ -15,13 +15,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func seedPendingUpload(t *testing.T, tx *gorm.DB, userID string) *domain.PendingUpload {
+func seedPendingUpload(t *testing.T, tx *gorm.DB, userID uuid.UUID) *domain.PendingUpload {
 	t.Helper()
-	seedUser(t, tx, userID)
 	p := &domain.PendingUpload{
 		ID:           uuid.New(),
 		UserID:       userID,
-		R2Key:        fmt.Sprintf("users/%s/images/test.jpg", userID),
+		R2Key:        fmt.Sprintf("users/%s/images/test.jpg", userID.String()),
 		MimeType:     "image/jpeg",
 		CharacterIDs: []uuid.UUID{},
 	}
@@ -33,11 +32,11 @@ func TestUploadRepository_Create(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	seedUser(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
 	p := &domain.PendingUpload{
 		ID:           uuid.New(),
-		UserID:       "user_1",
-		R2Key:        "users/user_1/images/abc.jpg",
+		UserID:       user.ID,
+		R2Key:        fmt.Sprintf("users/%s/images/abc.jpg", user.ID.String()),
 		MimeType:     "image/jpeg",
 		CharacterIDs: []uuid.UUID{},
 	}
@@ -47,8 +46,8 @@ func TestUploadRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, p.ID, got.ID)
-	assert.Equal(t, "user_1", got.UserID)
-	assert.Equal(t, "users/user_1/images/abc.jpg", got.R2Key)
+	assert.Equal(t, user.ID, got.UserID)
+	assert.Equal(t, p.R2Key, got.R2Key)
 	assert.Equal(t, "image/jpeg", got.MimeType)
 
 	var fromDB domain.PendingUpload
@@ -60,9 +59,10 @@ func TestUploadRepository_GetByID_Success(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	p := seedPendingUpload(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	p := seedPendingUpload(t, tx, user.ID)
 
-	got, err := repo.GetByID(context.Background(), p.ID, "user_1")
+	got, err := repo.GetByID(context.Background(), p.ID, user.ID)
 
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -74,9 +74,11 @@ func TestUploadRepository_GetByID_WrongUser(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	p := seedPendingUpload(t, tx, "user_1")
+	user1 := seedUser(t, tx, "user_1")
+	user2 := seedUser(t, tx, "user_2")
+	p := seedPendingUpload(t, tx, user1.ID)
 
-	_, err := repo.GetByID(context.Background(), p.ID, "user_2")
+	_, err := repo.GetByID(context.Background(), p.ID, user2.ID)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "expected ErrRecordNotFound, got %v", err)
@@ -86,7 +88,8 @@ func TestUploadRepository_GetByID_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	_, err := repo.GetByID(context.Background(), uuid.New(), "user_1")
+	user := seedUser(t, tx, "user_1")
+	_, err := repo.GetByID(context.Background(), uuid.New(), user.ID)
 
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "expected ErrRecordNotFound, got %v", err)
@@ -96,7 +99,8 @@ func TestUploadRepository_Delete(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	p := seedPendingUpload(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	p := seedPendingUpload(t, tx, user.ID)
 
 	err := repo.Delete(context.Background(), p.ID)
 
@@ -109,11 +113,11 @@ func TestUploadRepository_ListStale_ReturnsOlderThanCutoff(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	seedUser(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
 	stale := &domain.PendingUpload{
 		ID:           uuid.New(),
-		UserID:       "user_1",
-		R2Key:        "users/user_1/images/stale.jpg",
+		UserID:       user.ID,
+		R2Key:        fmt.Sprintf("users/%s/images/stale.jpg", user.ID.String()),
 		MimeType:     "image/jpeg",
 		CharacterIDs: []uuid.UUID{},
 	}
@@ -132,7 +136,8 @@ func TestUploadRepository_ListStale_ExcludesNewerThanCutoff(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewUploadRepository(tx)
 
-	seedPendingUpload(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	seedPendingUpload(t, tx, user.ID)
 
 	cutoff := time.Now().Add(-time.Hour)
 	got, err := repo.ListStale(context.Background(), cutoff)

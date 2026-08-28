@@ -14,13 +14,14 @@ func TestCreate_AssemblesCharacter(t *testing.T) {
 	repo := newFakeCharacterRepository()
 	uc := usecase.NewCharacterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
 
-	got, err := uc.Create(context.Background(), "user-1", usecase.CreateCharacterParams{
+	userID := uuid.New()
+	got, err := uc.Create(context.Background(), userID, usecase.CreateCharacterParams{
 		Name: "Aria Stormweaver",
 	})
 
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, got.ID)
-	require.Equal(t, "user-1", got.UserID)
+	require.Equal(t, userID, got.UserID)
 	require.Equal(t, "Aria Stormweaver", got.Name)
 	require.Empty(t, repo.lastCreated.Folders)
 }
@@ -29,10 +30,11 @@ func TestCreate_AssemblesCharacter_WithFolders(t *testing.T) {
 	repo := newFakeCharacterRepository()
 	uc := usecase.NewCharacterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
 
+	userID := uuid.New()
 	folderID := uuid.New()
 	folderIDs := []uuid.UUID{folderID}
 
-	got, err := uc.Create(context.Background(), "user-1", usecase.CreateCharacterParams{
+	got, err := uc.Create(context.Background(), userID, usecase.CreateCharacterParams{
 		Name:      "Aria Stormweaver",
 		FolderIDs: &folderIDs,
 	})

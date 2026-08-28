@@ -9,6 +9,7 @@ import (
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/devi/booklet/internal/worker"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -18,8 +19,8 @@ import (
 )
 
 type UserUsecase interface {
-	MarkPendingDeletion(ctx context.Context, userID string) error
-	PurgeUserData(ctx context.Context, userID string) ([]string, error)
+	MarkPendingDeletion(ctx context.Context, userID uuid.UUID, idpSubject string) error
+	PurgeUserData(ctx context.Context, userID uuid.UUID) ([]string, error)
 }
 
 type JobInserter interface {
@@ -49,7 +50,12 @@ func (h *UserHandler) DeleteMe(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	if err := h.userUsecase.MarkPendingDeletion(ctx, userID); err != nil {
+	idpSubject, ok := middleware.AuthenticatedIDPSubjectFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	if err := h.userUsecase.MarkPendingDeletion(ctx, userID, idpSubject); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		if errors.Is(err, usecase.ErrBookleafConfigError) {
@@ -65,7 +71,10 @@ func (h *UserHandler) DeleteUserByID(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DeleteUserByID")
 	defer span.End()
 
-	id := c.Param("id")
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid user id")
+	}
 
 	keys, err := h.userUsecase.PurgeUserData(ctx, id)
 	if err != nil {
@@ -87,7 +96,7 @@ func (h *UserHandler) DeleteUserByID(c echo.Context) error {
 		observability.LoggerFromContext(ctx, h.tel.Logger).Info(
 			"storage cleanup enqueued",
 			zap.String("event", "user.storage.cleanup.enqueued"),
-			zap.String("user_id", id),
+			zap.String("user_id", id.String()),
 			zap.Int("images_to_be_deleted", len(keys)),
 		)
 	}

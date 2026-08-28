@@ -21,6 +21,11 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	testUserID     = uuid.MustParse("00000000-0000-0000-0000-000000000001")
+	testIDPSubject = "kp_test_user_1"
+)
+
 type characterResponse struct {
 	ID              string   `json:"id"`
 	Name            string   `json:"name"`
@@ -52,34 +57,35 @@ type spyCharacterUsecase struct {
 	lastUpdateParams usecase.UpdateCharacterParams
 }
 
-func (s *spyCharacterUsecase) Create(_ context.Context, _ string, params usecase.CreateCharacterParams) (*domain.Character, error) {
+func (s *spyCharacterUsecase) Create(_ context.Context, _ uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error) {
 	s.lastCreateParams = params
 	return s.createResult, s.createErr
 }
 
-func (s *spyCharacterUsecase) GetByID(_ context.Context, _, _ string) (*domain.Character, error) {
+func (s *spyCharacterUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Character, error) {
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyCharacterUsecase) List(_ context.Context, _ string) ([]*domain.Character, error) {
+func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID) ([]*domain.Character, error) {
 	return s.listResult, s.listErr
 }
 
-func (s *spyCharacterUsecase) Update(_ context.Context, _, _ string, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (s *spyCharacterUsecase) Update(_ context.Context, _ string, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	s.lastUpdateParams = params
 	return s.updateResult, s.updateErr
 }
 
-func (s *spyCharacterUsecase) Delete(_ context.Context, _, _ string) error {
+func (s *spyCharacterUsecase) Delete(_ context.Context, _ string, _ uuid.UUID) error {
 	return s.deleteErr
 }
 
-func setupEcho(userID string) *echo.Echo {
+func setupEcho(userID uuid.UUID) *echo.Echo {
 	e := echo.New()
 	e.Validator = handler.NewEchoValidator()
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			c.Set(string(middleware.AuthenticatedUserIDContextKey), userID)
+			c.Set(string(middleware.AuthenticatedIDPSubjectContextKey), testIDPSubject)
 			return next(c)
 		}
 	})
@@ -89,7 +95,7 @@ func setupEcho(userID string) *echo.Echo {
 func makeCharacter() *domain.Character {
 	return &domain.Character{
 		ID:     uuid.New(),
-		UserID: "user-1",
+		UserID: testUserID,
 		Name:   "Aria",
 	}
 }
@@ -101,7 +107,7 @@ func TestCreateCharacter_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{createResult: character}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	body := `{"name":"Aria"}`
@@ -122,7 +128,7 @@ func TestCreateCharacter_MissingName(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(`{"name":""}`))
@@ -147,7 +153,7 @@ func TestCreateCharacter_MalformedJSON(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(`{bad json`))
@@ -162,7 +168,7 @@ func TestCreateCharacter_UsecaseError(t *testing.T) {
 	spy := &spyCharacterUsecase{createErr: errors.New("db down")}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(`{"name":"Aria"}`))
@@ -180,7 +186,7 @@ func TestGetCharacterByID_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{getByIDResult: character}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s", character.ID), nil)
@@ -197,7 +203,7 @@ func TestGetCharacterByID_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{getByIDErr: gorm.ErrRecordNotFound}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s", uuid.New().String()), nil)
@@ -211,7 +217,7 @@ func TestGetCharacterByID_InvalidUUID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
 
 	req := httptest.NewRequest(http.MethodGet, "/characters/not-a-uuid", nil)
@@ -228,7 +234,7 @@ func TestListCharacters_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{listResult: characters}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/characters", h.ListCharacters)
 
 	req := httptest.NewRequest(http.MethodGet, "/characters", nil)
@@ -248,7 +254,7 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{updateResult: character}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	body := `{"name":"New Name"}`
@@ -268,7 +274,7 @@ func TestUpdateCharacter_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{updateErr: gorm.ErrRecordNotFound}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{}`))
@@ -283,7 +289,7 @@ func TestUpdateCharacter_MalformedJSON(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{bad`))
@@ -298,7 +304,7 @@ func TestUpdateCharacter_EmptyName(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{"name":""}`))
@@ -324,7 +330,7 @@ func TestUpdateCharacter_AbsentName(t *testing.T) {
 	spy := &spyCharacterUsecase{updateResult: character}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(`{}`))
@@ -342,7 +348,7 @@ func TestDeleteCharacter_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id", h.DeleteCharacter)
 
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/characters/%s", uuid.New().String()), nil)
@@ -356,7 +362,7 @@ func TestDeleteCharacter_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{deleteErr: gorm.ErrRecordNotFound}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id", h.DeleteCharacter)
 
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/characters/%s", uuid.New().String()), nil)
@@ -371,7 +377,7 @@ func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
 	spy := &spyCharacterUsecase{createResult: character}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	folderID := uuid.New().String()
@@ -390,7 +396,7 @@ func TestCreateCharacter_InvalidFolderID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
 
 	body := `{"name":"Aria","folder_ids":["not-a-uuid"]}`
@@ -414,7 +420,7 @@ func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
 	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
 
 	body := `{"folder_ids":["not-a-uuid"]}`

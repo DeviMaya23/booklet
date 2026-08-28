@@ -13,14 +13,15 @@ import (
 	"gorm.io/gorm"
 )
 
-func seedUser(t *testing.T, tx *gorm.DB, userID string) {
+func seedUser(t *testing.T, tx *gorm.DB, idpSubject string) *domain.User {
 	t.Helper()
-	require.NoError(t, tx.FirstOrCreate(&domain.User{ID: userID}).Error)
+	u := &domain.User{ID: uuid.New(), IDPSubject: idpSubject}
+	require.NoError(t, tx.FirstOrCreate(u, "idp_subject = ?", idpSubject).Error)
+	return u
 }
 
-func seedCharacter(t *testing.T, tx *gorm.DB, userID string) *domain.Character {
+func seedCharacter(t *testing.T, tx *gorm.DB, userID uuid.UUID) *domain.Character {
 	t.Helper()
-	seedUser(t, tx, userID)
 	c := &domain.Character{
 		ID:     uuid.New(),
 		UserID: userID,
@@ -30,7 +31,7 @@ func seedCharacter(t *testing.T, tx *gorm.DB, userID string) *domain.Character {
 	return c
 }
 
-func seedCharacterWithFolders(t *testing.T, tx *gorm.DB, userID string, folderIDs []uuid.UUID) *domain.Character {
+func seedCharacterWithFolders(t *testing.T, tx *gorm.DB, userID uuid.UUID, folderIDs []uuid.UUID) *domain.Character {
 	t.Helper()
 	c := seedCharacter(t, tx, userID)
 	for _, fid := range folderIDs {
@@ -43,10 +44,10 @@ func TestCharacterRepository_Create(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	seedUser(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
 	c := &domain.Character{
 		ID:     uuid.New(),
-		UserID: "user_1",
+		UserID: user.ID,
 		Name:   "Aria",
 	}
 	err := repo.Create(context.Background(), c)
@@ -56,7 +57,7 @@ func TestCharacterRepository_Create(t *testing.T) {
 	var got domain.Character
 	require.NoError(t, tx.First(&got, "id = ?", c.ID).Error)
 	assert.Equal(t, "Aria", got.Name)
-	assert.Equal(t, "user_1", got.UserID)
+	assert.Equal(t, user.ID, got.UserID)
 
 	var folderCount int64
 	require.NoError(t, tx.Model(&domain.CharacterFolder{}).Where("character_id = ?", c.ID).Count(&folderCount).Error)
@@ -67,26 +68,25 @@ func TestCharacterRepository_Create_WithFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	seedUser(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
 	folderID1 := uuid.New()
 	folderID2 := uuid.New()
 	c := &domain.Character{
 		ID:     uuid.New(),
-		UserID: "user_1",
+		UserID: user.ID,
 		Name:   "Aria",
 		Folders: []domain.CharacterFolder{
 			{FolderID: folderID1},
 			{FolderID: folderID2},
 		},
 	}
-	// CharacterID on folders is set by usecase; simulate that here
 	c.Folders[0].CharacterID = c.ID
 	c.Folders[1].CharacterID = c.ID
 
 	err := repo.Create(context.Background(), c)
 	require.NoError(t, err)
 
-	got, err := repo.GetByID(context.Background(), c.ID.String(), "user_1")
+	got, err := repo.GetByID(context.Background(), c.ID.String(), user.ID)
 	require.NoError(t, err)
 	require.Len(t, got.Folders, 2)
 	folderIDsGot := []uuid.UUID{got.Folders[0].FolderID, got.Folders[1].FolderID}
@@ -98,10 +98,11 @@ func TestCharacterRepository_GetByID(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	folderID := uuid.New()
-	c := seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{folderID})
+	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
 
-	got, err := repo.GetByID(context.Background(), c.ID.String(), "user_1")
+	got, err := repo.GetByID(context.Background(), c.ID.String(), user.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, c.ID, got.ID)
@@ -113,9 +114,10 @@ func TestCharacterRepository_GetByID_NoFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	c := seedCharacter(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	c := seedCharacter(t, tx, user.ID)
 
-	got, err := repo.GetByID(context.Background(), c.ID.String(), "user_1")
+	got, err := repo.GetByID(context.Background(), c.ID.String(), user.ID)
 
 	require.NoError(t, err)
 	assert.Empty(t, got.Folders)
@@ -125,9 +127,11 @@ func TestCharacterRepository_GetByID_WrongUser(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	c := seedCharacter(t, tx, "user_1")
+	user1 := seedUser(t, tx, "user_1")
+	user2 := seedUser(t, tx, "user_2")
+	c := seedCharacter(t, tx, user1.ID)
 
-	_, err := repo.GetByID(context.Background(), c.ID.String(), "user_2")
+	_, err := repo.GetByID(context.Background(), c.ID.String(), user2.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -136,17 +140,19 @@ func TestCharacterRepository_List(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user1 := seedUser(t, tx, "user_1")
+	user2 := seedUser(t, tx, "user_2")
 	folderID := uuid.New()
-	seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{folderID})
-	seedCharacter(t, tx, "user_1")
-	seedCharacter(t, tx, "user_2")
+	seedCharacterWithFolders(t, tx, user1.ID, []uuid.UUID{folderID})
+	seedCharacter(t, tx, user1.ID)
+	seedCharacter(t, tx, user2.ID)
 
-	got, err := repo.List(context.Background(), "user_1")
+	got, err := repo.List(context.Background(), user1.ID)
 
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
 	for _, c := range got {
-		assert.Equal(t, "user_1", c.UserID)
+		assert.Equal(t, user1.ID, c.UserID)
 		assert.NotNil(t, c.Folders)
 	}
 }
@@ -155,10 +161,11 @@ func TestCharacterRepository_Update(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	c := seedCharacter(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	c := seedCharacter(t, tx, user.ID)
 	newName := "Updated Name"
 
-	got, err := repo.Update(context.Background(), c.ID.String(), "user_1", usecase.UpdateCharacterParams{
+	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
 		Name: &newName,
 	})
 
@@ -170,8 +177,9 @@ func TestCharacterRepository_Update_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	newName := "x"
-	_, err := repo.Update(context.Background(), uuid.NewString(), "user_1", usecase.UpdateCharacterParams{
+	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateCharacterParams{
 		Name: &newName,
 	})
 
@@ -182,8 +190,9 @@ func TestCharacterRepository_Update_NotFound_WithFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	folderIDs := []uuid.UUID{uuid.New()}
-	_, err := repo.Update(context.Background(), uuid.NewString(), "user_1", usecase.UpdateCharacterParams{
+	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateCharacterParams{
 		FolderIDs: &folderIDs,
 	})
 
@@ -194,14 +203,15 @@ func TestCharacterRepository_Update_ReplaceFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	oldFolderA := uuid.New()
 	oldFolderB := uuid.New()
-	c := seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{oldFolderA, oldFolderB})
+	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{oldFolderA, oldFolderB})
 
 	newFolder := uuid.New()
 	newFolders := []uuid.UUID{newFolder}
 
-	got, err := repo.Update(context.Background(), c.ID.String(), "user_1", usecase.UpdateCharacterParams{
+	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
 		FolderIDs: &newFolders,
 	})
 
@@ -218,12 +228,13 @@ func TestCharacterRepository_Update_ClearFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	folderID := uuid.New()
-	c := seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{folderID})
+	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
 
 	emptyFolders := []uuid.UUID{}
 
-	got, err := repo.Update(context.Background(), c.ID.String(), "user_1", usecase.UpdateCharacterParams{
+	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
 		FolderIDs: &emptyFolders,
 	})
 
@@ -239,11 +250,12 @@ func TestCharacterRepository_Update_NilFolders_NoOp(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	folderID := uuid.New()
-	c := seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{folderID})
+	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
 
 	newName := "New Name"
-	got, err := repo.Update(context.Background(), c.ID.String(), "user_1", usecase.UpdateCharacterParams{
+	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
 		Name:      &newName,
 		FolderIDs: nil,
 	})
@@ -258,12 +270,13 @@ func TestCharacterRepository_Delete(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	c := seedCharacter(t, tx, "user_1")
+	user := seedUser(t, tx, "user_1")
+	c := seedCharacter(t, tx, user.ID)
 
-	err := repo.Delete(context.Background(), c.ID.String(), "user_1")
+	err := repo.Delete(context.Background(), c.ID.String(), user.ID)
 
 	require.NoError(t, err)
-	_, err = repo.GetByID(context.Background(), c.ID.String(), "user_1")
+	_, err = repo.GetByID(context.Background(), c.ID.String(), user.ID)
 	assert.Error(t, err)
 }
 
@@ -271,7 +284,8 @@ func TestCharacterRepository_Delete_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
-	err := repo.Delete(context.Background(), uuid.NewString(), "user_1")
+	user := seedUser(t, tx, "user_1")
+	err := repo.Delete(context.Background(), uuid.NewString(), user.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -280,10 +294,11 @@ func TestCharacterRepository_Delete_CascadesFolders(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewCharacterRepository(tx)
 
+	user := seedUser(t, tx, "user_1")
 	folderID := uuid.New()
-	c := seedCharacterWithFolders(t, tx, "user_1", []uuid.UUID{folderID})
+	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
 
-	err := repo.Delete(context.Background(), c.ID.String(), "user_1")
+	err := repo.Delete(context.Background(), c.ID.String(), user.ID)
 	require.NoError(t, err)
 
 	var count int64

@@ -16,7 +16,7 @@ import (
 
 type UploadUsecase interface {
 	InitialUpload(ctx context.Context, params usecase.InitialUploadParams) (*usecase.InitialUploadResult, error)
-	CompleteUpload(ctx context.Context, pendingID uuid.UUID, userID string) error
+	CompleteUpload(ctx context.Context, pendingID uuid.UUID, userID uuid.UUID) error
 }
 
 type UploadHandler struct {

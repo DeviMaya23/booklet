@@ -29,7 +29,7 @@ func NewCharacterUsecase(characterRepo CharacterRepository, tel *observability.T
 	}
 }
 
-func (u *characterUsecase) Create(ctx context.Context, userID string, params CreateCharacterParams) (*domain.Character, error) {
+func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params CreateCharacterParams) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CreateCharacter")
 	defer span.End()
 
@@ -56,7 +56,7 @@ func (u *characterUsecase) Create(ctx context.Context, userID string, params Cre
 	return character, nil
 }
 
-func (u *characterUsecase) GetByID(ctx context.Context, id, userID string) (*domain.Character, error) {
+func (u *characterUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetCharacterByID")
 	defer span.End()
 
@@ -69,7 +69,7 @@ func (u *characterUsecase) GetByID(ctx context.Context, id, userID string) (*dom
 	return res, nil
 }
 
-func (u *characterUsecase) List(ctx context.Context, userID string) ([]*domain.Character, error) {
+func (u *characterUsecase) List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ListCharacters")
 	defer span.End()
 
@@ -82,7 +82,7 @@ func (u *characterUsecase) List(ctx context.Context, userID string) ([]*domain.C
 	return res, nil
 }
 
-func (u *characterUsecase) Update(ctx context.Context, id, userID string, params UpdateCharacterParams) (*domain.Character, error) {
+func (u *characterUsecase) Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateCharacter")
 	defer span.End()
 
@@ -95,7 +95,7 @@ func (u *characterUsecase) Update(ctx context.Context, id, userID string, params
 	return res, nil
 }
 
-func (u *characterUsecase) Delete(ctx context.Context, id, userID string) error {
+func (u *characterUsecase) Delete(ctx context.Context, id string, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteCharacter")
 	defer span.End()
 

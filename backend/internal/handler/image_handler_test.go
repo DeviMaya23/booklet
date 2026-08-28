@@ -46,34 +46,34 @@ type spyImageUsecase struct {
 	listResult []*domain.Image
 	listErr    error
 
-	updateResult      *domain.Image
-	updateErr         error
-	lastUpdateParams  usecase.UpdateImageParams
+	updateResult     *domain.Image
+	updateErr        error
+	lastUpdateParams usecase.UpdateImageParams
 
 	deleteErr error
 }
 
-func (s *spyImageUsecase) GetByID(_ context.Context, _, _ string) (*domain.Image, error) {
+func (s *spyImageUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Image, error) {
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyImageUsecase) List(_ context.Context, _ string) ([]*domain.Image, error) {
+func (s *spyImageUsecase) List(_ context.Context, _ uuid.UUID) ([]*domain.Image, error) {
 	return s.listResult, s.listErr
 }
 
-func (s *spyImageUsecase) Update(_ context.Context, _, _ string, params usecase.UpdateImageParams) (*domain.Image, error) {
+func (s *spyImageUsecase) Update(_ context.Context, _ string, _ uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
 	s.lastUpdateParams = params
 	return s.updateResult, s.updateErr
 }
 
-func (s *spyImageUsecase) Delete(_ context.Context, _, _ string) error {
+func (s *spyImageUsecase) Delete(_ context.Context, _ string, _ uuid.UUID) error {
 	return s.deleteErr
 }
 
 func makeImage() *domain.Image {
 	return &domain.Image{
 		ID:          uuid.New(),
-		UserID:      "user-1",
+		UserID:      testUserID,
 		ImageR2Path: "images/abc.jpg",
 		MimeType:    "image/jpeg",
 		Characters:  []domain.Character{},
@@ -89,7 +89,7 @@ func TestGetImageByID_HappyPath(t *testing.T) {
 	spy := &spyImageUsecase{getByIDResult: image}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/images/:id", h.GetImageByID)
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/images/%s", image.ID), nil)
@@ -110,7 +110,7 @@ func TestGetImageByID_NotFound(t *testing.T) {
 	spy := &spyImageUsecase{getByIDErr: gorm.ErrRecordNotFound}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/images/:id", h.GetImageByID)
 
 	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/images/%s", uuid.New()), nil)
@@ -124,7 +124,7 @@ func TestGetImageByID_InvalidUUID(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/images/:id", h.GetImageByID)
 
 	req := httptest.NewRequest(http.MethodGet, "/images/not-a-uuid", nil)
@@ -141,7 +141,7 @@ func TestListImages_HappyPath(t *testing.T) {
 	spy := &spyImageUsecase{listResult: images}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/images", h.ListImages)
 
 	req := httptest.NewRequest(http.MethodGet, "/images", nil)
@@ -159,7 +159,7 @@ func TestListImages_EmptyCharactersArray(t *testing.T) {
 	spy := &spyImageUsecase{listResult: []*domain.Image{image}}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.GET("/images", h.ListImages)
 
 	req := httptest.NewRequest(http.MethodGet, "/images", nil)
@@ -182,7 +182,7 @@ func TestUpdateImage_HappyPath(t *testing.T) {
 	spy := &spyImageUsecase{updateResult: image}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	body := `{"artist_name":"Jane Doe"}`
@@ -201,7 +201,7 @@ func TestUpdateImage_NotFound(t *testing.T) {
 	spy := &spyImageUsecase{updateErr: gorm.ErrRecordNotFound}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{}`))
@@ -216,7 +216,7 @@ func TestUpdateImage_CharacterNotOwned(t *testing.T) {
 	spy := &spyImageUsecase{updateErr: usecase.ErrCharacterNotOwned}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	body := `{"character_ids":["` + uuid.New().String() + `"]}`
@@ -232,7 +232,7 @@ func TestUpdateImage_MalformedJSON(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{bad`))
@@ -247,7 +247,7 @@ func TestUpdateImage_InvalidUUID(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	req := httptest.NewRequest(http.MethodPatch, "/images/not-a-uuid", strings.NewReader(`{}`))
@@ -263,7 +263,7 @@ func TestUpdateImage_AbsentCharacterIDs(t *testing.T) {
 	spy := &spyImageUsecase{updateResult: image}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"artist_name":"Jane"}`))
@@ -281,7 +281,7 @@ func TestDeleteImage_HappyPath(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/images/:id", h.DeleteImage)
 
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/images/%s", uuid.New()), nil)
@@ -295,7 +295,7 @@ func TestDeleteImage_NotFound(t *testing.T) {
 	spy := &spyImageUsecase{deleteErr: gorm.ErrRecordNotFound}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/images/:id", h.DeleteImage)
 
 	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/images/%s", uuid.New()), nil)
@@ -309,7 +309,7 @@ func TestDeleteImage_InvalidUUID(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/images/:id", h.DeleteImage)
 
 	req := httptest.NewRequest(http.MethodDelete, "/images/not-a-uuid", nil)

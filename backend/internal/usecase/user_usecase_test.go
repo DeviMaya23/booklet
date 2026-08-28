@@ -10,9 +10,10 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
-
 
 type spyUserRepository struct {
 	setPendingDeletionErr         error
@@ -23,20 +24,24 @@ type spyUserRepository struct {
 	deleteExpiredTombstonesCalled bool
 }
 
-func (s *spyUserRepository) GetOrCreate(_ context.Context, id string) (*domain.User, error) {
-	return &domain.User{ID: id}, nil
+func (s *spyUserRepository) GetOrCreate(_ context.Context, idpSubject string) (*domain.User, error) {
+	return &domain.User{ID: uuid.New(), IDPSubject: idpSubject}, nil
 }
 
-func (s *spyUserRepository) GetByID(_ context.Context, _ string) (*domain.User, error) {
+func (s *spyUserRepository) GetByIDPSubject(_ context.Context, _ string) (*domain.User, error) {
 	return nil, errors.New("not found")
 }
 
-func (s *spyUserRepository) SetPendingDeletion(_ context.Context, _ string) error {
+func (s *spyUserRepository) GetByID(_ context.Context, _ uuid.UUID) (*domain.User, error) {
+	return nil, errors.New("not found")
+}
+
+func (s *spyUserRepository) SetPendingDeletion(_ context.Context, _ uuid.UUID) error {
 	s.setPendingDeletionCalled = true
 	return s.setPendingDeletionErr
 }
 
-func (s *spyUserRepository) DeleteAllUserData(_ context.Context, _ string) ([]string, error) {
+func (s *spyUserRepository) DeleteAllUserData(_ context.Context, _ uuid.UUID) ([]string, error) {
 	return s.deleteAllUserDataKeys, s.deleteAllUserDataErr
 }
 
@@ -62,7 +67,7 @@ func TestMarkPendingDeletion_BookleafSuccess(t *testing.T) {
 	bl := &spyBookleafClient{}
 	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	err := uc.MarkPendingDeletion(context.Background(), "user-1")
+	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
 	require.NoError(t, err)
 	require.True(t, repo.setPendingDeletionCalled)
@@ -73,7 +78,7 @@ func TestMarkPendingDeletion_Bookleaf401_ReturnsConfigError(t *testing.T) {
 	bl := &spyBookleafClient{deleteAccountErr: bookleaf.ErrUnauthorized}
 	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	err := uc.MarkPendingDeletion(context.Background(), "user-1")
+	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
 	require.ErrorIs(t, err, usecase.ErrBookleafConfigError)
 }
@@ -94,8 +99,20 @@ func TestMarkPendingDeletion_BookleafNon2xx_ReturnsError(t *testing.T) {
 	bl := &spyBookleafClient{deleteAccountErr: unexpectedErr}
 	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
-	err := uc.MarkPendingDeletion(context.Background(), "user-1")
+	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
 	require.ErrorIs(t, err, bookleaf.ErrUnexpectedStatus)
 	require.NotErrorIs(t, err, usecase.ErrBookleafConfigError)
+}
+
+func TestGetOrProvision_NewUser_CreatesWithIDPSubject(t *testing.T) {
+	repo := &spyUserRepository{}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	user, err := uc.GetOrProvision(context.Background(), "kp_newuser")
+
+	require.NoError(t, err)
+	require.NotNil(t, user)
+	assert.Equal(t, "kp_newuser", user.IDPSubject)
+	assert.NotEqual(t, uuid.Nil, user.ID)
 }

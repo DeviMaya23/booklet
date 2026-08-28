@@ -14,7 +14,7 @@ type CharacterFolder struct {
 
 type Character struct {
 	ID              uuid.UUID        `gorm:"type:uuid;primaryKey"`
-	UserID          string           `gorm:"type:text;not null;column:user_id"`
+	UserID          uuid.UUID        `gorm:"type:uuid;not null;column:user_id"`
 	Name            string           `gorm:"type:text;not null;column:name"`
 	HeroImageR2Path *string          `gorm:"type:text;column:hero_image_r2_path"`
 	Biography       *string          `gorm:"type:text;column:biography"`

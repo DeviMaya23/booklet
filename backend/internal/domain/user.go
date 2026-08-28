@@ -3,6 +3,7 @@ package domain
 import (
 	"time"
 
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -15,7 +16,8 @@ const (
 )
 
 type User struct {
-	ID           string         `gorm:"type:text;primaryKey"`
+	ID           uuid.UUID      `gorm:"type:uuid;primaryKey"`
+	IDPSubject   string         `gorm:"type:text;not null;uniqueIndex;column:idp_subject"`
 	AccountState AccountState   `gorm:"column:account_state;default:active"`
 	PurgedAt     *time.Time     `gorm:"column:purged_at"`
 	CreatedAt    time.Time      `gorm:"column:created_at"`
