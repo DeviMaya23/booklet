@@ -29,7 +29,7 @@ func (f *fakeCharacterRepository) Create(_ context.Context, character *domain.Ch
 	return nil
 }
 
-func (f *fakeCharacterRepository) GetByID(_ context.Context, id, _ string) (*domain.Character, error) {
+func (f *fakeCharacterRepository) GetByID(_ context.Context, id string, _ uuid.UUID) (*domain.Character, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return nil, fmt.Errorf("get character: %w", err)
@@ -41,7 +41,7 @@ func (f *fakeCharacterRepository) GetByID(_ context.Context, id, _ string) (*dom
 	return c, nil
 }
 
-func (f *fakeCharacterRepository) List(_ context.Context, userID string) ([]*domain.Character, error) {
+func (f *fakeCharacterRepository) List(_ context.Context, userID uuid.UUID) ([]*domain.Character, error) {
 	var result []*domain.Character
 	for _, c := range f.characters {
 		if c.UserID == userID {
@@ -51,7 +51,7 @@ func (f *fakeCharacterRepository) List(_ context.Context, userID string) ([]*dom
 	return result, nil
 }
 
-func (f *fakeCharacterRepository) Update(_ context.Context, id, _ string, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (f *fakeCharacterRepository) Update(_ context.Context, id string, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	f.lastUpdated = params
 	parsed, err := uuid.Parse(id)
 	if err != nil {
@@ -83,7 +83,7 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id, _ string, params
 	return c, nil
 }
 
-func (f *fakeCharacterRepository) Delete(_ context.Context, id, _ string) error {
+func (f *fakeCharacterRepository) Delete(_ context.Context, id string, _ uuid.UUID) error {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return fmt.Errorf("delete character: %w", err)

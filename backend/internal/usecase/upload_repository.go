@@ -10,13 +10,13 @@ import (
 
 type UploadRepository interface {
 	Create(ctx context.Context, p *domain.PendingUpload) (*domain.PendingUpload, error)
-	GetByID(ctx context.Context, id uuid.UUID, userID string) (*domain.PendingUpload, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.PendingUpload, error)
 	Delete(ctx context.Context, id uuid.UUID) error
 	ListStale(ctx context.Context, olderThan time.Time) ([]*domain.PendingUpload, error)
 }
 
 type UploadCharacterRepository interface {
-	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID string) ([]domain.Character, error)
+	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error)
 }
 
 type UploadImageRepository interface {

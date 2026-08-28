@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/devi/booklet/internal/domain"
+	"github.com/devi/booklet/internal/testutil"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -14,11 +15,8 @@ import (
 func TestGormTransactor_RollsBackOnError(t *testing.T) {
 	ctx := context.Background()
 
-	userID := "transactor_rollback_test_user"
-	require.NoError(t, testDB.FirstOrCreate(&domain.User{ID: userID}).Error)
-	t.Cleanup(func() {
-		testDB.Where("id = ?", userID).Delete(&domain.User{})
-	})
+	tx := testutil.NewTestTx(t, testDB)
+	user := seedUser(t, tx, "transactor_rollback_test_user")
 
 	pendingID := uuid.New()
 	transactor := NewGormTransactor(testDB)
@@ -27,8 +25,8 @@ func TestGormTransactor_RollsBackOnError(t *testing.T) {
 	err := transactor.InTransaction(ctx, func(txCtx context.Context) error {
 		_, createErr := uploadRepo.Create(txCtx, &domain.PendingUpload{
 			ID:       pendingID,
-			UserID:   userID,
-			R2Key:    "users/" + userID + "/images/test.jpg",
+			UserID:   user.ID,
+			R2Key:    "users/" + user.ID.String() + "/images/test.jpg",
 			MimeType: "image/jpeg",
 		})
 		if createErr != nil {

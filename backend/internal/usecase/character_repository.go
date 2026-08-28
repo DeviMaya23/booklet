@@ -17,8 +17,8 @@ type UpdateCharacterParams struct {
 
 type CharacterRepository interface {
 	Create(ctx context.Context, character *domain.Character) error
-	GetByID(ctx context.Context, id, userID string) (*domain.Character, error)
-	List(ctx context.Context, userID string) ([]*domain.Character, error)
-	Update(ctx context.Context, id, userID string, params UpdateCharacterParams) (*domain.Character, error)
-	Delete(ctx context.Context, id, userID string) error
+	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
+	List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error)
+	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error)
+	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }

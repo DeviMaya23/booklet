@@ -30,7 +30,7 @@ func (s *spyUploadUsecase) InitialUpload(_ context.Context, _ usecase.InitialUpl
 	return s.initialUploadResult, s.initialUploadErr
 }
 
-func (s *spyUploadUsecase) CompleteUpload(_ context.Context, _ uuid.UUID, _ string) error {
+func (s *spyUploadUsecase) CompleteUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.completeUploadErr
 }
 
@@ -47,7 +47,7 @@ func TestInitialUpload_HappyPath(t *testing.T) {
 	}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images", h.InitialUpload)
 
 	body := `{"mime_type":"image/jpeg","title":"Test Image"}`
@@ -68,7 +68,7 @@ func TestInitialUpload_MissingMimeType(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images", h.InitialUpload)
 
 	body := `{"title":"Test Image"}`
@@ -84,7 +84,7 @@ func TestInitialUpload_InvalidMimeType(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images", h.InitialUpload)
 
 	body := `{"mime_type":"image/gif"}`
@@ -100,7 +100,7 @@ func TestInitialUpload_MalformedJSON(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images", h.InitialUpload)
 
 	req := httptest.NewRequest(http.MethodPost, "/images", strings.NewReader(`{bad`))
@@ -117,7 +117,7 @@ func TestCompleteUpload_HappyPath(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images/:id/complete", h.CompleteUpload)
 
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/images/%s/complete", uuid.New()), nil)
@@ -132,7 +132,7 @@ func TestCompleteUpload_NotFound(t *testing.T) {
 	spy := &spyUploadUsecase{completeUploadErr: gorm.ErrRecordNotFound}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images/:id/complete", h.CompleteUpload)
 
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/images/%s/complete", uuid.New()), nil)
@@ -146,7 +146,7 @@ func TestCompleteUpload_InvalidUUID(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.POST("/images/:id/complete", h.CompleteUpload)
 
 	req := httptest.NewRequest(http.MethodPost, "/images/not-a-uuid/complete", nil)

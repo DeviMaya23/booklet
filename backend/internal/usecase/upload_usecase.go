@@ -17,7 +17,7 @@ import (
 const PresignTTL = 15 * time.Minute
 
 type InitialUploadParams struct {
-	UserID       string
+	UserID       uuid.UUID
 	MimeType     string
 	Title        *string
 	ArtistName   *string
@@ -71,13 +71,13 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 
 	id := uuid.New()
 	ext := mimeTypeToExt(params.MimeType)
-	r2Key := fmt.Sprintf("users/%s/images/%s%s", params.UserID, id.String(), ext)
+	r2Key := fmt.Sprintf("users/%s/images/%s%s", params.UserID.String(), id.String(), ext)
 	expiresAt := time.Now().Add(PresignTTL)
 
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info("upload initiated",
 		zap.String("event", "r2.upload.started"),
 		zap.String("image_id", id.String()),
-		zap.String("user_id", params.UserID),
+		zap.String("user_id", params.UserID.String()),
 		zap.String("mime_type", params.MimeType),
 		zap.String("r2_key", r2Key),
 	)
@@ -109,7 +109,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 	return &InitialUploadResult{ID: id, UploadURL: uploadURL, ExpiresAt: expiresAt}, nil
 }
 
-func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID string) error {
+func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CompleteUpload")
 	defer span.End()
 
@@ -139,7 +139,7 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info("upload completed",
 		zap.String("event", "r2.upload.completed"),
 		zap.String("image_id", id.String()),
-		zap.String("user_id", userID),
+		zap.String("user_id", userID.String()),
 		zap.Float64("duration_ms", float64(time.Since(start).Milliseconds())),
 	)
 

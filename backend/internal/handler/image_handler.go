@@ -15,10 +15,10 @@ import (
 )
 
 type ImageUsecase interface {
-	GetByID(ctx context.Context, id, userID string) (*domain.Image, error)
-	List(ctx context.Context, userID string) ([]*domain.Image, error)
-	Update(ctx context.Context, id, userID string, params usecase.UpdateImageParams) (*domain.Image, error)
-	Delete(ctx context.Context, id, userID string) error
+	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error)
+	List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error)
+	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error)
+	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }
 
 type ImageHandler struct {

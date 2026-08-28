@@ -6,11 +6,58 @@ import (
 	"time"
 
 	"github.com/devi/booklet/internal/domain"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
-func (r *userRepository) SetPendingDeletion(ctx context.Context, id string) error {
+type userRepository struct {
+	db *gorm.DB
+}
+
+func NewUserRepository(db *gorm.DB) *userRepository {
+	return &userRepository{
+		db: db,
+	}
+}
+
+func (r *userRepository) GetOrCreate(ctx context.Context, idpSubject string) (*domain.User, error) {
+	err := r.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns:   []clause.Column{{Name: "idp_subject"}},
+			DoNothing: true,
+		}).
+		Create(&domain.User{
+			ID:         uuid.New(),
+			IDPSubject: idpSubject,
+		}).
+		Error
+	if err != nil {
+		return nil, fmt.Errorf("insert user: %w", err)
+	}
+
+	return r.GetByIDPSubject(ctx, idpSubject)
+}
+
+func (r *userRepository) GetByIDPSubject(ctx context.Context, idpSubject string) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("idp_subject = ?", idpSubject).First(&user).Error
+	if err != nil {
+		return nil, fmt.Errorf("select user by idp_subject: %w", err)
+	}
+	return &user, nil
+}
+
+func (r *userRepository) GetByID(ctx context.Context, id uuid.UUID) (*domain.User, error) {
+	var user domain.User
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
+	if err != nil {
+		return nil, fmt.Errorf("select user: %w", err)
+	}
+	return &user, nil
+}
+
+func (r *userRepository) SetPendingDeletion(ctx context.Context, id uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).WithContext(ctx).
 		Model(&domain.User{}).
 		Where("id = ?", id).
@@ -21,7 +68,7 @@ func (r *userRepository) SetPendingDeletion(ctx context.Context, id string) erro
 	return nil
 }
 
-func (r *userRepository) DeleteAllUserData(ctx context.Context, userID string) ([]string, error) {
+func (r *userRepository) DeleteAllUserData(ctx context.Context, userID uuid.UUID) ([]string, error) {
 	db := dbFromContext(ctx, r.db).WithContext(ctx)
 
 	var keys []string
@@ -90,39 +137,6 @@ func (r *userRepository) DeleteAllUserData(ctx context.Context, userID string) (
 	}
 
 	return keys, nil
-}
-
-type userRepository struct {
-	db *gorm.DB
-}
-
-func NewUserRepository(db *gorm.DB) *userRepository {
-	return &userRepository{
-		db: db,
-	}
-}
-
-func (r *userRepository) GetOrCreate(ctx context.Context, id string) (*domain.User, error) {
-	err := r.db.WithContext(ctx).
-		Clauses(clause.OnConflict{DoNothing: true}).
-		Create(&domain.User{ID: id}).
-		Error
-	if err != nil {
-		return nil, fmt.Errorf("insert user: %w", err)
-	}
-
-	return r.GetByID(ctx, id)
-}
-
-func (r *userRepository) GetByID(ctx context.Context, id string) (*domain.User, error) {
-	var user domain.User
-
-	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
-	if err != nil {
-		return nil, fmt.Errorf("select user: %w", err)
-	}
-
-	return &user, nil
 }
 
 func (r *userRepository) DeleteExpiredTombstones(ctx context.Context) error {

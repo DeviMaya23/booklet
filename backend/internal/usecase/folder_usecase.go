@@ -22,11 +22,11 @@ func NewFolderUsecase(client BookleafClient, tel *observability.Telemetry) *fold
 	return &folderUsecase{client: client, tel: tel}
 }
 
-func (u *folderUsecase) ListFolders(ctx context.Context, userID string) (*bookleaf.FolderList, error) {
+func (u *folderUsecase) ListFolders(ctx context.Context, idpSubject string) (*bookleaf.FolderList, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ListFolders")
 	defer span.End()
 
-	result, err := u.client.GetPublicFolders(ctx, userID)
+	result, err := u.client.GetPublicFolders(ctx, idpSubject)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

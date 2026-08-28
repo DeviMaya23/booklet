@@ -13,7 +13,9 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/handler/middleware"
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -71,7 +73,7 @@ func buildMiddleware(t *testing.T, store jwkset.Storage, user *domain.User) echo
 
 func TestAuth_PendingDeletionAccount_Returns401(t *testing.T) {
 	privKey, store := buildTestStorage(t)
-	user := &domain.User{ID: "sub-1", AccountState: domain.AccountStatePendingDeletion}
+	user := &domain.User{ID: uuid.New(), IDPSubject: "sub-1", AccountState: domain.AccountStatePendingDeletion}
 	mw := buildMiddleware(t, store, user)
 
 	e := echo.New()
@@ -89,7 +91,7 @@ func TestAuth_PendingDeletionAccount_Returns401(t *testing.T) {
 
 func TestAuth_PurgedAccount_Returns401(t *testing.T) {
 	privKey, store := buildTestStorage(t)
-	user := &domain.User{ID: "sub-2", AccountState: domain.AccountStatePurged}
+	user := &domain.User{ID: uuid.New(), IDPSubject: "sub-2", AccountState: domain.AccountStatePurged}
 	mw := buildMiddleware(t, store, user)
 
 	e := echo.New()
@@ -107,7 +109,7 @@ func TestAuth_PurgedAccount_Returns401(t *testing.T) {
 
 func TestAuth_ActiveAccount_Passes(t *testing.T) {
 	privKey, store := buildTestStorage(t)
-	user := &domain.User{ID: "sub-3", AccountState: domain.AccountStateActive}
+	user := &domain.User{ID: uuid.New(), IDPSubject: "sub-3", AccountState: domain.AccountStateActive}
 	mw := buildMiddleware(t, store, user)
 
 	e := echo.New()
@@ -121,4 +123,36 @@ func TestAuth_ActiveAccount_Passes(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestAuth_ActiveAccount_SetsUUIDAndIDPSubjectInContext(t *testing.T) {
+	privKey, store := buildTestStorage(t)
+	userID := uuid.New()
+	user := &domain.User{ID: userID, IDPSubject: "sub-4", AccountState: domain.AccountStateActive}
+	mw := buildMiddleware(t, store, user)
+
+	var (
+		gotUserID     uuid.UUID
+		gotIDPSubject string
+		userIDOK      bool
+		idpSubjectOK  bool
+	)
+
+	e := echo.New()
+	e.GET("/protected", func(c echo.Context) error {
+		gotUserID, userIDOK = middleware.AuthenticatedUserIDFromContext(c)
+		gotIDPSubject, idpSubjectOK = middleware.AuthenticatedIDPSubjectFromContext(c)
+		return c.String(http.StatusOK, "ok")
+	}, mw)
+
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	req.Header.Set(echo.HeaderAuthorization, "Bearer "+signedToken(t, privKey, "sub-4"))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.True(t, userIDOK)
+	assert.Equal(t, userID, gotUserID)
+	assert.True(t, idpSubjectOK)
+	assert.Equal(t, "sub-4", gotIDPSubject)
 }

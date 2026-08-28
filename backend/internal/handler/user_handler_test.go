@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/devi/booklet/internal/worker"
+	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/rivertype"
@@ -19,21 +21,21 @@ import (
 )
 
 type spyUserUsecase struct {
-	markPendingDeletionErr  error
-	purgeUserDataKeys       []string
-	purgeUserDataErr        error
+	markPendingDeletionErr error
+	purgeUserDataKeys      []string
+	purgeUserDataErr       error
 }
 
-func (s *spyUserUsecase) MarkPendingDeletion(_ context.Context, _ string) error {
+func (s *spyUserUsecase) MarkPendingDeletion(_ context.Context, _ uuid.UUID, _ string) error {
 	return s.markPendingDeletionErr
 }
 
-func (s *spyUserUsecase) PurgeUserData(_ context.Context, _ string) ([]string, error) {
+func (s *spyUserUsecase) PurgeUserData(_ context.Context, _ uuid.UUID) ([]string, error) {
 	return s.purgeUserDataKeys, s.purgeUserDataErr
 }
 
 type spyJobInserter struct {
-	lastArgs river.JobArgs
+	lastArgs  river.JobArgs
 	insertErr error
 }
 
@@ -48,7 +50,7 @@ func TestDeleteMe_Success(t *testing.T) {
 	spy := &spyUserUsecase{}
 	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
 
 	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
@@ -62,7 +64,7 @@ func TestDeleteMe_ConfigError_Returns500(t *testing.T) {
 	spy := &spyUserUsecase{markPendingDeletionErr: usecase.ErrBookleafConfigError}
 	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
 
 	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
@@ -76,7 +78,7 @@ func TestDeleteMe_BookleafError_Returns502(t *testing.T) {
 	spy := &spyUserUsecase{markPendingDeletionErr: errors.New("bookleaf unavailable")}
 	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
-	e := setupEcho("user-1")
+	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
 
 	req := httptest.NewRequest(http.MethodDelete, "/me", nil)
@@ -97,7 +99,7 @@ func TestDeleteUserByID_Success(t *testing.T) {
 	e := echo.New()
 	e.DELETE("/internal/users/:id", h.DeleteUserByID)
 
-	req := httptest.NewRequest(http.MethodDelete, "/internal/users/user-1", nil)
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/internal/users/%s", testUserID), nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
@@ -115,7 +117,7 @@ func TestDeleteUserByID_NotFound_Returns404(t *testing.T) {
 	e := echo.New()
 	e.DELETE("/internal/users/:id", h.DeleteUserByID)
 
-	req := httptest.NewRequest(http.MethodDelete, "/internal/users/unknown-user", nil)
+	req := httptest.NewRequest(http.MethodDelete, fmt.Sprintf("/internal/users/%s", uuid.New()), nil)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 

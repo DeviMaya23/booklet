@@ -8,7 +8,7 @@ import (
 
 type PendingUpload struct {
 	ID           uuid.UUID   `gorm:"type:uuid;primaryKey"`
-	UserID       string      `gorm:"type:text;not null;column:user_id"`
+	UserID       uuid.UUID   `gorm:"type:uuid;not null;column:user_id"`
 	R2Key        string      `gorm:"type:text;not null;column:r2_key"`
 	MimeType     string      `gorm:"type:text;not null;column:mime_type"`
 	Title        *string     `gorm:"type:text;column:title"`
