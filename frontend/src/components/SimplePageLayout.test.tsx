@@ -13,7 +13,7 @@ describe('SimplePageLayout', () => {
       </MemoryRouter>,
     )
 
-    expect(screen.getByRole('link', { name: 'Bookleaf' })).toHaveAttribute('href', '/')
+    expect(screen.getByRole('link', { name: 'Booklet' })).toHaveAttribute('href', '/')
     expect(screen.getByRole('heading', { level: 1, name: 'Example Page' })).toBeInTheDocument()
     expect(screen.getByText('Example content')).toBeInTheDocument()
   })

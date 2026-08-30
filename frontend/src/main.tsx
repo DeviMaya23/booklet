@@ -19,7 +19,7 @@ const kindeVars = {
 }
 
 Object.entries(kindeVars).forEach(([key, value]) => {
-  if (!value) console.warn(`[bookleaf] Missing required env var: ${key}`)
+  if (!value) console.warn(`[booklet] Missing required env var: ${key}`)
 })
 
 createRoot(document.getElementById('root')!).render(

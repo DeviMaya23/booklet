@@ -1,7 +1,7 @@
 import { setMaintenanceActive } from './maintenanceStore'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
-const MAINTENANCE_BYPASS_STORAGE_KEY = 'bookleaf-maintenance-bypass'
+const MAINTENANCE_BYPASS_STORAGE_KEY = 'booklet-maintenance-bypass'
 
 export async function apiFetch(
   path: string,
@@ -15,11 +15,11 @@ export async function apiFetch(
     headers: {
       ...options?.headers,
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(bypassToken ? { 'X-Bookleaf-Bypass': bypassToken } : {}),
+      ...(bypassToken ? { 'X-Booklet-Bypass': bypassToken } : {}),
     },
   })
 
-  setMaintenanceActive(res.headers.get('X-Bookleaf-Maintenance') === 'true')
+  setMaintenanceActive(res.headers.get('X-Booklet-Maintenance') === 'true')
 
   return res
 }
