@@ -1,0 +1,25 @@
+meta {
+  name: Create Artist
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/artists
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Jane Doe",
+    "notes": "A talented artist.",
+    "artist_link": "https://example.com/janedoe"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("artistId", res.body.id);
+  }
+}

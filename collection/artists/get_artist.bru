@@ -1,16 +1,16 @@
 meta {
-  name: Get Image
+  name: Get Artist
   type: http
-  seq: 2
+  seq: 3
 }
 
 get {
-  url: {{baseUrl}}/images/:id
+  url: {{baseUrl}}/artists/:id
   body: none
   auth: inherit
 }
 
 params:path {
-  id: {{imageId}}
+  id: {{artistId}}
 }
 

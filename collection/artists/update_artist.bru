@@ -1,0 +1,24 @@
+meta {
+  name: Update Artist
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/artists/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{artistId}}
+}
+
+body:json {
+  {
+    "name": "Updated Name",
+    "notes": "Updated notes.",
+    "artist_link": "https://example.com/updated"
+  }
+}
+

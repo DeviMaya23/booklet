@@ -13,8 +13,7 @@ var ErrCharacterNotOwned = errors.New("one or more character IDs do not belong t
 type UpdateImageParams struct {
 	Title           *string
 	ThumbnailR2Path *string
-	ArtistName      *string
-	ArtistLink      *string
+	ArtistID        **uuid.UUID
 	Notes           *string
 	CharacterIDs    *[]string
 }

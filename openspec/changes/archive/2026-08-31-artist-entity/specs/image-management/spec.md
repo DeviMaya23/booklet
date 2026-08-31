@@ -1,12 +1,4 @@
-# Image Management
-
-## Purpose
-
-Defines the data model, endpoints, and ownership rules for managing images within the system. Images are owned by authenticated users, may carry optional metadata (title, artist info, notes), and can be associated with one or more characters.
-
----
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Image data model
 The `images` table SHALL use the following schema:
@@ -42,36 +34,6 @@ The `artist_name` and `artist_link` columns are removed from `images`.
 #### Scenario: artist_id set to null on artist deletion
 - **WHEN** an artist referenced by one or more images is deleted
 - **THEN** those images have their `artist_id` set to null by the database
-
----
-
-### Requirement: Get image by ID
-An authenticated user SHALL be able to retrieve a single image by ID, provided they own it. The response SHALL include the list of associated characters (id and name).
-
-#### Scenario: Successful retrieval
-- **WHEN** an authenticated user sends `GET /images/:id` for an image they own
-- **THEN** the system returns 200 with the full image object including its `characters` array
-
-#### Scenario: Image not found or not owned
-- **WHEN** an authenticated user sends `GET /images/:id` for an image that does not exist or belongs to another user
-- **THEN** the system returns 404
-
-#### Scenario: Invalid UUID path param
-- **WHEN** an authenticated user sends `GET /images/:id` with a non-UUID value
-- **THEN** the system returns 400
-
----
-
-### Requirement: List images
-An authenticated user SHALL be able to retrieve all images they own. Each image in the response SHALL include its associated characters (id and name).
-
-#### Scenario: Successful listing
-- **WHEN** an authenticated user sends `GET /images`
-- **THEN** the system returns 200 with an array of image objects (may be empty), each including a `characters` array
-
-#### Scenario: Only owner's images returned
-- **WHEN** multiple users have images and user A sends `GET /images`
-- **THEN** the response contains only user A's images
 
 ---
 
@@ -130,19 +92,6 @@ If `character_ids` is present in the request body, the full set of character ass
 
 ---
 
-### Requirement: Delete image
-An authenticated user SHALL be able to hard-delete an image they own. The `image_characters` rows for that image SHALL also be deleted.
-
-#### Scenario: Successful deletion
-- **WHEN** an authenticated user sends `DELETE /images/:id` for an image they own
-- **THEN** the system returns 204 and the image is no longer returned by list or get endpoints
-
-#### Scenario: Image not found or not owned
-- **WHEN** an authenticated user sends `DELETE /images/:id` for an image that does not exist or belongs to another user
-- **THEN** the system returns 404
-
----
-
 ### Requirement: Image response shape
 Every image response SHALL use snake_case field names and include the following fields:
 - `id` (string, UUID)
@@ -179,11 +128,8 @@ The `artist_link` field is removed from the image response.
 - **WHEN** an image has an artist association and is returned by any endpoint
 - **THEN** `artist_id` contains the artist's UUID and `artist_name` contains the artist's name
 
----
+## REMOVED Requirements
 
-### Requirement: Image ownership isolation
-The system SHALL ensure that a user cannot read or modify images belonging to another user. Ownership checks SHALL be enforced at the database layer by scoping all queries to the authenticated user's ID.
-
-#### Scenario: Cross-user access attempt
-- **WHEN** user B attempts to get, update, or delete an image owned by user A
-- **THEN** the system returns 404 (indistinguishable from not found)
+### Requirement: (field removal only — no named requirement)
+**Reason**: `artist_name` and `artist_link` as free-text columns on `images` are replaced by the `artist_id` FK relationship.
+**Migration**: Use `POST /artists` to create an artist entity, then reference it via `artist_id` on image create/update endpoints.

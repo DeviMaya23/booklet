@@ -1,16 +1,16 @@
 meta {
-  name: Delete Image
+  name: Delete Artist
   type: http
-  seq: 4
+  seq: 5
 }
 
 delete {
-  url: {{baseUrl}}/images/:id
+  url: {{baseUrl}}/artists/:id
   body: none
   auth: inherit
 }
 
 params:path {
-  id: {{imageId}}
+  id: {{artistId}}
 }
 

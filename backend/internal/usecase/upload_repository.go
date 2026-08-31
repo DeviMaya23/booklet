@@ -19,6 +19,10 @@ type UploadCharacterRepository interface {
 	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error)
 }
 
+type UploadArtistRepository interface {
+	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+}
+
 type UploadImageRepository interface {
 	Create(ctx context.Context, image *domain.Image) (*domain.Image, error)
 }
