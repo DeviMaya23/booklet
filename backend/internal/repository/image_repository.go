@@ -29,6 +29,7 @@ func (r *imageRepository) GetByID(ctx context.Context, id string, userID uuid.UU
 	var image domain.Image
 	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
+		Preload("Artist").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&image).Error
 	if err != nil {
@@ -41,6 +42,7 @@ func (r *imageRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain
 	var images []*domain.Image
 	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
+		Preload("Artist").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&images).Error
@@ -66,14 +68,24 @@ func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUI
 	if params.ThumbnailR2Path != nil {
 		updates["thumbnail_r2_path"] = *params.ThumbnailR2Path
 	}
-	if params.ArtistName != nil {
-		updates["artist_name"] = *params.ArtistName
-	}
-	if params.ArtistLink != nil {
-		updates["artist_link"] = *params.ArtistLink
-	}
 	if params.Notes != nil {
 		updates["notes"] = *params.Notes
+	}
+
+	if params.ArtistID != nil {
+		if *params.ArtistID == nil {
+			updates["artist_id"] = nil
+		} else {
+			artistID := *params.ArtistID
+			var count int64
+			dbFromContext(ctx, r.db).Model(&domain.Artist{}).
+				Where("id = ? AND user_id = ?", *artistID, userID).
+				Count(&count)
+			if count == 0 {
+				return nil, usecase.ErrArtistNotOwned
+			}
+			updates["artist_id"] = *artistID
+		}
 	}
 
 	if len(updates) > 0 {

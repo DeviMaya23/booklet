@@ -20,8 +20,7 @@ type InitialUploadParams struct {
 	UserID       uuid.UUID
 	MimeType     string
 	Title        *string
-	ArtistName   *string
-	ArtistLink   *string
+	ArtistID     *uuid.UUID
 	Notes        *string
 	CharacterIDs []uuid.UUID
 }
@@ -36,6 +35,7 @@ type uploadUsecase struct {
 	uploadRepo    UploadRepository
 	storage       StorageService
 	characterRepo UploadCharacterRepository
+	artistRepo    UploadArtistRepository
 	imageRepo     UploadImageRepository
 	transactor    Transactor
 	tel           *observability.Telemetry
@@ -46,6 +46,7 @@ func NewUploadUsecase(
 	uploadRepo UploadRepository,
 	storage StorageService,
 	characterRepo UploadCharacterRepository,
+	artistRepo UploadArtistRepository,
 	imageRepo UploadImageRepository,
 	transactor Transactor,
 	tel *observability.Telemetry,
@@ -58,6 +59,7 @@ func NewUploadUsecase(
 		uploadRepo:    uploadRepo,
 		storage:       storage,
 		characterRepo: characterRepo,
+		artistRepo:    artistRepo,
 		imageRepo:     imageRepo,
 		transactor:    transactor,
 		tel:           tel,
@@ -95,8 +97,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 		R2Key:        r2Key,
 		MimeType:     params.MimeType,
 		Title:        params.Title,
-		ArtistName:   params.ArtistName,
-		ArtistLink:   params.ArtistLink,
+		ArtistID:     params.ArtistID,
 		Notes:        params.Notes,
 		CharacterIDs: params.CharacterIDs,
 	}
@@ -135,6 +136,15 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 		}
 	}
 
+	var resolvedArtistID *uuid.UUID
+	if pending.ArtistID != nil {
+		_, err := u.artistRepo.GetByIDAndUserID(ctx, *pending.ArtistID, userID)
+		if err == nil {
+			resolvedArtistID = pending.ArtistID
+		}
+		// if not found, silently leave resolvedArtistID as nil
+	}
+
 	u.uploadCount.Add(ctx, 1, metric.WithAttributes(attribute.String("r2.status", "success")))
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info("upload completed",
 		zap.String("event", "r2.upload.completed"),
@@ -149,8 +159,7 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 		ImageR2Path: pending.R2Key,
 		MimeType:    pending.MimeType,
 		Title:       pending.Title,
-		ArtistName:  pending.ArtistName,
-		ArtistLink:  pending.ArtistLink,
+		ArtistID:    resolvedArtistID,
 		Notes:       pending.Notes,
 		Characters:  make([]domain.Character, len(validCharIDs)),
 	}

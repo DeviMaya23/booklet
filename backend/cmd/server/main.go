@@ -234,12 +234,16 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, tel)
 
+	artistRepository := repository.NewArtistRepository(db)
+	artistUsecase := usecase.NewArtistUsecase(artistRepository, tel)
+	artistHandler := httphandler.NewArtistHandler(artistUsecase, tel)
+
 	imageRepository := repository.NewImageRepository(db)
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
 	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
 
 	uploadRepository := repository.NewUploadRepository(db)
-	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, imageRepository, transactor, tel)
+	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, tel)
 	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
@@ -289,6 +293,12 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
 
 	protected.GET("/folders", folderHandler.ListFolders)
+
+	protected.POST("/artists", artistHandler.CreateArtist)
+	protected.GET("/artists", artistHandler.ListArtists)
+	protected.GET("/artists/:id", artistHandler.GetArtistByID)
+	protected.PATCH("/artists/:id", artistHandler.UpdateArtist)
+	protected.DELETE("/artists/:id", artistHandler.DeleteArtist)
 
 	protected.GET("/images", imageHandler.ListImages)
 	protected.GET("/images/:id", imageHandler.GetImageByID)

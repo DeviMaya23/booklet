@@ -25,6 +25,13 @@ func NewEchoValidator() echo.Validator {
 		}
 		return name
 	})
+	v.RegisterCustomTypeFunc(func(field reflect.Value) interface{} {
+		p := field.Interface().(Patch[string])
+		if !p.Set || p.Value == nil {
+			return ""
+		}
+		return *p.Value
+	}, Patch[string]{})
 	return &echoValidator{v: v}
 }
 

@@ -31,8 +31,7 @@ func NewUploadHandler(uploadUsecase UploadUsecase, tel *observability.Telemetry)
 type initialUploadRequest struct {
 	MimeType     string   `json:"mime_type" validate:"required,oneof=image/jpeg image/png"`
 	Title        *string  `json:"title"`
-	ArtistName   *string  `json:"artist_name"`
-	ArtistLink   *string  `json:"artist_link" validate:"omitempty,url"`
+	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
 	Notes        *string  `json:"notes"`
 	CharacterIDs []string `json:"character_ids" validate:"omitempty,dive,uuid4"`
 }
@@ -66,12 +65,17 @@ func (h *UploadHandler) InitialUpload(c echo.Context) error {
 		charIDs = append(charIDs, id)
 	}
 
+	var artistID *uuid.UUID
+	if req.ArtistID != nil {
+		parsed, _ := uuid.Parse(*req.ArtistID) // already validated as uuid4
+		artistID = &parsed
+	}
+
 	result, err := h.uploadUsecase.InitialUpload(ctx, usecase.InitialUploadParams{
 		UserID:       userID,
 		MimeType:     req.MimeType,
 		Title:        req.Title,
-		ArtistName:   req.ArtistName,
-		ArtistLink:   req.ArtistLink,
+		ArtistID:     artistID,
 		Notes:        req.Notes,
 		CharacterIDs: charIDs,
 	})

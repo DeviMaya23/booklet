@@ -26,8 +26,8 @@ type imageResponse struct {
 	MimeType        string          `json:"mime_type"`
 	Title           *string         `json:"title"`
 	ThumbnailR2Path *string         `json:"thumbnail_r2_path"`
+	ArtistID        *string         `json:"artist_id"`
 	ArtistName      *string         `json:"artist_name"`
-	ArtistLink      *string         `json:"artist_link"`
 	Notes           *string         `json:"notes"`
 	Characters      []characterItem `json:"characters"`
 	CreatedAt       string          `json:"created_at"`
@@ -185,7 +185,7 @@ func TestUpdateImage_HappyPath(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
-	body := `{"artist_name":"Jane Doe"}`
+	body := `{"notes":"some note"}`
 	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -228,6 +228,65 @@ func TestUpdateImage_CharacterNotOwned(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
+func TestUpdateImage_InvalidArtistID(t *testing.T) {
+	spy := &spyImageUsecase{}
+	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/images/:id", h.UpdateImage)
+
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{"artist_id":"not-a-uuid"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var body struct {
+		Errors []struct {
+			Field   string `json:"field"`
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
+	require.Len(t, body.Errors, 1)
+	require.Equal(t, "artist_id", body.Errors[0].Field)
+	require.Equal(t, "artist_id must be a valid UUID", body.Errors[0].Message)
+}
+
+func TestUpdateImage_ArtistNotOwned(t *testing.T) {
+	spy := &spyImageUsecase{updateErr: usecase.ErrArtistNotOwned}
+	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/images/:id", h.UpdateImage)
+
+	body := `{"artist_id":"` + uuid.New().String() + `"}`
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestUpdateImage_ArtistIDNull_ClearsArtist(t *testing.T) {
+	image := makeImage()
+	spy := &spyImageUsecase{updateResult: image}
+	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/images/:id", h.UpdateImage)
+
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"artist_id":null}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.lastUpdateParams.ArtistID)
+	require.Nil(t, *spy.lastUpdateParams.ArtistID)
+}
+
 func TestUpdateImage_MalformedJSON(t *testing.T) {
 	spy := &spyImageUsecase{}
 	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
@@ -266,13 +325,30 @@ func TestUpdateImage_AbsentCharacterIDs(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.PATCH("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"artist_name":"Jane"}`))
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"notes":"some note"}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Nil(t, spy.lastUpdateParams.CharacterIDs)
+}
+
+func TestUpdateImage_AbsentArtistID(t *testing.T) {
+	image := makeImage()
+	spy := &spyImageUsecase{updateResult: image}
+	h := handler.NewImageHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/images/:id", h.UpdateImage)
+
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"notes":"some note"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, spy.lastUpdateParams.ArtistID)
 }
 
 // --- DeleteImage ---
