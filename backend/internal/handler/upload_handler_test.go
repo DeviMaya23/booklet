@@ -112,6 +112,22 @@ func TestInitialUpload_InvalidArtistID(t *testing.T) {
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
+func TestInitialUpload_ArtistNotOwned(t *testing.T) {
+	spy := &spyUploadUsecase{initialUploadErr: usecase.ErrArtistNotOwned}
+	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/images", h.InitialUpload)
+
+	body := `{"mime_type":"image/jpeg","artist_id":"` + uuid.New().String() + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/images", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
 func TestInitialUpload_MalformedJSON(t *testing.T) {
 	spy := &spyUploadUsecase{}
 	h := handler.NewUploadHandler(spy, observability.NewTelemetry(nil, nil, nil))

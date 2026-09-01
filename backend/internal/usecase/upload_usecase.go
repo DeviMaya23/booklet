@@ -7,6 +7,7 @@ import (
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -38,6 +39,7 @@ type uploadUsecase struct {
 	artistRepo    UploadArtistRepository
 	imageRepo     UploadImageRepository
 	transactor    Transactor
+	jobInserter   JobInserter
 	tel           *observability.Telemetry
 	uploadCount   metric.Int64Counter
 }
@@ -49,6 +51,7 @@ func NewUploadUsecase(
 	artistRepo UploadArtistRepository,
 	imageRepo UploadImageRepository,
 	transactor Transactor,
+	jobInserter JobInserter,
 	tel *observability.Telemetry,
 ) *uploadUsecase {
 	uploadCount, _ := tel.Meter.Int64Counter(
@@ -62,6 +65,7 @@ func NewUploadUsecase(
 		artistRepo:    artistRepo,
 		imageRepo:     imageRepo,
 		transactor:    transactor,
+		jobInserter:   jobInserter,
 		tel:           tel,
 		uploadCount:   uploadCount,
 	}
@@ -83,6 +87,12 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 		zap.String("mime_type", params.MimeType),
 		zap.String("r2_key", r2Key),
 	)
+
+	if params.ArtistID != nil {
+		if _, err := u.artistRepo.GetByIDAndUserID(ctx, *params.ArtistID, params.UserID); err != nil {
+			return nil, ErrArtistNotOwned
+		}
+	}
 
 	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, params.MimeType, PresignTTL)
 	if err != nil {
@@ -177,6 +187,13 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
+	}
+
+	if _, err := u.jobInserter.Insert(ctx, worker.GenerateThumbnailArgs{ImageID: img.ID, UserID: img.UserID}, nil); err != nil {
+		observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to enqueue thumbnail job",
+			zap.String("image_id", img.ID.String()),
+			zap.Error(err),
+		)
 	}
 
 	return nil

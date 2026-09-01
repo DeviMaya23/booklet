@@ -119,6 +119,28 @@ func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUI
 	return r.GetByID(ctx, id, userID)
 }
 
+func (r *imageRepository) GetByIDForWorker(ctx context.Context, id uuid.UUID) (*domain.Image, error) {
+	var image domain.Image
+	err := r.db.WithContext(ctx).
+		Where("id = ?", id).
+		First(&image).Error
+	if err != nil {
+		return nil, fmt.Errorf("get image for worker: %w", err)
+	}
+	return &image, nil
+}
+
+func (r *imageRepository) UpdateThumbnailPath(ctx context.Context, id uuid.UUID, r2Path string) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.Image{}).
+		Where("id = ?", id).
+		Update("thumbnail_r2_path", r2Path)
+	if result.Error != nil {
+		return fmt.Errorf("update thumbnail_r2_path: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *imageRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).

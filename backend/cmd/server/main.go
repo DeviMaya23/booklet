@@ -25,6 +25,7 @@ import (
 	"github.com/riverqueue/river"
 	"github.com/riverqueue/river/riverdriver/riverpgxv5"
 	"github.com/riverqueue/river/rivermigrate"
+	rivertype "github.com/riverqueue/river/rivertype"
 	"go.opentelemetry.io/otel"
 	"go.uber.org/zap"
 	"gorm.io/driver/postgres"
@@ -219,8 +220,23 @@ func initRiverClient(ctx context.Context, pool *pgxpool.Pool, workers *river.Wor
 	return client, nil
 }
 
+// riverEnqueuer wraps river.Client[pgx.Tx] to satisfy usecase.JobInserter.
+// Its client field is set after river.NewClient to break the
+// uploadUsecase ↔ riverClient init cycle.
+type riverEnqueuer struct {
+	client *river.Client[pgx.Tx]
+}
+
+func (e *riverEnqueuer) Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	return e.client.Insert(ctx, args, opts)
+}
+
 func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pgxpool.Pool, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) *river.Client[pgx.Tx] {
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
+
+	// Deferred enqueuer: client field is set after river.NewClient to break the
+	// uploadUsecase ↔ riverClient init cycle.
+	enqueuer := &riverEnqueuer{}
 
 	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
 	folderUsecase := usecase.NewFolderUsecase(bookleafClient, tel)
@@ -243,7 +259,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
 
 	uploadRepository := repository.NewUploadRepository(db)
-	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, tel)
+	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, enqueuer, tel)
 	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
@@ -257,6 +273,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
+	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
 
 	periodicJobs := []*river.PeriodicJob{
 		river.NewPeriodicJob(
@@ -279,6 +296,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	if err != nil {
 		logger.Fatal("init river client", zap.Error(err))
 	}
+	enqueuer.client = riverClient
 
 	userHandler := httphandler.NewUserHandler(userUsecase, riverClient, tel)
 

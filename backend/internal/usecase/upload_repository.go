@@ -6,6 +6,8 @@ import (
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	rivertype "github.com/riverqueue/river/rivertype"
 )
 
 type UploadRepository interface {
@@ -30,4 +32,8 @@ type UploadImageRepository interface {
 type StorageService interface {
 	GeneratePresignedPutURL(ctx context.Context, key, contentType string, ttl time.Duration) (string, error)
 	DeleteObject(ctx context.Context, key string) error
+}
+
+type JobInserter interface {
+	Insert(ctx context.Context, args river.JobArgs, opts *river.InsertOpts) (*rivertype.JobInsertResult, error)
 }
