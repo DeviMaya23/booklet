@@ -244,7 +244,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	transactor := repository.NewGormTransactor(db)
 	userRepository := repository.NewUserRepository(db)
-	userUsecase := usecase.NewUserUsecase(userRepository, bookleafClient, transactor, tel)
+	userUsecase := usecase.NewUserUsecase(userRepository, bookleafClient, transactor, enqueuer, tel)
 
 	characterRepository := repository.NewCharacterRepository(db)
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
@@ -298,7 +298,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	}
 	enqueuer.client = riverClient
 
-	userHandler := httphandler.NewUserHandler(userUsecase, riverClient, tel)
+	userHandler := httphandler.NewUserHandler(userUsecase, tel)
 
 	e.GET("/health", healthHandler.GetHealth)
 	protected := e.Group("")
