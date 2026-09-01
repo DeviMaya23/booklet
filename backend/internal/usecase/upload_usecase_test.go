@@ -2,6 +2,7 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -10,7 +11,10 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	rivertype "github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -95,6 +99,16 @@ func (s *spyTransactor) InTransaction(ctx context.Context, fn func(context.Conte
 	return fn(ctx)
 }
 
+type spyJobInserter struct {
+	lastArgs river.JobArgs
+	returnErr error
+}
+
+func (s *spyJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	s.lastArgs = args
+	return &rivertype.JobInsertResult{}, s.returnErr
+}
+
 // --- tests ---
 
 func TestInitialUpload_R2KeyFormat(t *testing.T) {
@@ -104,7 +118,7 @@ func TestInitialUpload_R2KeyFormat(t *testing.T) {
 	artistSpy := &spyUploadArtistRepository{}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	userID := uuid.New()
 	result, err := uc.InitialUpload(context.Background(), usecase.InitialUploadParams{
@@ -127,6 +141,23 @@ func TestInitialUpload_R2KeyFormat(t *testing.T) {
 	require.NoError(t, err, "expected UUID segment in key, got %q", middle)
 }
 
+func TestInitialUpload_ArtistIDNotOwnedReturnsError(t *testing.T) {
+	artistSpy := &spyUploadArtistRepository{
+		returnErr: fmt.Errorf("get artist: %w", gorm.ErrRecordNotFound),
+	}
+	artistID := uuid.New()
+
+	uc := usecase.NewUploadUsecase(&spyUploadRepository{}, &spyStorageService{}, &spyUploadCharacterRepository{}, artistSpy, &spyUploadImageRepository{}, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+
+	_, err := uc.InitialUpload(context.Background(), usecase.InitialUploadParams{
+		UserID:   uuid.New(),
+		MimeType: "image/jpeg",
+		ArtistID: &artistID,
+	})
+
+	require.ErrorIs(t, err, usecase.ErrArtistNotOwned)
+}
+
 func TestCompleteUpload_SomeCharsValid(t *testing.T) {
 	charID1, charID2 := uuid.New(), uuid.New()
 
@@ -142,7 +173,7 @@ func TestCompleteUpload_SomeCharsValid(t *testing.T) {
 	artistSpy := &spyUploadArtistRepository{}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
@@ -166,7 +197,7 @@ func TestCompleteUpload_AllCharsInvalid(t *testing.T) {
 	artistSpy := &spyUploadArtistRepository{}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, charSpy, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
@@ -187,7 +218,7 @@ func TestCompleteUpload_ArtistIDCarriedThroughIfValid(t *testing.T) {
 	}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
@@ -209,7 +240,7 @@ func TestCompleteUpload_ArtistIDNulledIfNotFound(t *testing.T) {
 	}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
 
@@ -224,13 +255,50 @@ func TestCleanupStaleUploads_NoStaleRecords(t *testing.T) {
 	artistSpy := &spyUploadArtistRepository{}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CleanupStaleUploads(context.Background(), 15*time.Minute)
 
 	require.NoError(t, err)
 	require.Empty(t, storageSpy.deleteObjectCalls)
 	require.Empty(t, repoSpy.deletedIDs)
+}
+
+func TestCompleteUpload_EnqueuesThumbnailJobOnSuccess(t *testing.T) {
+	imageID := uuid.New()
+	userID := uuid.New()
+	repoSpy := &spyUploadRepository{
+		pendingToReturn: &domain.PendingUpload{
+			ID:     imageID,
+			UserID: userID,
+		},
+	}
+	jobSpy := &spyJobInserter{}
+	imageSpy := &spyUploadImageRepository{}
+
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, &spyUploadArtistRepository{}, imageSpy, &spyTransactor{}, jobSpy, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.CompleteUpload(context.Background(), imageID, userID)
+
+	require.NoError(t, err)
+	require.NotNil(t, jobSpy.lastArgs, "expected thumbnail job to be enqueued")
+	args, ok := jobSpy.lastArgs.(worker.GenerateThumbnailArgs)
+	require.True(t, ok, "expected GenerateThumbnailArgs")
+	require.Equal(t, imageID, args.ImageID)
+	require.Equal(t, userID, args.UserID)
+}
+
+func TestCompleteUpload_EnqueueFailureDoesNotFail(t *testing.T) {
+	repoSpy := &spyUploadRepository{
+		pendingToReturn: &domain.PendingUpload{ID: uuid.New()},
+	}
+	jobSpy := &spyJobInserter{returnErr: errors.New("river unavailable")}
+
+	uc := usecase.NewUploadUsecase(repoSpy, &spyStorageService{}, &spyUploadCharacterRepository{}, &spyUploadArtistRepository{}, &spyUploadImageRepository{}, &spyTransactor{}, jobSpy, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.CompleteUpload(context.Background(), uuid.New(), uuid.New())
+
+	require.NoError(t, err)
 }
 
 func TestCleanupStaleUploads_StaleRecordsExist(t *testing.T) {
@@ -245,7 +313,7 @@ func TestCleanupStaleUploads_StaleRecordsExist(t *testing.T) {
 	artistSpy := &spyUploadArtistRepository{}
 	imageSpy := &spyUploadImageRepository{}
 
-	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUploadUsecase(repoSpy, storageSpy, charSpy, artistSpy, imageSpy, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CleanupStaleUploads(context.Background(), 15*time.Minute)
 

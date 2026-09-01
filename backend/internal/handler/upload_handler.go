@@ -80,6 +80,9 @@ func (h *UploadHandler) InitialUpload(c echo.Context) error {
 		CharacterIDs: charIDs,
 	})
 	if err != nil {
+		if errors.Is(err, usecase.ErrArtistNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "artist_id does not exist or does not belong to the user")
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initiate upload")
 	}
 
