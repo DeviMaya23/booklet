@@ -10,6 +10,7 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -65,7 +66,7 @@ func (s *spyBookleafClient) DeleteAccount(_ context.Context, _ string) error {
 func TestMarkPendingDeletion_BookleafSuccess(t *testing.T) {
 	repo := &spyUserRepository{}
 	bl := &spyBookleafClient{}
-	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
@@ -76,7 +77,7 @@ func TestMarkPendingDeletion_BookleafSuccess(t *testing.T) {
 func TestMarkPendingDeletion_Bookleaf401_ReturnsConfigError(t *testing.T) {
 	repo := &spyUserRepository{}
 	bl := &spyBookleafClient{deleteAccountErr: bookleaf.ErrUnauthorized}
-	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
@@ -85,7 +86,7 @@ func TestMarkPendingDeletion_Bookleaf401_ReturnsConfigError(t *testing.T) {
 
 func TestCleanupExpiredTombstones_CallsRepo(t *testing.T) {
 	repo := &spyUserRepository{}
-	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CleanupExpiredTombstones(context.Background())
 
@@ -97,7 +98,7 @@ func TestMarkPendingDeletion_BookleafNon2xx_ReturnsError(t *testing.T) {
 	unexpectedErr := fmt.Errorf("%w: status 503", bookleaf.ErrUnexpectedStatus)
 	repo := &spyUserRepository{}
 	bl := &spyBookleafClient{deleteAccountErr: unexpectedErr}
-	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUserUsecase(repo, bl, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.MarkPendingDeletion(context.Background(), uuid.New(), "kp_user1")
 
@@ -105,9 +106,57 @@ func TestMarkPendingDeletion_BookleafNon2xx_ReturnsError(t *testing.T) {
 	require.NotErrorIs(t, err, usecase.ErrBookleafConfigError)
 }
 
+// --- PurgeUserData ---
+
+func TestPurgeUserData_WithKeys_EnqueuesStorageCleanup(t *testing.T) {
+	keys := []string{"users/u1/images/img.jpg", "users/u1/images/thumb.jpg"}
+	repo := &spyUserRepository{deleteAllUserDataKeys: keys}
+	jobSpy := &spyJobInserter{}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, jobSpy, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.PurgeUserData(context.Background(), uuid.New())
+
+	require.NoError(t, err)
+	require.NotNil(t, jobSpy.lastArgs)
+	got, ok := jobSpy.lastArgs.(worker.PurgeUserStorageArgs)
+	require.True(t, ok)
+	require.Equal(t, keys, got.R2Keys)
+}
+
+func TestPurgeUserData_NoKeys_SkipsEnqueue(t *testing.T) {
+	repo := &spyUserRepository{deleteAllUserDataKeys: nil}
+	jobSpy := &spyJobInserter{}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, jobSpy, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.PurgeUserData(context.Background(), uuid.New())
+
+	require.NoError(t, err)
+	require.Nil(t, jobSpy.lastArgs)
+}
+
+func TestPurgeUserData_RepoError_ReturnsError(t *testing.T) {
+	repo := &spyUserRepository{deleteAllUserDataErr: errors.New("db failure")}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.PurgeUserData(context.Background(), uuid.New())
+
+	require.EqualError(t, err, "db failure")
+}
+
+func TestPurgeUserData_EnqueueError_ReturnsError(t *testing.T) {
+	keys := []string{"users/u1/images/img.jpg"}
+	repo := &spyUserRepository{deleteAllUserDataKeys: keys}
+	jobSpy := &spyJobInserter{returnErr: errors.New("river unavailable")}
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, jobSpy, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.PurgeUserData(context.Background(), uuid.New())
+
+	require.EqualError(t, err, "river unavailable")
+}
+
 func TestGetOrProvision_NewUser_CreatesWithIDPSubject(t *testing.T) {
 	repo := &spyUserRepository{}
-	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewUserUsecase(repo, &spyBookleafClient{}, &spyTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 
 	user, err := uc.GetOrProvision(context.Background(), "kp_newuser")
 

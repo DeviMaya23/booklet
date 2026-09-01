@@ -11,18 +11,14 @@ import (
 	"github.com/devi/booklet/internal/handler"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
-	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
-	"github.com/riverqueue/river"
-	"github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
 
 type spyUserUsecase struct {
 	markPendingDeletionErr error
-	purgeUserDataKeys      []string
 	purgeUserDataErr       error
 }
 
@@ -30,25 +26,15 @@ func (s *spyUserUsecase) MarkPendingDeletion(_ context.Context, _ uuid.UUID, _ s
 	return s.markPendingDeletionErr
 }
 
-func (s *spyUserUsecase) PurgeUserData(_ context.Context, _ uuid.UUID) ([]string, error) {
-	return s.purgeUserDataKeys, s.purgeUserDataErr
-}
-
-type spyJobInserter struct {
-	lastArgs  river.JobArgs
-	insertErr error
-}
-
-func (s *spyJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
-	s.lastArgs = args
-	return nil, s.insertErr
+func (s *spyUserUsecase) PurgeUserData(_ context.Context, _ uuid.UUID) error {
+	return s.purgeUserDataErr
 }
 
 // --- DeleteMe ---
 
 func TestDeleteMe_Success(t *testing.T) {
 	spy := &spyUserUsecase{}
-	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewUserHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
@@ -62,7 +48,7 @@ func TestDeleteMe_Success(t *testing.T) {
 
 func TestDeleteMe_ConfigError_Returns500(t *testing.T) {
 	spy := &spyUserUsecase{markPendingDeletionErr: usecase.ErrBookleafConfigError}
-	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewUserHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
@@ -76,7 +62,7 @@ func TestDeleteMe_ConfigError_Returns500(t *testing.T) {
 
 func TestDeleteMe_BookleafError_Returns502(t *testing.T) {
 	spy := &spyUserUsecase{markPendingDeletionErr: errors.New("bookleaf unavailable")}
-	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewUserHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.DELETE("/me", h.DeleteMe)
@@ -91,10 +77,8 @@ func TestDeleteMe_BookleafError_Returns502(t *testing.T) {
 // --- DeleteUserByID ---
 
 func TestDeleteUserByID_Success(t *testing.T) {
-	keys := []string{"users/u1/images/img.jpg", "users/u1/images/thumb.jpg"}
-	spy := &spyUserUsecase{purgeUserDataKeys: keys}
-	jobSpy := &spyJobInserter{}
-	h := handler.NewUserHandler(spy, jobSpy, observability.NewTelemetry(nil, nil, nil))
+	spy := &spyUserUsecase{}
+	h := handler.NewUserHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := echo.New()
 	e.DELETE("/internal/users/:id", h.DeleteUserByID)
@@ -104,15 +88,11 @@ func TestDeleteUserByID_Success(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusAccepted, rec.Code)
-	require.NotNil(t, jobSpy.lastArgs)
-	got, ok := jobSpy.lastArgs.(worker.PurgeUserStorageArgs)
-	require.True(t, ok)
-	require.Equal(t, keys, got.R2Keys)
 }
 
 func TestDeleteUserByID_NotFound_Returns404(t *testing.T) {
 	spy := &spyUserUsecase{purgeUserDataErr: gorm.ErrRecordNotFound}
-	h := handler.NewUserHandler(spy, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewUserHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := echo.New()
 	e.DELETE("/internal/users/:id", h.DeleteUserByID)

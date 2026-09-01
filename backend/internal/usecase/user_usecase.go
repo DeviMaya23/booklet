@@ -8,6 +8,7 @@ import (
 	"github.com/devi/booklet/internal/bookleaf"
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
@@ -28,14 +29,16 @@ type userUsecase struct {
 	userRepo       UserRepository
 	bookleafClient BookleafClient
 	transactor     Transactor
+	jobInserter    JobInserter
 	tel            *observability.Telemetry
 }
 
-func NewUserUsecase(userRepo UserRepository, bookleafClient BookleafClient, transactor Transactor, tel *observability.Telemetry) *userUsecase {
+func NewUserUsecase(userRepo UserRepository, bookleafClient BookleafClient, transactor Transactor, jobInserter JobInserter, tel *observability.Telemetry) *userUsecase {
 	return &userUsecase{
 		userRepo:       userRepo,
 		bookleafClient: bookleafClient,
 		transactor:     transactor,
+		jobInserter:    jobInserter,
 		tel:            tel,
 	}
 }
@@ -112,7 +115,7 @@ func (u *userUsecase) CleanupExpiredTombstones(ctx context.Context) error {
 	return nil
 }
 
-func (u *userUsecase) PurgeUserData(ctx context.Context, userID uuid.UUID) ([]string, error) {
+func (u *userUsecase) PurgeUserData(ctx context.Context, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.PurgeUserData")
 	defer span.End()
 
@@ -125,7 +128,7 @@ func (u *userUsecase) PurgeUserData(ctx context.Context, userID uuid.UUID) ([]st
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
-		return nil, err
+		return err
 	}
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info(
 		"user data purged",
@@ -133,5 +136,12 @@ func (u *userUsecase) PurgeUserData(ctx context.Context, userID uuid.UUID) ([]st
 		zap.String("user_id", userID.String()),
 		zap.Int("images_to_be_deleted", len(keys)),
 	)
-	return keys, nil
+	if len(keys) > 0 {
+		if _, err := u.jobInserter.Insert(ctx, worker.PurgeUserStorageArgs{R2Keys: keys}, nil); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+	}
+	return nil
 }
