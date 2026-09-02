@@ -1,0 +1,15 @@
+meta {
+  name: Delete Avatar
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/characters/:id/avatar
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{characterId}}
+}

@@ -85,12 +85,12 @@ func (r *userRepository) DeleteAllUserData(ctx context.Context, userID uuid.UUID
 	}
 
 	var chars []domain.Character
-	if err := db.Select("hero_image_r2_path").Where("user_id = ?", userID).Find(&chars).Error; err != nil {
+	if err := db.Select("avatar_r2_path").Where("user_id = ?", userID).Find(&chars).Error; err != nil {
 		return nil, fmt.Errorf("collect character keys: %w", err)
 	}
 	for _, c := range chars {
-		if c.HeroImageR2Path != nil {
-			keys = append(keys, *c.HeroImageR2Path)
+		if c.AvatarR2Path != nil {
+			keys = append(keys, *c.AvatarR2Path)
 		}
 	}
 

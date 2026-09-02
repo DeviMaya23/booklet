@@ -1,0 +1,28 @@
+meta {
+  name: Init Avatar Upload
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/characters/:id/avatar/init
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{characterId}}
+}
+
+body:json {
+  {
+    "mime_type": "image/jpeg"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("avatarUploadId", res.body.id);
+    bru.setVar("avatarUploadUrl", res.body.upload_url);
+  }
+}

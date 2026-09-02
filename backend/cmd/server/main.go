@@ -247,7 +247,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	userUsecase := usecase.NewUserUsecase(userRepository, bookleafClient, transactor, enqueuer, tel)
 
 	characterRepository := repository.NewCharacterRepository(db)
-	characterUsecase := usecase.NewCharacterUsecase(characterRepository, tel)
+	characterAvatarRepository := repository.NewCharacterAvatarRepository(db)
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, transactor, tel)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, tel)
 
 	artistRepository := repository.NewArtistRepository(db)
@@ -271,6 +272,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
+	river.AddWorker(workers, worker.NewPurgeExpiredCharacterAvatarUploadsWorker(characterUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
@@ -280,6 +282,13 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 			river.PeriodicInterval(5*time.Minute),
 			func() (river.JobArgs, *river.InsertOpts) {
 				return worker.PurgeExpiredUploadsArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+		river.NewPeriodicJob(
+			river.PeriodicInterval(5*time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return worker.PurgeExpiredCharacterAvatarUploadsArgs{}, nil
 			},
 			&river.PeriodicJobOpts{RunOnStart: true},
 		),
@@ -309,6 +318,9 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/characters/:id", characterHandler.GetCharacterByID)
 	protected.PATCH("/characters/:id", characterHandler.UpdateCharacter)
 	protected.DELETE("/characters/:id", characterHandler.DeleteCharacter)
+	protected.POST("/characters/:id/avatar/init", characterHandler.InitAvatarUpload)
+	protected.POST("/characters/:id/avatar/:uploadID/complete", characterHandler.CompleteAvatarUpload)
+	protected.DELETE("/characters/:id/avatar", characterHandler.DeleteAvatar)
 
 	protected.GET("/folders", folderHandler.ListFolders)
 

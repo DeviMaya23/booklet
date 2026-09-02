@@ -1,0 +1,20 @@
+meta {
+  name: Complete Avatar Upload
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/characters/:id/avatar/:uploadID/complete
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{characterId}}
+  uploadID: {{avatarUploadId}}
+}
+
+vars:pre-request {
+  avatarUploadId: 00000000-0000-0000-0000-000000000000
+}

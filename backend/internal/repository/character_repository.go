@@ -60,8 +60,8 @@ func (r *characterRepository) Update(ctx context.Context, id string, userID uuid
 	if params.Name != nil {
 		updates["name"] = *params.Name
 	}
-	if params.HeroImageR2Path != nil {
-		updates["hero_image_r2_path"] = *params.HeroImageR2Path
+	if params.AvatarR2Path != nil {
+		updates["avatar_r2_path"] = *params.AvatarR2Path
 	}
 	if params.Biography != nil {
 		updates["biography"] = *params.Biography
@@ -149,6 +149,42 @@ func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.
 		return nil, fmt.Errorf("get characters by ids: %w", err)
 	}
 	return characters, nil
+}
+
+func (r *characterRepository) UpdateAvatarR2Path(ctx context.Context, id string, userID uuid.UUID, r2Key string) error {
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.Character{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("avatar_r2_path", r2Key)
+	if result.Error != nil {
+		return fmt.Errorf("update avatar_r2_path: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *characterRepository) ClearAvatarR2Path(ctx context.Context, id string, userID uuid.UUID) (string, error) {
+	db := dbFromContext(ctx, r.db)
+
+	var character domain.Character
+	if err := db.Select("id", "avatar_r2_path").
+		Where("id = ? AND user_id = ? AND deleted_at IS NULL", id, userID).
+		First(&character).Error; err != nil {
+		return "", gorm.ErrRecordNotFound
+	}
+
+	if err := db.Model(&domain.Character{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(map[string]interface{}{"avatar_r2_path": nil}).Error; err != nil {
+		return "", fmt.Errorf("clear avatar_r2_path: %w", err)
+	}
+
+	if character.AvatarR2Path == nil {
+		return "", nil
+	}
+	return *character.AvatarR2Path, nil
 }
 
 func (r *characterRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
