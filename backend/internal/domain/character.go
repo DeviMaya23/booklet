@@ -16,7 +16,7 @@ type Character struct {
 	ID              uuid.UUID        `gorm:"type:uuid;primaryKey"`
 	UserID          uuid.UUID        `gorm:"type:uuid;not null;column:user_id"`
 	Name            string           `gorm:"type:text;not null;column:name"`
-	HeroImageR2Path *string          `gorm:"type:text;column:hero_image_r2_path"`
+	AvatarR2Path    *string          `gorm:"type:text;column:avatar_r2_path"`
 	Biography       *string          `gorm:"type:text;column:biography"`
 	IsPublic        bool             `gorm:"column:is_public;default:false"`
 	CreatedAt       time.Time        `gorm:"column:created_at"`
