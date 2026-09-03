@@ -53,7 +53,7 @@ func (s *spyArtistUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*d
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyArtistUsecase) List(_ context.Context, _ uuid.UUID) ([]*domain.Artist, error) {
+func (s *spyArtistUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListArtistFilters) ([]*domain.Artist, error) {
 	return s.listResult, s.listErr
 }
 
@@ -176,6 +176,48 @@ func TestListArtists_HappyPath(t *testing.T) {
 	var got []artistResponseBody
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got, 2)
+}
+
+func TestListArtists_QFilterBoundToUsecase(t *testing.T) {
+	artists := []*domain.Artist{makeArtist()}
+	spy := &spyArtistUsecase{listResult: artists}
+
+	var capturedFilters usecase.ListArtistFilters
+	spy2 := &captureArtistListSpy{inner: spy, capture: &capturedFilters}
+	h := handler.NewArtistHandler(spy2, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/artists", h.ListArtists)
+
+	req := httptest.NewRequest(http.MethodGet, "/artists?q=jane", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, capturedFilters.Q)
+	require.Equal(t, "jane", *capturedFilters.Q)
+}
+
+type captureArtistListSpy struct {
+	inner   *spyArtistUsecase
+	capture *usecase.ListArtistFilters
+}
+
+func (s *captureArtistListSpy) Create(ctx context.Context, userID uuid.UUID, params usecase.CreateArtistParams) (*domain.Artist, error) {
+	return s.inner.Create(ctx, userID, params)
+}
+func (s *captureArtistListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error) {
+	return s.inner.GetByID(ctx, id, userID)
+}
+func (s *captureArtistListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error) {
+	*s.capture = filters
+	return s.inner.List(ctx, userID, filters)
+}
+func (s *captureArtistListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
+	return s.inner.Update(ctx, id, userID, params)
+}
+func (s *captureArtistListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+	return s.inner.Delete(ctx, id, userID)
 }
 
 // --- GetArtistByID ---

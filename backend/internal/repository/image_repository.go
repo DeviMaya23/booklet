@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
@@ -38,14 +39,24 @@ func (r *imageRepository) GetByID(ctx context.Context, id string, userID uuid.UU
 	return &image, nil
 }
 
-func (r *imageRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error) {
+func (r *imageRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error) {
 	var images []*domain.Image
-	err := dbFromContext(ctx, r.db).
+	q := dbFromContext(ctx, r.db).
 		Preload("Characters").
 		Preload("Artist").
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&images).Error
+		Where("images.user_id = ?", userID)
+	if filters.Q != nil {
+		q = q.Where("LOWER(images.title) LIKE ?", "%"+strings.ToLower(*filters.Q)+"%")
+	}
+	if len(filters.CharacterIDs) > 0 {
+		q = q.Distinct().
+			Joins("JOIN image_characters ON image_characters.image_id = images.id").
+			Where("image_characters.character_id::text IN ?", filters.CharacterIDs)
+	}
+	if len(filters.ArtistIDs) > 0 {
+		q = q.Where("images.artist_id::text IN ?", filters.ArtistIDs)
+	}
+	err := q.Order("images.created_at DESC").Find(&images).Error
 	if err != nil {
 		return nil, fmt.Errorf("list images: %w", err)
 	}

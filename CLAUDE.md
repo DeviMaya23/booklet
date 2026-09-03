@@ -29,6 +29,12 @@ If, while implementing a task, you discover that something not covered by the de
 - If a function returns a result, assert the result — not just the error
 - Failure scenarios must assert the specific error type or message, not just that an error occurred
 
+### Backend handler input processing
+
+- Prefer `c.Bind` + `c.Validate` over manual parsing and validation for body and query params
+- Use `uuid.Parse` manually only for path params, where `c.Bind` does not apply
+- Before converting a field to a typed value (e.g. `uuid.UUID`), check whether the code actually needs that type. If nothing downstream requires the typed form, keep the field as `string` and validate with a govalidator tag instead — this preserves `c.Bind` compatibility and avoids unnecessary conversion
+
 ### Others to keep in mind during proposals
 - When a change modifies a shared contract (a function signature, API endpoint, hook, etc.), grep for every call site of that symbol across all layers (backend, frontend, extension) before finalizing Impact/Capabilities/tasks — do not rely on a named flow (e.g. "the upload flow") to be exhaustive, as parallel entry points (e.g. drag-and-drop vs. modal vs. batch upload) commonly funnel into the same shared function and are easy to miss.
 - When creating tasks for a new endpoint, always include a bruno file creation.

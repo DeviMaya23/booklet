@@ -14,10 +14,11 @@ import (
 type fakeCharacterRepository struct {
 	characters map[uuid.UUID]*domain.Character
 
-	lastCreated         *domain.Character
-	lastUpdated         usecase.UpdateCharacterParams
-	lastUpdatedAvatarID string
+	lastCreated          *domain.Character
+	lastUpdated          usecase.UpdateCharacterParams
+	lastUpdatedAvatarID  string
 	lastUpdatedAvatarKey string
+	lastListFilters      usecase.ListCharacterFilters
 }
 
 func newFakeCharacterRepository() *fakeCharacterRepository {
@@ -47,7 +48,8 @@ func (f *fakeCharacterRepository) GetByID(_ context.Context, id string, userID u
 	return c, nil
 }
 
-func (f *fakeCharacterRepository) List(_ context.Context, userID uuid.UUID) ([]*domain.Character, error) {
+func (f *fakeCharacterRepository) List(_ context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error) {
+	f.lastListFilters = filters
 	var result []*domain.Character
 	for _, c := range f.characters {
 		if c.UserID == userID {
@@ -208,13 +210,15 @@ func (f *fakeTransactor) InTransaction(ctx context.Context, fn func(context.Cont
 type fakeImageRepository struct {
 	images            []*domain.Image
 	listByCharacterID []*domain.Image
+	lastListFilters   usecase.ListImageFilters
 }
 
 func (f *fakeImageRepository) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Image, error) {
 	return nil, fmt.Errorf("get image: %w", gorm.ErrRecordNotFound)
 }
 
-func (f *fakeImageRepository) List(_ context.Context, _ uuid.UUID) ([]*domain.Image, error) {
+func (f *fakeImageRepository) List(_ context.Context, _ uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error) {
+	f.lastListFilters = filters
 	return f.images, nil
 }
 

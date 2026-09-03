@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
@@ -52,12 +53,14 @@ func (r *artistRepository) GetByIDAndUserID(ctx context.Context, id uuid.UUID, u
 	return &artist, nil
 }
 
-func (r *artistRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Artist, error) {
+func (r *artistRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error) {
 	var artists []*domain.Artist
-	err := dbFromContext(ctx, r.db).
-		Where("user_id = ?", userID).
-		Order("name ASC").
-		Find(&artists).Error
+	q := dbFromContext(ctx, r.db).
+		Where("user_id = ?", userID)
+	if filters.Q != nil {
+		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(*filters.Q)+"%")
+	}
+	err := q.Order("name ASC").Find(&artists).Error
 	if err != nil {
 		return nil, fmt.Errorf("list artists: %w", err)
 	}

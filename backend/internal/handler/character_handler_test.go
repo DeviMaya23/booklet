@@ -95,7 +95,7 @@ func (s *spyCharacterUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) 
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID) ([]*domain.Character, error) {
+func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListCharacterFilters) ([]*domain.Character, error) {
 	return s.listResult, s.listErr
 }
 
@@ -369,6 +369,60 @@ func TestListCharacters_AvatarURLsPresigned(t *testing.T) {
 	require.NotNil(t, got[1].AvatarURL)
 	require.Contains(t, presigner.calls, key1)
 	require.Contains(t, presigner.calls, key2)
+}
+
+func TestListCharacters_QFilterBoundToUsecase(t *testing.T) {
+	characters := []*domain.Character{makeCharacter()}
+	spy := &spyCharacterUsecase{listResult: characters}
+
+	var capturedFilters usecase.ListCharacterFilters
+	spy2 := &captureCharacterListSpy{inner: spy, capture: &capturedFilters}
+	h := handler.NewCharacterHandler(spy2, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/characters", h.ListCharacters)
+
+	req := httptest.NewRequest(http.MethodGet, "/characters?q=aria", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, capturedFilters.Q)
+	require.Equal(t, "aria", *capturedFilters.Q)
+}
+
+type captureCharacterListSpy struct {
+	inner   *spyCharacterUsecase
+	capture *usecase.ListCharacterFilters
+}
+
+func (s *captureCharacterListSpy) Create(ctx context.Context, userID uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error) {
+	return s.inner.Create(ctx, userID, params)
+}
+func (s *captureCharacterListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
+	return s.inner.GetByID(ctx, id, userID)
+}
+func (s *captureCharacterListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error) {
+	*s.capture = filters
+	return s.inner.List(ctx, userID, filters)
+}
+func (s *captureCharacterListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+	return s.inner.Update(ctx, id, userID, params)
+}
+func (s *captureCharacterListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+	return s.inner.Delete(ctx, id, userID)
+}
+func (s *captureCharacterListSpy) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, mimeType string) (*usecase.AvatarUploadResult, error) {
+	return s.inner.InitAvatarUpload(ctx, userID, characterID, mimeType)
+}
+func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, uploadID uuid.UUID) error {
+	return s.inner.CompleteAvatarUpload(ctx, userID, characterID, uploadID)
+}
+func (s *captureCharacterListSpy) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID string) error {
+	return s.inner.DeleteAvatar(ctx, userID, characterID)
+}
+func (s *captureCharacterListSpy) GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error) {
+	return s.inner.GetCharacterImages(ctx, characterID, userID)
 }
 
 // --- UpdateCharacter ---

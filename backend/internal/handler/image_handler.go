@@ -16,7 +16,7 @@ import (
 
 type ImageUsecase interface {
 	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error)
+	List(ctx context.Context, userID uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }
@@ -95,7 +95,15 @@ func (h *ImageHandler) ListImages(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	images, err := h.imageUsecase.List(ctx, userID)
+	var filters usecase.ListImageFilters
+	if err := c.Bind(&filters); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params")
+	}
+	if err := c.Validate(&filters); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params: character_ids and artist_ids must be valid UUIDs")
+	}
+
+	images, err := h.imageUsecase.List(ctx, userID, filters)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list images")
 	}

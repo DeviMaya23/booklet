@@ -16,10 +16,14 @@ type UpdateCharacterParams struct {
 	FolderIDs   *[]uuid.UUID
 }
 
+type ListCharacterFilters struct {
+	Q *string `query:"q"`
+}
+
 type CharacterRepository interface {
 	Create(ctx context.Context, character *domain.Character) error
 	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error)
+	List(ctx context.Context, userID uuid.UUID, filters ListCharacterFilters) ([]*domain.Character, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
 	UpdateAvatarR2Path(ctx context.Context, id string, userID uuid.UUID, r2Key string) error

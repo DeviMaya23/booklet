@@ -15,8 +15,9 @@ import (
 
 // fakeArtistRepository is an in-memory fake for ArtistRepository.
 type fakeArtistRepository struct {
-	artists      map[uuid.UUID]*domain.Artist
-	conflictName string // if non-empty, any Create/Update with this name returns ErrArtistNameConflict
+	artists         map[uuid.UUID]*domain.Artist
+	conflictName    string // if non-empty, any Create/Update with this name returns ErrArtistNameConflict
+	lastListFilters usecase.ListArtistFilters
 }
 
 func newFakeArtistRepository() *fakeArtistRepository {
@@ -53,7 +54,8 @@ func (f *fakeArtistRepository) GetByIDAndUserID(_ context.Context, id uuid.UUID,
 	return a, nil
 }
 
-func (f *fakeArtistRepository) List(_ context.Context, userID uuid.UUID) ([]*domain.Artist, error) {
+func (f *fakeArtistRepository) List(_ context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error) {
+	f.lastListFilters = filters
 	var result []*domain.Artist
 	for _, a := range f.artists {
 		if a.UserID == userID {
@@ -167,4 +169,21 @@ func TestDeleteArtist_RemovesArtist(t *testing.T) {
 
 	_, err = uc.GetByID(context.Background(), artist.ID.String(), userID)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestListArtists_PassesFiltersToRepo(t *testing.T) {
+	repo := newFakeArtistRepository()
+	uc := usecase.NewArtistUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtistParams{Name: "Jane"})
+	require.NoError(t, err)
+
+	q := "jane"
+	filters := usecase.ListArtistFilters{Q: &q}
+	_, err = uc.List(context.Background(), userID, filters)
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.lastListFilters.Q)
+	require.Equal(t, "jane", *repo.lastListFilters.Q)
 }

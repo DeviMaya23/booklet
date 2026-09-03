@@ -147,7 +147,7 @@ func TestCharacterRepository_List(t *testing.T) {
 	seedCharacter(t, tx, user1.ID)
 	seedCharacter(t, tx, user2.ID)
 
-	got, err := repo.List(context.Background(), user1.ID)
+	got, err := repo.List(context.Background(), user1.ID, usecase.ListCharacterFilters{})
 
 	require.NoError(t, err)
 	assert.Len(t, got, 2)
@@ -155,6 +155,24 @@ func TestCharacterRepository_List(t *testing.T) {
 		assert.Equal(t, user1.ID, c.UserID)
 		assert.NotNil(t, c.Folders)
 	}
+}
+
+func TestCharacterRepository_List_QFilter(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewCharacterRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	aria := &domain.Character{ID: uuid.New(), UserID: user.ID, Name: "Aria Stormweaver"}
+	bob := &domain.Character{ID: uuid.New(), UserID: user.ID, Name: "Bob Morrow"}
+	require.NoError(t, tx.Create(aria).Error)
+	require.NoError(t, tx.Create(bob).Error)
+
+	q := "aria"
+	got, err := repo.List(context.Background(), user.ID, usecase.ListCharacterFilters{Q: &q})
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "Aria Stormweaver", got[0].Name)
 }
 
 func TestCharacterRepository_Update(t *testing.T) {

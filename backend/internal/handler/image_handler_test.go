@@ -57,7 +57,7 @@ func (s *spyImageUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*do
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyImageUsecase) List(_ context.Context, _ uuid.UUID) ([]*domain.Image, error) {
+func (s *spyImageUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListImageFilters) ([]*domain.Image, error) {
 	return s.listResult, s.listErr
 }
 
@@ -242,6 +242,106 @@ func TestListImages_EmptyCharactersArray(t *testing.T) {
 	chars, ok := raw[0]["characters"].([]interface{})
 	require.True(t, ok, "characters should be an array, not null")
 	require.Empty(t, chars)
+}
+
+func TestListImages_QFilterBoundToUsecase(t *testing.T) {
+	images := []*domain.Image{makeImage()}
+	spy := &captureImageListSpy{inner: &spyImageUsecase{listResult: images}}
+	h := handler.NewImageHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/images", h.ListImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/images?q=sunset", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.capturedFilters.Q)
+	require.Equal(t, "sunset", *spy.capturedFilters.Q)
+}
+
+func TestListImages_CharacterIDsFilterBoundToUsecase(t *testing.T) {
+	charID := uuid.New()
+	images := []*domain.Image{makeImage()}
+	spy := &captureImageListSpy{inner: &spyImageUsecase{listResult: images}}
+	h := handler.NewImageHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/images", h.ListImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/images?character_ids="+charID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, spy.capturedFilters.CharacterIDs, 1)
+	require.Equal(t, charID.String(), spy.capturedFilters.CharacterIDs[0])
+}
+
+func TestListImages_ArtistIDsFilterBoundToUsecase(t *testing.T) {
+	artistID := uuid.New()
+	images := []*domain.Image{makeImage()}
+	spy := &captureImageListSpy{inner: &spyImageUsecase{listResult: images}}
+	h := handler.NewImageHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/images", h.ListImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/images?artist_ids="+artistID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Len(t, spy.capturedFilters.ArtistIDs, 1)
+	require.Equal(t, artistID.String(), spy.capturedFilters.ArtistIDs[0])
+}
+
+func TestListImages_MalformedCharacterID_Returns400(t *testing.T) {
+	spy := &spyImageUsecase{}
+	h := newImageHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/images", h.ListImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/images?character_ids=not-a-uuid", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestListImages_MalformedArtistID_Returns400(t *testing.T) {
+	spy := &spyImageUsecase{}
+	h := newImageHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/images", h.ListImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/images?artist_ids=not-a-uuid", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+type captureImageListSpy struct {
+	inner           *spyImageUsecase
+	capturedFilters usecase.ListImageFilters
+}
+
+func (s *captureImageListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error) {
+	return s.inner.GetByID(ctx, id, userID)
+}
+func (s *captureImageListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error) {
+	s.capturedFilters = filters
+	return s.inner.List(ctx, userID, filters)
+}
+func (s *captureImageListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
+	return s.inner.Update(ctx, id, userID, params)
+}
+func (s *captureImageListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+	return s.inner.Delete(ctx, id, userID)
 }
 
 // --- UpdateImage ---

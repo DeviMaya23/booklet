@@ -17,7 +17,7 @@ import (
 type ArtistUsecase interface {
 	Create(ctx context.Context, userID uuid.UUID, params usecase.CreateArtistParams) (*domain.Artist, error)
 	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*domain.Artist, error)
+	List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }
@@ -118,7 +118,12 @@ func (h *ArtistHandler) ListArtists(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	artists, err := h.artistUsecase.List(ctx, userID)
+	var filters usecase.ListArtistFilters
+	if err := c.Bind(&filters); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params")
+	}
+
+	artists, err := h.artistUsecase.List(ctx, userID, filters)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list artists")
 	}

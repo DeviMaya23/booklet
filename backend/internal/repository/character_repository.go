@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
@@ -42,13 +43,15 @@ func (r *characterRepository) GetByID(ctx context.Context, id string, userID uui
 	return &character, nil
 }
 
-func (r *characterRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error) {
+func (r *characterRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error) {
 	var characters []*domain.Character
-	err := dbFromContext(ctx, r.db).
+	q := dbFromContext(ctx, r.db).
 		Preload("Folders").
-		Where("user_id = ?", userID).
-		Order("created_at DESC").
-		Find(&characters).Error
+		Where("user_id = ?", userID)
+	if filters.Q != nil {
+		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(*filters.Q)+"%")
+	}
+	err := q.Order("created_at DESC").Find(&characters).Error
 	if err != nil {
 		return nil, fmt.Errorf("list characters: %w", err)
 	}

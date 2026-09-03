@@ -34,11 +34,11 @@ func (u *imageUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID)
 	return res, nil
 }
 
-func (u *imageUsecase) List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error) {
+func (u *imageUsecase) List(ctx context.Context, userID uuid.UUID, filters ListImageFilters) ([]*domain.Image, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ListImages")
 	defer span.End()
 
-	res, err := u.imageRepo.List(ctx, userID)
+	res, err := u.imageRepo.List(ctx, userID, filters)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

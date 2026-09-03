@@ -18,7 +18,7 @@ import (
 type CharacterUsecase interface {
 	Create(ctx context.Context, userID uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error)
 	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error)
+	List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
 	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, mimeType string) (*usecase.AvatarUploadResult, error)
@@ -145,7 +145,12 @@ func (h *CharacterHandler) ListCharacters(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	characters, err := h.characterUsecase.List(ctx, userID)
+	var filters usecase.ListCharacterFilters
+	if err := c.Bind(&filters); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params")
+	}
+
+	characters, err := h.characterUsecase.List(ctx, userID, filters)
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to list characters")
 	}

@@ -219,3 +219,17 @@ func TestGetCharacterImages_ReturnsEmptySliceWhenNone(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, got)
 }
+
+func TestListCharacters_PassesFiltersToRepo(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	q := "aria"
+	filters := usecase.ListCharacterFilters{Q: &q}
+	_, err := uc.List(context.Background(), userID, filters)
+
+	require.NoError(t, err)
+	require.NotNil(t, repo.lastListFilters.Q)
+	require.Equal(t, "aria", *repo.lastListFilters.Q)
+}

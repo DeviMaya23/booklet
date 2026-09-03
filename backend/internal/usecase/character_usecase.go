@@ -98,11 +98,11 @@ func (u *characterUsecase) GetByID(ctx context.Context, id string, userID uuid.U
 	return res, nil
 }
 
-func (u *characterUsecase) List(ctx context.Context, userID uuid.UUID) ([]*domain.Character, error) {
+func (u *characterUsecase) List(ctx context.Context, userID uuid.UUID, filters ListCharacterFilters) ([]*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ListCharacters")
 	defer span.End()
 
-	res, err := u.characterRepo.List(ctx, userID)
+	res, err := u.characterRepo.List(ctx, userID, filters)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

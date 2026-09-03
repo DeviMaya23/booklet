@@ -60,11 +60,11 @@ func (u *artistUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID
 	return res, nil
 }
 
-func (u *artistUsecase) List(ctx context.Context, userID uuid.UUID) ([]*domain.Artist, error) {
+func (u *artistUsecase) List(ctx context.Context, userID uuid.UUID, filters ListArtistFilters) ([]*domain.Artist, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ListArtists")
 	defer span.End()
 
-	res, err := u.artistRepo.List(ctx, userID)
+	res, err := u.artistRepo.List(ctx, userID, filters)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

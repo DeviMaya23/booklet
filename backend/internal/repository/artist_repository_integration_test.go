@@ -119,12 +119,28 @@ func TestArtistRepository_List(t *testing.T) {
 	seedArtist(t, tx, user1.ID, "Alice")
 	seedArtist(t, tx, user2.ID, "Other")
 
-	got, err := repo.List(context.Background(), user1.ID)
+	got, err := repo.List(context.Background(), user1.ID, usecase.ListArtistFilters{})
 
 	require.NoError(t, err)
 	require.Len(t, got, 2)
 	assert.Equal(t, "Alice", got[0].Name)
 	assert.Equal(t, "Zara", got[1].Name)
+}
+
+func TestArtistRepository_List_QFilter(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtistRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	seedArtist(t, tx, user.ID, "Jane Doe")
+	seedArtist(t, tx, user.ID, "Bob Smith")
+
+	q := "jane"
+	got, err := repo.List(context.Background(), user.ID, usecase.ListArtistFilters{Q: &q})
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "Jane Doe", got[0].Name)
 }
 
 func TestArtistRepository_Update(t *testing.T) {

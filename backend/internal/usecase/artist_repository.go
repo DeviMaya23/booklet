@@ -19,11 +19,15 @@ type UpdateArtistParams struct {
 	ArtistLink *string
 }
 
+type ListArtistFilters struct {
+	Q *string `query:"q"`
+}
+
 type ArtistRepository interface {
 	Create(ctx context.Context, artist *domain.Artist) (*domain.Artist, error)
 	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error)
 	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
-	List(ctx context.Context, userID uuid.UUID) ([]*domain.Artist, error)
+	List(ctx context.Context, userID uuid.UUID, filters ListArtistFilters) ([]*domain.Artist, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
 }
