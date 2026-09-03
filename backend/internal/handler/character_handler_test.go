@@ -28,14 +28,32 @@ var (
 )
 
 type characterResponse struct {
-	ID           string   `json:"id"`
-	Name         string   `json:"name"`
-	AvatarR2Path *string  `json:"avatar_r2_path"`
-	Biography    *string  `json:"biography"`
-	IsPublic     bool     `json:"is_public"`
-	FolderIDs    []string `json:"folder_ids"`
-	CreatedAt    string   `json:"created_at"`
-	UpdatedAt    string   `json:"updated_at"`
+	ID        string   `json:"id"`
+	Name      string   `json:"name"`
+	AvatarURL *string  `json:"avatar_url"`
+	Biography *string  `json:"biography"`
+	IsPublic  bool     `json:"is_public"`
+	FolderIDs []string `json:"folder_ids"`
+	CreatedAt string   `json:"created_at"`
+	UpdatedAt string   `json:"updated_at"`
+}
+
+type spyPresigner struct {
+	presignedURL string
+	presignErr   error
+	calls        []string
+}
+
+func (s *spyPresigner) GeneratePresignedGetURL(_ context.Context, key string, _ time.Duration) (string, error) {
+	s.calls = append(s.calls, key)
+	if s.presignErr != nil {
+		return "", s.presignErr
+	}
+	url := s.presignedURL
+	if url == "" {
+		url = "https://cdn.example.com/presigned?sig=abc"
+	}
+	return url, nil
 }
 
 // spyCharacterUsecase is a value-return spy for CharacterUsecase.
@@ -60,6 +78,9 @@ type spyCharacterUsecase struct {
 	completeAvatarUploadErr error
 
 	deleteAvatarErr error
+
+	getCharacterImagesResult []*domain.Image
+	getCharacterImagesErr    error
 
 	lastCreateParams usecase.CreateCharacterParams
 	lastUpdateParams usecase.UpdateCharacterParams
@@ -99,6 +120,10 @@ func (s *spyCharacterUsecase) DeleteAvatar(_ context.Context, _ uuid.UUID, _ str
 	return s.deleteAvatarErr
 }
 
+func (s *spyCharacterUsecase) GetCharacterImages(_ context.Context, _ uuid.UUID, _ uuid.UUID) ([]*domain.Image, error) {
+	return s.getCharacterImagesResult, s.getCharacterImagesErr
+}
+
 func setupEcho(userID uuid.UUID) *echo.Echo {
 	e := echo.New()
 	e.Validator = handler.NewEchoValidator()
@@ -120,12 +145,16 @@ func makeCharacter() *domain.Character {
 	}
 }
 
+func newCharacterHandler(spy *spyCharacterUsecase) *handler.CharacterHandler {
+	return handler.NewCharacterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+}
+
 // --- CreateCharacter ---
 
 func TestCreateCharacter_HappyPath(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{createResult: character}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -146,7 +175,7 @@ func TestCreateCharacter_HappyPath(t *testing.T) {
 
 func TestCreateCharacter_MissingName(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -171,7 +200,7 @@ func TestCreateCharacter_MissingName(t *testing.T) {
 
 func TestCreateCharacter_MalformedJSON(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -186,7 +215,7 @@ func TestCreateCharacter_MalformedJSON(t *testing.T) {
 
 func TestCreateCharacter_UsecaseError(t *testing.T) {
 	spy := &spyCharacterUsecase{createErr: errors.New("db down")}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -204,7 +233,7 @@ func TestCreateCharacter_UsecaseError(t *testing.T) {
 func TestGetCharacterByID_HappyPath(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{getByIDResult: character}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
@@ -219,9 +248,55 @@ func TestGetCharacterByID_HappyPath(t *testing.T) {
 	require.Equal(t, character.ID.String(), got.ID)
 }
 
+func TestGetCharacterByID_AvatarURLPresigned(t *testing.T) {
+	avatarKey := "users/123/files/avatar.jpg"
+	character := makeCharacter()
+	character.AvatarR2Path = &avatarKey
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/avatar?sig=xyz"}
+	spy := &spyCharacterUsecase{getByIDResult: character}
+	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/characters/:id", h.GetCharacterByID)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s", character.ID), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got characterResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.NotNil(t, got.AvatarURL)
+	require.Equal(t, "https://cdn.example.com/avatar?sig=xyz", *got.AvatarURL)
+	require.Contains(t, presigner.calls, avatarKey)
+
+	var raw map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &raw))
+	_, hasRawPath := raw["avatar_r2_path"]
+	require.False(t, hasRawPath)
+}
+
+func TestGetCharacterByID_AvatarURLNullWhenNoAvatar(t *testing.T) {
+	character := makeCharacter()
+	spy := &spyCharacterUsecase{getByIDResult: character}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/characters/:id", h.GetCharacterByID)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s", character.ID), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got characterResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Nil(t, got.AvatarURL)
+}
+
 func TestGetCharacterByID_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{getByIDErr: gorm.ErrRecordNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
@@ -235,7 +310,7 @@ func TestGetCharacterByID_NotFound(t *testing.T) {
 
 func TestGetCharacterByID_InvalidUUID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.GET("/characters/:id", h.GetCharacterByID)
@@ -252,7 +327,7 @@ func TestGetCharacterByID_InvalidUUID(t *testing.T) {
 func TestListCharacters_HappyPath(t *testing.T) {
 	characters := []*domain.Character{makeCharacter(), makeCharacter()}
 	spy := &spyCharacterUsecase{listResult: characters}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.GET("/characters", h.ListCharacters)
@@ -267,12 +342,41 @@ func TestListCharacters_HappyPath(t *testing.T) {
 	require.Len(t, got, 2)
 }
 
+func TestListCharacters_AvatarURLsPresigned(t *testing.T) {
+	key1 := "users/1/files/a.jpg"
+	key2 := "users/1/files/b.jpg"
+	c1 := makeCharacter()
+	c1.AvatarR2Path = &key1
+	c2 := makeCharacter()
+	c2.AvatarR2Path = &key2
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/signed"}
+	spy := &spyCharacterUsecase{listResult: []*domain.Character{c1, c2}}
+	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/characters", h.ListCharacters)
+
+	req := httptest.NewRequest(http.MethodGet, "/characters", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []characterResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 2)
+	require.NotNil(t, got[0].AvatarURL)
+	require.Equal(t, "https://cdn.example.com/signed", *got[0].AvatarURL)
+	require.NotNil(t, got[1].AvatarURL)
+	require.Contains(t, presigner.calls, key1)
+	require.Contains(t, presigner.calls, key2)
+}
+
 // --- UpdateCharacter ---
 
 func TestUpdateCharacter_HappyPath(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{updateResult: character}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -292,7 +396,7 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 
 func TestUpdateCharacter_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{updateErr: gorm.ErrRecordNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -307,7 +411,7 @@ func TestUpdateCharacter_NotFound(t *testing.T) {
 
 func TestUpdateCharacter_MalformedJSON(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -322,7 +426,7 @@ func TestUpdateCharacter_MalformedJSON(t *testing.T) {
 
 func TestUpdateCharacter_EmptyName(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -348,7 +452,7 @@ func TestUpdateCharacter_EmptyName(t *testing.T) {
 func TestUpdateCharacter_AbsentName(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{updateResult: character}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -366,7 +470,7 @@ func TestUpdateCharacter_AbsentName(t *testing.T) {
 
 func TestDeleteCharacter_HappyPath(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id", h.DeleteCharacter)
@@ -380,7 +484,7 @@ func TestDeleteCharacter_HappyPath(t *testing.T) {
 
 func TestDeleteCharacter_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{deleteErr: gorm.ErrRecordNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id", h.DeleteCharacter)
@@ -395,7 +499,7 @@ func TestDeleteCharacter_NotFound(t *testing.T) {
 func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{createResult: character}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -414,7 +518,7 @@ func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
 
 func TestCreateCharacter_InvalidFolderID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters", h.CreateCharacter)
@@ -438,7 +542,7 @@ func TestCreateCharacter_InvalidFolderID(t *testing.T) {
 
 func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.PATCH("/characters/:id", h.UpdateCharacter)
@@ -464,7 +568,7 @@ func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
 
 func TestInitAvatarUpload_CharacterNotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{initAvatarUploadErr: usecase.ErrCharacterNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
@@ -480,7 +584,7 @@ func TestInitAvatarUpload_CharacterNotFound(t *testing.T) {
 
 func TestInitAvatarUpload_MissingMimeType(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
@@ -495,7 +599,7 @@ func TestInitAvatarUpload_MissingMimeType(t *testing.T) {
 
 func TestInitAvatarUpload_UnsupportedMimeType(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
@@ -518,7 +622,7 @@ func TestInitAvatarUpload_Success(t *testing.T) {
 			ExpiresAt: time.Now().Add(15 * time.Minute),
 		},
 	}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
@@ -539,7 +643,7 @@ func TestInitAvatarUpload_Success(t *testing.T) {
 
 func TestInitAvatarUpload_InvalidCharacterUUID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
@@ -557,7 +661,7 @@ func TestInitAvatarUpload_InvalidCharacterUUID(t *testing.T) {
 
 func TestCompleteAvatarUpload_PendingNotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{completeAvatarUploadErr: usecase.ErrPendingUploadNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/:uploadID/complete", h.CompleteAvatarUpload)
@@ -571,7 +675,7 @@ func TestCompleteAvatarUpload_PendingNotFound(t *testing.T) {
 
 func TestCompleteAvatarUpload_Success(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/:uploadID/complete", h.CompleteAvatarUpload)
@@ -585,7 +689,7 @@ func TestCompleteAvatarUpload_Success(t *testing.T) {
 
 func TestCompleteAvatarUpload_InvalidUploadID(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/:uploadID/complete", h.CompleteAvatarUpload)
@@ -601,7 +705,7 @@ func TestCompleteAvatarUpload_InvalidUploadID(t *testing.T) {
 
 func TestDeleteAvatar_CharacterNotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{deleteAvatarErr: usecase.ErrCharacterNotFound}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id/avatar", h.DeleteAvatar)
@@ -615,7 +719,7 @@ func TestDeleteAvatar_CharacterNotFound(t *testing.T) {
 
 func TestDeleteAvatar_Success(t *testing.T) {
 	spy := &spyCharacterUsecase{}
-	h := handler.NewCharacterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
 	e.DELETE("/characters/:id/avatar", h.DeleteAvatar)
@@ -625,4 +729,67 @@ func TestDeleteAvatar_Success(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNoContent, rec.Code)
+}
+
+// --- GetCharacterImages ---
+
+func TestGetCharacterImages_ReturnsPressignedThumbnails(t *testing.T) {
+	thumbKey := "users/1/thumbnails/img.jpg"
+	img := &domain.Image{
+		ID:              uuid.New(),
+		UserID:          testUserID,
+		ImageR2Path:     "users/1/images/img.jpg",
+		MimeType:        "image/jpeg",
+		ThumbnailR2Path: &thumbKey,
+		Characters:      []domain.Character{},
+	}
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/thumb?sig=xyz"}
+	spy := &spyCharacterUsecase{getCharacterImagesResult: []*domain.Image{img}}
+	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/characters/:id/images", h.GetCharacterImages)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s/images", uuid.New()), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 1)
+	require.Equal(t, img.ID.String(), got[0]["image_id"])
+	require.Equal(t, "https://cdn.example.com/thumb?sig=xyz", got[0]["thumbnail_url"])
+	require.Contains(t, presigner.calls, thumbKey)
+}
+
+func TestGetCharacterImages_ReturnsEmptyArray(t *testing.T) {
+	spy := &spyCharacterUsecase{getCharacterImagesResult: []*domain.Image{}}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/characters/:id/images", h.GetCharacterImages)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s/images", uuid.New()), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Empty(t, got)
+}
+
+func TestGetCharacterImages_InvalidUUID(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/characters/:id/images", h.GetCharacterImages)
+
+	req := httptest.NewRequest(http.MethodGet, "/characters/not-a-uuid/images", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }

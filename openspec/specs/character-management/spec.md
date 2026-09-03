@@ -21,6 +21,8 @@ The `characters` table SHALL use the following schema:
 
 The `hero_image_r2_path` column is renamed to `avatar_r2_path`. A character's folder associations are stored in the `character_folders` join table (see `character-folders` spec). Character responses SHALL include a `folder_ids` array containing the UUIDs of all assigned folders.
 
+The `avatar_r2_path` column is stored in the database but SHALL NOT be exposed in API responses. Responses include `avatar_url` instead (see character response shape requirement).
+
 #### Scenario: Character ID is a native UUID column
 - **WHEN** a character is persisted to the database
 - **THEN** the `id` column is of PostgreSQL `uuid` type (not `text`) and contains a valid UUID value
@@ -33,13 +35,17 @@ The `hero_image_r2_path` column is renamed to `avatar_r2_path`. A character's fo
 - **WHEN** a character with no folder assignments is returned by any read endpoint
 - **THEN** the response includes `folder_ids: []`
 
-#### Scenario: avatar_r2_path is included in character responses
+#### Scenario: avatar_url is a presigned URL when avatar is set
 - **WHEN** any character read endpoint returns a character that has an avatar set
-- **THEN** the response includes `avatar_r2_path` with the R2 key string
+- **THEN** the response includes `avatar_url` with a presigned HTTPS URL (not a raw R2 key)
 
-#### Scenario: avatar_r2_path is null in responses when no avatar is set
+#### Scenario: avatar_url is null in responses when no avatar is set
 - **WHEN** any character read endpoint returns a character with no avatar
-- **THEN** the response includes `avatar_r2_path: null`
+- **THEN** the response includes `avatar_url: null`
+
+#### Scenario: avatar_r2_path is not exposed in character responses
+- **WHEN** any character read endpoint returns a character
+- **THEN** the response does not contain an `avatar_r2_path` field
 
 ---
 

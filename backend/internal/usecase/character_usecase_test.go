@@ -13,7 +13,7 @@ import (
 
 func TestCreate_AssemblesCharacter(t *testing.T) {
 	repo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	userID := uuid.New()
 	got, err := uc.Create(context.Background(), userID, usecase.CreateCharacterParams{
@@ -29,7 +29,7 @@ func TestCreate_AssemblesCharacter(t *testing.T) {
 
 func TestCreate_AssemblesCharacter_WithFolders(t *testing.T) {
 	repo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	userID := uuid.New()
 	folderID := uuid.New()
@@ -51,7 +51,7 @@ func TestCreate_AssemblesCharacter_WithFolders(t *testing.T) {
 
 func TestInitAvatarUpload_CharacterNotOwnedReturnsErrCharacterNotFound(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	_, err := uc.InitAvatarUpload(context.Background(), uuid.New(), uuid.New().String(), "image/jpeg")
 
@@ -64,7 +64,7 @@ func TestInitAvatarUpload_SuccessReturnsResult(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
 	avatarRepo := newFakeCharacterAvatarUploadRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, avatarRepo, &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	result, err := uc.InitAvatarUpload(context.Background(), userID, charID.String(), "image/jpeg")
 
@@ -82,7 +82,7 @@ func TestCompleteAvatarUpload_PendingNotFoundReturnsError(t *testing.T) {
 	charID := uuid.New()
 	charRepo := newFakeCharacterRepository()
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID.String(), uuid.New())
 
@@ -107,7 +107,7 @@ func TestCompleteAvatarUpload_SuccessNoPriorAvatar(t *testing.T) {
 	}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID.String(), uploadID)
 
@@ -121,7 +121,7 @@ func TestCompleteAvatarUpload_SuccessNoPriorAvatar(t *testing.T) {
 
 func TestDeleteAvatar_CharacterNotFoundReturnsErrCharacterNotFound(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.DeleteAvatar(context.Background(), uuid.New(), uuid.New().String())
 
@@ -135,7 +135,7 @@ func TestDeleteAvatar_NoAvatarReturnsNilWithoutR2Call(t *testing.T) {
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.DeleteAvatar(context.Background(), userID, charID.String())
 
@@ -151,7 +151,7 @@ func TestDeleteAvatar_ExistingAvatarClearsPathAndDeletesR2Object(t *testing.T) {
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria", AvatarR2Path: &oldKey}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.DeleteAvatar(context.Background(), userID, charID.String())
 
@@ -179,7 +179,7 @@ func TestCompleteAvatarUpload_SuccessReplacingExistingAvatar(t *testing.T) {
 	}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeImageRepository{}, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID.String(), uploadID)
 
@@ -187,4 +187,35 @@ func TestCompleteAvatarUpload_SuccessReplacingExistingAvatar(t *testing.T) {
 	require.Equal(t, newKey, charRepo.lastUpdatedAvatarKey)
 	require.Contains(t, storage.deletedKeys, oldKey)
 	require.NotContains(t, avatarRepo.pending, uploadID)
+}
+
+// --- GetCharacterImages ---
+
+func TestGetCharacterImages_ReturnsImages(t *testing.T) {
+	userID := uuid.New()
+	charID := uuid.New()
+	imageRepo := &fakeImageRepository{
+		listByCharacterID: []*domain.Image{
+			{ID: uuid.New(), UserID: userID, ImageR2Path: "images/a.jpg", MimeType: "image/jpeg", Characters: []domain.Character{}},
+			{ID: uuid.New(), UserID: userID, ImageR2Path: "images/b.jpg", MimeType: "image/jpeg", Characters: []domain.Character{}},
+		},
+	}
+	uc := usecase.NewCharacterUsecase(newFakeCharacterRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), imageRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	got, err := uc.GetCharacterImages(context.Background(), charID, userID)
+
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+}
+
+func TestGetCharacterImages_ReturnsEmptySliceWhenNone(t *testing.T) {
+	userID := uuid.New()
+	charID := uuid.New()
+	imageRepo := &fakeImageRepository{listByCharacterID: []*domain.Image{}}
+	uc := usecase.NewCharacterUsecase(newFakeCharacterRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), imageRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+
+	got, err := uc.GetCharacterImages(context.Background(), charID, userID)
+
+	require.NoError(t, err)
+	require.Empty(t, got)
 }

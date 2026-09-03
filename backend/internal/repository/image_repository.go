@@ -141,6 +141,18 @@ func (r *imageRepository) UpdateThumbnailPath(ctx context.Context, id uuid.UUID,
 	return nil
 }
 
+func (r *imageRepository) ListByCharacterID(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error) {
+	var images []*domain.Image
+	err := dbFromContext(ctx, r.db).
+		Joins("JOIN image_characters ON image_characters.image_id = images.id").
+		Where("image_characters.character_id = ? AND images.user_id = ?", characterID, userID).
+		Find(&images).Error
+	if err != nil {
+		return nil, fmt.Errorf("list images by character: %w", err)
+	}
+	return images, nil
+}
+
 func (r *imageRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).

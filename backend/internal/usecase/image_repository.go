@@ -23,4 +23,5 @@ type ImageRepository interface {
 	List(ctx context.Context, userID uuid.UUID) ([]*domain.Image, error)
 	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateImageParams) (*domain.Image, error)
 	Delete(ctx context.Context, id string, userID uuid.UUID) error
+	ListByCharacterID(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error)
 }
