@@ -15,7 +15,10 @@ import (
 	"go.uber.org/zap"
 )
 
-const PresignTTL = 15 * time.Minute
+const (
+	PresignTTL    = 15 * time.Minute
+	PresignGetTTL = 1 * time.Hour
+)
 
 type InitialUploadParams struct {
 	UserID       uuid.UUID

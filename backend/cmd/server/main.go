@@ -248,8 +248,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	characterRepository := repository.NewCharacterRepository(db)
 	characterAvatarRepository := repository.NewCharacterAvatarRepository(db)
-	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, transactor, tel)
-	characterHandler := httphandler.NewCharacterHandler(characterUsecase, tel)
 
 	artistRepository := repository.NewArtistRepository(db)
 	artistUsecase := usecase.NewArtistUsecase(artistRepository, tel)
@@ -257,7 +255,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	imageRepository := repository.NewImageRepository(db)
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
-	imageHandler := httphandler.NewImageHandler(imageUsecase, tel)
+	imageHandler := httphandler.NewImageHandler(imageUsecase, r2Storage, tel)
+
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, imageRepository, transactor, tel)
+	characterHandler := httphandler.NewCharacterHandler(characterUsecase, r2Storage, tel)
 
 	uploadRepository := repository.NewUploadRepository(db)
 	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, enqueuer, tel)
@@ -321,6 +322,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.POST("/characters/:id/avatar/init", characterHandler.InitAvatarUpload)
 	protected.POST("/characters/:id/avatar/:uploadID/complete", characterHandler.CompleteAvatarUpload)
 	protected.DELETE("/characters/:id/avatar", characterHandler.DeleteAvatar)
+	protected.GET("/characters/:id/images", characterHandler.GetCharacterImages)
 
 	protected.GET("/folders", folderHandler.ListFolders)
 

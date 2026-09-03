@@ -23,19 +23,20 @@ type ImageUsecase interface {
 
 type ImageHandler struct {
 	imageUsecase ImageUsecase
+	presigner    Presigner
 	tel          *observability.Telemetry
 }
 
-func NewImageHandler(imageUsecase ImageUsecase, tel *observability.Telemetry) *ImageHandler {
-	return &ImageHandler{imageUsecase: imageUsecase, tel: tel}
+func NewImageHandler(imageUsecase ImageUsecase, presigner Presigner, tel *observability.Telemetry) *ImageHandler {
+	return &ImageHandler{imageUsecase: imageUsecase, presigner: presigner, tel: tel}
 }
 
 type updateImageRequest struct {
-	Title           *string      `json:"title"`
-	ThumbnailR2Path *string      `json:"thumbnail_r2_path"`
+	Title           *string       `json:"title"`
+	ThumbnailR2Path *string       `json:"thumbnail_r2_path"`
 	ArtistID        Patch[string] `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes           *string      `json:"notes"`
-	CharacterIDs    *[]string    `json:"character_ids"`
+	Notes           *string       `json:"notes"`
+	CharacterIDs    *[]string     `json:"character_ids"`
 }
 
 type characterRef struct {
@@ -44,17 +45,17 @@ type characterRef struct {
 }
 
 type imageResponse struct {
-	ID              string         `json:"id"`
-	ImageR2Path     string         `json:"image_r2_path"`
-	MimeType        string         `json:"mime_type"`
-	Title           *string        `json:"title"`
-	ThumbnailR2Path *string        `json:"thumbnail_r2_path"`
-	ArtistID        *string        `json:"artist_id"`
-	ArtistName      *string        `json:"artist_name"`
-	Notes           *string        `json:"notes"`
-	Characters      []characterRef `json:"characters"`
-	CreatedAt       string         `json:"created_at"`
-	UpdatedAt       string         `json:"updated_at"`
+	ID           string         `json:"id"`
+	ImageURL     *string        `json:"image_url,omitempty"`
+	MimeType     string         `json:"mime_type"`
+	Title        *string        `json:"title"`
+	ThumbnailURL *string        `json:"thumbnail_url"`
+	ArtistID     *string        `json:"artist_id"`
+	ArtistName   *string        `json:"artist_name"`
+	Notes        *string        `json:"notes"`
+	Characters   []characterRef `json:"characters"`
+	CreatedAt    string         `json:"created_at"`
+	UpdatedAt    string         `json:"updated_at"`
 }
 
 func (h *ImageHandler) GetImageByID(c echo.Context) error {
@@ -79,7 +80,10 @@ func (h *ImageHandler) GetImageByID(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get image")
 	}
 
-	return c.JSON(http.StatusOK, toImageResponse(image))
+	// presigning is a local crypto op; failure means context cancellation, not broken image data
+	imageURL, _ := h.presignImageURL(ctx, image.ImageR2Path)
+	thumbnailURL, _ := h.presignThumbnailURL(ctx, image.ThumbnailR2Path)
+	return c.JSON(http.StatusOK, toImageResponse(image, imageURL, thumbnailURL))
 }
 
 func (h *ImageHandler) ListImages(c echo.Context) error {
@@ -98,7 +102,8 @@ func (h *ImageHandler) ListImages(c echo.Context) error {
 
 	responses := make([]imageResponse, len(images))
 	for i, image := range images {
-		responses[i] = toImageResponse(image)
+		thumbnailURL, _ := h.presignThumbnailURL(ctx, image.ThumbnailR2Path)
+		responses[i] = toImageResponse(image, nil, thumbnailURL)
 	}
 
 	return c.JSON(http.StatusOK, responses)
@@ -158,7 +163,9 @@ func (h *ImageHandler) UpdateImage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update image")
 	}
 
-	return c.JSON(http.StatusOK, toImageResponse(image))
+	imageURL, _ := h.presignImageURL(ctx, image.ImageR2Path)
+	thumbnailURL, _ := h.presignThumbnailURL(ctx, image.ThumbnailR2Path)
+	return c.JSON(http.StatusOK, toImageResponse(image, imageURL, thumbnailURL))
 }
 
 func (h *ImageHandler) DeleteImage(c echo.Context) error {
@@ -186,7 +193,26 @@ func (h *ImageHandler) DeleteImage(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
-func toImageResponse(image *domain.Image) imageResponse {
+func (h *ImageHandler) presignImageURL(ctx context.Context, r2Path string) (*string, error) {
+	u, err := h.presigner.GeneratePresignedGetURL(ctx, r2Path, usecase.PresignGetTTL)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func (h *ImageHandler) presignThumbnailURL(ctx context.Context, r2Path *string) (*string, error) {
+	if r2Path == nil {
+		return nil, nil
+	}
+	u, err := h.presigner.GeneratePresignedGetURL(ctx, *r2Path, usecase.PresignGetTTL)
+	if err != nil {
+		return nil, err
+	}
+	return &u, nil
+}
+
+func toImageResponse(image *domain.Image, imageURL *string, thumbnailURL *string) imageResponse {
 	chars := make([]characterRef, len(image.Characters))
 	for i, c := range image.Characters {
 		chars[i] = characterRef{ID: c.ID.String(), Name: c.Name}
@@ -203,16 +229,16 @@ func toImageResponse(image *domain.Image) imageResponse {
 	}
 
 	return imageResponse{
-		ID:              image.ID.String(),
-		ImageR2Path:     image.ImageR2Path,
-		MimeType:        image.MimeType,
-		Title:           image.Title,
-		ThumbnailR2Path: image.ThumbnailR2Path,
-		ArtistID:        artistID,
-		ArtistName:      artistName,
-		Notes:           image.Notes,
-		Characters:      chars,
-		CreatedAt:       image.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:       image.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:           image.ID.String(),
+		ImageURL:     imageURL,
+		MimeType:     image.MimeType,
+		Title:        image.Title,
+		ThumbnailURL: thumbnailURL,
+		ArtistID:     artistID,
+		ArtistName:   artistName,
+		Notes:        image.Notes,
+		Characters:   chars,
+		CreatedAt:    image.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:    image.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }

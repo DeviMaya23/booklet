@@ -204,3 +204,28 @@ type fakeTransactor struct{}
 func (f *fakeTransactor) InTransaction(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
+
+type fakeImageRepository struct {
+	images            []*domain.Image
+	listByCharacterID []*domain.Image
+}
+
+func (f *fakeImageRepository) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Image, error) {
+	return nil, fmt.Errorf("get image: %w", gorm.ErrRecordNotFound)
+}
+
+func (f *fakeImageRepository) List(_ context.Context, _ uuid.UUID) ([]*domain.Image, error) {
+	return f.images, nil
+}
+
+func (f *fakeImageRepository) Update(_ context.Context, _ string, _ uuid.UUID, _ usecase.UpdateImageParams) (*domain.Image, error) {
+	return nil, fmt.Errorf("update image: %w", gorm.ErrRecordNotFound)
+}
+
+func (f *fakeImageRepository) Delete(_ context.Context, _ string, _ uuid.UUID) error {
+	return nil
+}
+
+func (f *fakeImageRepository) ListByCharacterID(_ context.Context, _ uuid.UUID, _ uuid.UUID) ([]*domain.Image, error) {
+	return f.listByCharacterID, nil
+}
