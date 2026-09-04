@@ -1,15 +1,4 @@
-## Purpose
-
-The app shell is the authenticated entry point of the Booklet web application, served at `/app`. It acts as the root container for all authenticated views and enforces access control by redirecting unauthenticated users to the home page.
-
-## Requirements
-
-### Requirement: Access control
-The app shell at `/app` SHALL only be accessible to authenticated users. Unauthenticated users who navigate to `/app` SHALL be redirected to `/`.
-
-#### Scenario: Unauthenticated access attempt
-- **WHEN** an unauthenticated user navigates to `/app`
-- **THEN** the app SHALL redirect them to `/`
+## MODIFIED Requirements
 
 ### Requirement: Authenticated shell render
 Authenticated users who navigate to `/app` SHALL be redirected to `/app/characters`. All routes under `/app/*` SHALL render the app shell — a persistent top bar and collapsible sidebar — with the matched page content in the main content area.
@@ -21,6 +10,8 @@ Authenticated users who navigate to `/app` SHALL be redirected to `/app/characte
 #### Scenario: Authenticated user accesses a section route
 - **WHEN** an authenticated user navigates to `/app/characters`, `/app/images`, or `/app/artists`
 - **THEN** the app shell SHALL render with the top bar and sidebar visible and the corresponding page content in the content area
+
+## ADDED Requirements
 
 ### Requirement: Top bar
 The app shell SHALL display a persistent top bar at all times. The top bar SHALL show the application wordmark ("Booklet") on the left and a user avatar on the right. Clicking the user avatar SHALL log the user out.

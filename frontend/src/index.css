@@ -3,6 +3,9 @@
 @import "shadcn/tailwind.css";
 @import "@fontsource-variable/dm-sans";
 @import "@fontsource-variable/lora";
+@import "@fontsource-variable/archivo";
+@import "@fontsource/copse";
+@import './assets/fonts/balgruf/balgruf.css';
 
 @custom-variant dark (&:where([data-theme="sunless"], [data-theme="sunless"] *));
 
@@ -37,8 +40,18 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
-  --font-sans: 'DM Sans Variable', sans-serif;
-  --font-serif: 'Lora Variable', Georgia, serif;
+  --font-sans: 'Archivo Variable', sans-serif;
+  --font-serif: 'Copse', serif;
+  --font-title: 'Balgruf', serif;
+  --font-heading: var(--font-sans);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
 }
 
 @layer base {
@@ -68,13 +81,13 @@
     --chart-5: oklch(0.269 0 0);
     --radius: 0.5rem;
     --sidebar: #EEE9E1;
-    --sidebar-foreground: oklch(0.145 0 0);
-    --sidebar-primary: oklch(0.205 0 0);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.97 0 0);
-    --sidebar-accent-foreground: oklch(0.205 0 0);
-    --sidebar-border: oklch(0.922 0 0);
-    --sidebar-ring: oklch(0.708 0 0);
+    --sidebar-foreground: #2D2A26;
+    --sidebar-primary: #2D2A26;
+    --sidebar-primary-foreground: #FAF8F4;
+    --sidebar-accent: rgba(45, 42, 38, 0.07);
+    --sidebar-accent-foreground: #2D2A26;
+    --sidebar-border: rgba(45, 42, 38, 0.11);
+    --sidebar-ring: #B5A898;
   }
 
   [data-theme="warm"] {
@@ -98,6 +111,13 @@
     --ring: #B5A898;
     --radius: 0.5rem;
     --sidebar: #EEE9E1;
+    --sidebar-foreground: #2D2A26;
+    --sidebar-primary: #2D2A26;
+    --sidebar-primary-foreground: #FAF8F4;
+    --sidebar-accent: rgba(45, 42, 38, 0.07);
+    --sidebar-accent-foreground: #2D2A26;
+    --sidebar-border: rgba(45, 42, 38, 0.11);
+    --sidebar-ring: #B5A898;
   }
 
   [data-theme="lumen"] {
@@ -121,6 +141,13 @@
     --ring: #B0B0B0;
     --radius: 0.5rem;
     --sidebar: #F5F5F5;
+    --sidebar-foreground: #1A1A1A;
+    --sidebar-primary: #1A1A1A;
+    --sidebar-primary-foreground: #FFFFFF;
+    --sidebar-accent: rgba(0, 0, 0, 0.05);
+    --sidebar-accent-foreground: #1A1A1A;
+    --sidebar-border: rgba(0, 0, 0, 0.10);
+    --sidebar-ring: #B0B0B0;
   }
 
   [data-theme="sunless"] {
@@ -144,6 +171,13 @@
     --ring: #5A5A5A;
     --radius: 0.5rem;
     --sidebar: #1A1A1A;
+    --sidebar-foreground: #EDEDED;
+    --sidebar-primary: #EDEDED;
+    --sidebar-primary-foreground: #121212;
+    --sidebar-accent: rgba(255, 255, 255, 0.07);
+    --sidebar-accent-foreground: #EDEDED;
+    --sidebar-border: rgba(255, 255, 255, 0.11);
+    --sidebar-ring: #5A5A5A;
   }
 
   * {
@@ -151,6 +185,14 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply font-sans bg-background text-foreground;
   }
+  html {
+    @apply font-sans;
+  }
+}
+
+[data-slot="sidebar-wrapper"] [data-slot="sidebar-container"] {
+  top: 3rem;
+  height: calc(100svh - 3rem);
 }
