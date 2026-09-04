@@ -25,10 +25,12 @@
 
 ---
 
-## UI Primitives
+## UI Components
 
-- UI components use `@base-ui/react`, NOT Radix UI
-- `asChild` is a Radix UI pattern — it does not exist in this codebase and will cause a TypeScript error
+- We use shadcn/ui with Base UI as the primitive layer (this is shadcn's default, not a custom override).
+- shadcn CLI-generated components, file structure, and styling conventions apply as normal.
+- API differences from Radix: use `onClick` not `onSelect` on `ContextMenuItem`. If unsure, check @base-ui-components/react docs, not Radix docs.
+- Do NOT import from @radix-ui/* packages.
 
 ## Linting
 
