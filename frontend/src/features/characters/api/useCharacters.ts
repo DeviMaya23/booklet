@@ -6,7 +6,7 @@ export interface Character {
   id: string
   name: string
   avatar_url: string | null
-  biography: string | null
+  notes: string | null
   is_public: boolean
   folder_ids: string[]
   created_at: string

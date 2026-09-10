@@ -32,11 +32,10 @@ func NewImageHandler(imageUsecase ImageUsecase, presigner Presigner, tel *observ
 }
 
 type updateImageRequest struct {
-	Title           *string       `json:"title"`
-	ThumbnailR2Path *string       `json:"thumbnail_r2_path"`
-	ArtistID        Patch[string] `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes           *string       `json:"notes"`
-	CharacterIDs    *[]string     `json:"character_ids"`
+	Title        *string  `json:"title"`
+	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
+	Notes        *string  `json:"notes"`
+	CharacterIDs []string `json:"character_ids"`
 }
 
 type characterRef struct {
@@ -139,24 +138,17 @@ func (h *ImageHandler) UpdateImage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	var artistID **uuid.UUID
-	if req.ArtistID.Set {
-		if req.ArtistID.Value == nil {
-			var nilUUID *uuid.UUID
-			artistID = &nilUUID
-		} else {
-			parsed, _ := uuid.Parse(*req.ArtistID.Value) // already validated
-			p := &parsed
-			artistID = &p
-		}
+	var artistID *uuid.UUID
+	if req.ArtistID != nil {
+		parsed, _ := uuid.Parse(*req.ArtistID) // already validated
+		artistID = &parsed
 	}
 
 	image, err := h.imageUsecase.Update(ctx, id, userID, usecase.UpdateImageParams{
-		Title:           req.Title,
-		ThumbnailR2Path: req.ThumbnailR2Path,
-		ArtistID:        artistID,
-		Notes:           req.Notes,
-		CharacterIDs:    req.CharacterIDs,
+		Title:        req.Title,
+		ArtistID:     artistID,
+		Notes:        req.Notes,
+		CharacterIDs: req.CharacterIDs,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {

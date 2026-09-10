@@ -186,7 +186,7 @@ func TestImageRepository_Update_CharacterAssociation(t *testing.T) {
 
 	charIDs := []string{char.ID.String()}
 	got, err := repo.Update(context.Background(), img.ID.String(), user.ID, usecase.UpdateImageParams{
-		CharacterIDs: &charIDs,
+		CharacterIDs: charIDs,
 	})
 
 	require.NoError(t, err)
@@ -205,7 +205,7 @@ func TestImageRepository_Update_CharacterNotOwned(t *testing.T) {
 
 	charIDs := []string{char.ID.String()}
 	_, err := repo.Update(context.Background(), img.ID.String(), user1.ID, usecase.UpdateImageParams{
-		CharacterIDs: &charIDs,
+		CharacterIDs: charIDs,
 	})
 
 	assert.ErrorIs(t, err, usecase.ErrCharacterNotOwned)

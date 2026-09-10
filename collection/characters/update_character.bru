@@ -4,7 +4,7 @@ meta {
   seq: 4
 }
 
-patch {
+put {
   url: {{baseUrl}}/characters/:id
   body: json
   auth: inherit
@@ -17,8 +17,9 @@ params:path {
 body:json {
   {
     "name": "Selnii",
-    "folder_ids": [],
-    "is_public": true
+    "notes": null,
+    "is_public": true,
+    "folder_ids": []
   }
 }
 

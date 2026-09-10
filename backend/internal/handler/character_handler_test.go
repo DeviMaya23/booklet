@@ -31,7 +31,7 @@ type characterResponse struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`
 	AvatarURL *string  `json:"avatar_url"`
-	Biography *string  `json:"biography"`
+	Notes *string  `json:"notes"`
 	IsPublic  bool     `json:"is_public"`
 	FolderIDs []string `json:"folder_ids"`
 	CreatedAt string   `json:"created_at"`
@@ -433,10 +433,10 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	body := `{"name":"New Name"}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(body))
+	body := `{"name":"New Name","notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -448,14 +448,33 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 	require.Equal(t, []string{}, got.FolderIDs)
 }
 
+func TestUpdateCharacter_ClearsNotes(t *testing.T) {
+	character := makeCharacter()
+	spy := &spyCharacterUsecase{updateResult: character}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.PUT("/characters/:id", h.UpdateCharacter)
+
+	body := `{"name":"Aria","notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, spy.lastUpdateParams.Notes)
+}
+
 func TestUpdateCharacter_NotFound(t *testing.T) {
 	spy := &spyCharacterUsecase{updateErr: gorm.ErrRecordNotFound}
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{}`))
+	body := `{"name":"Aria","notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -468,9 +487,9 @@ func TestUpdateCharacter_MalformedJSON(t *testing.T) {
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{bad`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{bad`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -483,9 +502,10 @@ func TestUpdateCharacter_EmptyName(t *testing.T) {
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(`{"name":""}`))
+	body := `{"name":"","notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -503,21 +523,20 @@ func TestUpdateCharacter_EmptyName(t *testing.T) {
 	require.Equal(t, "name must not be empty", got.Errors[0].Message)
 }
 
-func TestUpdateCharacter_AbsentName(t *testing.T) {
-	character := makeCharacter()
-	spy := &spyCharacterUsecase{updateResult: character}
+func TestUpdateCharacter_MissingName(t *testing.T) {
+	spy := &spyCharacterUsecase{}
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", character.ID), strings.NewReader(`{}`))
+	body := `{"notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Nil(t, spy.lastUpdateParams.Name)
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
 
 // --- DeleteCharacter ---
@@ -599,10 +618,10 @@ func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
 	h := newCharacterHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/characters/:id", h.UpdateCharacter)
+	e.PUT("/characters/:id", h.UpdateCharacter)
 
-	body := `{"folder_ids":["not-a-uuid"]}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
+	body := `{"name":"Aria","notes":null,"is_public":false,"folder_ids":["not-a-uuid"]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New().String()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)

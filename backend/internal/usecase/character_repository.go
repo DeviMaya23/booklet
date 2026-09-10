@@ -9,11 +9,11 @@ import (
 )
 
 type UpdateCharacterParams struct {
-	Name        *string
+	Name         string
 	AvatarR2Path *string
-	Biography   *string
-	IsPublic    *bool
-	FolderIDs   *[]uuid.UUID
+	Notes        *string
+	IsPublic     bool
+	FolderIDs    []uuid.UUID
 }
 
 type ListCharacterFilters struct {

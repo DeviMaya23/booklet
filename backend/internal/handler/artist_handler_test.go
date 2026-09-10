@@ -276,10 +276,10 @@ func TestUpdateArtist_HappyPath(t *testing.T) {
 	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
-	e.PATCH("/artists/:id", h.UpdateArtist)
+	e.PUT("/artists/:id", h.UpdateArtist)
 
-	body := `{"name":"New Name"}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/artists/%s", artist.ID), strings.NewReader(body))
+	body := `{"name":"New Name","notes":null,"artist_link":null}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", artist.ID), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -290,14 +290,46 @@ func TestUpdateArtist_HappyPath(t *testing.T) {
 	require.Equal(t, artist.ID.String(), got.ID)
 }
 
+func TestUpdateArtist_ClearsNullableFields(t *testing.T) {
+	artist := makeArtist()
+	spy := &spyArtistUsecase{updateResult: artist}
+	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PUT("/artists/:id", h.UpdateArtist)
+
+	body := `{"name":"Jane","notes":null,"artist_link":null}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", artist.ID), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+}
+
+func TestUpdateArtist_MissingName(t *testing.T) {
+	spy := &spyArtistUsecase{}
+	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PUT("/artists/:id", h.UpdateArtist)
+
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"notes":null,"artist_link":null}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
 func TestUpdateArtist_Conflict(t *testing.T) {
 	spy := &spyArtistUsecase{updateErr: usecase.ErrArtistNameConflict}
 	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
-	e.PATCH("/artists/:id", h.UpdateArtist)
+	e.PUT("/artists/:id", h.UpdateArtist)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Taken Name"}`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Taken Name","notes":null,"artist_link":null}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -310,9 +342,9 @@ func TestUpdateArtist_NotFound(t *testing.T) {
 	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
-	e.PATCH("/artists/:id", h.UpdateArtist)
+	e.PUT("/artists/:id", h.UpdateArtist)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{}`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Some Name","notes":null,"artist_link":null}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -325,9 +357,9 @@ func TestUpdateArtist_MalformedJSON(t *testing.T) {
 	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
-	e.PATCH("/artists/:id", h.UpdateArtist)
+	e.PUT("/artists/:id", h.UpdateArtist)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{bad`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{bad`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -340,9 +372,9 @@ func TestUpdateArtist_InvalidArtistLink(t *testing.T) {
 	h := handler.NewArtistHandler(spy, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
-	e.PATCH("/artists/:id", h.UpdateArtist)
+	e.PUT("/artists/:id", h.UpdateArtist)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"artist_link":"not-a-url"}`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Jane","notes":null,"artist_link":"not-a-url"}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)

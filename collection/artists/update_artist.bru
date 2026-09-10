@@ -4,7 +4,7 @@ meta {
   seq: 4
 }
 
-patch {
+put {
   url: {{baseUrl}}/artists/:id
   body: json
   auth: inherit
@@ -22,3 +22,6 @@ body:json {
   }
 }
 
+vars:pre-request {
+  artistId: 88e92ff9-8443-4fe8-97a0-73e572fc6787
+}

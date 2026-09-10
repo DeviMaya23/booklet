@@ -20,12 +20,11 @@ export function useCreateArtist() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(input),
       })
-      if (res.status === 409) {
-        const err = new Error('An artist with this name already exists')
-        ;(err as Error & { status: number }).status = 409
+      if (!res.ok) {
+        const err = new Error('Failed to create artist')
+        ;(err as Error & { status: number }).status = res.status
         throw err
       }
-      if (!res.ok) throw new Error('Failed to create artist')
       return res.json() as Promise<Artist>
     },
     onSuccess: () => {

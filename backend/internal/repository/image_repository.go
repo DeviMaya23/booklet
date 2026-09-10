@@ -72,59 +72,53 @@ func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUI
 		return nil, fmt.Errorf("get image: %w", err)
 	}
 
-	updates := map[string]interface{}{}
+	var title, notes interface{}
 	if params.Title != nil {
-		updates["title"] = *params.Title
-	}
-	if params.ThumbnailR2Path != nil {
-		updates["thumbnail_r2_path"] = *params.ThumbnailR2Path
+		title = *params.Title
 	}
 	if params.Notes != nil {
-		updates["notes"] = *params.Notes
+		notes = *params.Notes
+	}
+	updates := map[string]interface{}{
+		"title": title,
+		"notes": notes,
 	}
 
-	if params.ArtistID != nil {
-		if *params.ArtistID == nil {
-			updates["artist_id"] = nil
-		} else {
-			artistID := *params.ArtistID
-			var count int64
-			dbFromContext(ctx, r.db).Model(&domain.Artist{}).
-				Where("id = ? AND user_id = ?", *artistID, userID).
-				Count(&count)
-			if count == 0 {
-				return nil, usecase.ErrArtistNotOwned
-			}
-			updates["artist_id"] = *artistID
+	if params.ArtistID == nil {
+		updates["artist_id"] = nil
+	} else {
+		var count int64
+		dbFromContext(ctx, r.db).Model(&domain.Artist{}).
+			Where("id = ? AND user_id = ?", *params.ArtistID, userID).
+			Count(&count)
+		if count == 0 {
+			return nil, usecase.ErrArtistNotOwned
+		}
+		updates["artist_id"] = *params.ArtistID
+	}
+
+	if err := dbFromContext(ctx, r.db).Model(&image).Updates(updates).Error; err != nil {
+		return nil, fmt.Errorf("update image: %w", err)
+	}
+
+	charIDs := params.CharacterIDs
+	if len(charIDs) > 0 {
+		var count int64
+		dbFromContext(ctx, r.db).Model(&domain.Character{}).
+			Where("id IN ? AND user_id = ?", charIDs, userID).
+			Count(&count)
+		if count != int64(len(charIDs)) {
+			return nil, usecase.ErrCharacterNotOwned
 		}
 	}
 
-	if len(updates) > 0 {
-		if err := dbFromContext(ctx, r.db).Model(&image).Updates(updates).Error; err != nil {
-			return nil, fmt.Errorf("update image: %w", err)
-		}
+	characters := make([]domain.Character, len(charIDs))
+	for i, cid := range charIDs {
+		parsed, _ := uuid.Parse(cid)
+		characters[i] = domain.Character{ID: parsed}
 	}
-
-	if params.CharacterIDs != nil {
-		charIDs := *params.CharacterIDs
-		if len(charIDs) > 0 {
-			var count int64
-			dbFromContext(ctx, r.db).Model(&domain.Character{}).
-				Where("id IN ? AND user_id = ?", charIDs, userID).
-				Count(&count)
-			if count != int64(len(charIDs)) {
-				return nil, usecase.ErrCharacterNotOwned
-			}
-		}
-
-		characters := make([]domain.Character, len(charIDs))
-		for i, cid := range charIDs {
-			parsed, _ := uuid.Parse(cid)
-			characters[i] = domain.Character{ID: parsed}
-		}
-		if err := dbFromContext(ctx, r.db).Model(&image).Association("Characters").Replace(characters); err != nil {
-			return nil, fmt.Errorf("replace characters: %w", err)
-		}
+	if err := dbFromContext(ctx, r.db).Model(&image).Association("Characters").Replace(characters); err != nil {
+		return nil, fmt.Errorf("replace characters: %w", err)
 	}
 
 	return r.GetByID(ctx, id, userID)
