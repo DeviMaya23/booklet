@@ -69,25 +69,17 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id string, _ uuid.UU
 	if !ok {
 		return nil, fmt.Errorf("update character: %w", gorm.ErrRecordNotFound)
 	}
-	if params.Name != nil {
-		c.Name = *params.Name
-	}
+	c.Name = params.Name
+	c.IsPublic = params.IsPublic
 	if params.AvatarR2Path != nil {
 		c.AvatarR2Path = params.AvatarR2Path
 	}
-	if params.Biography != nil {
-		c.Biography = params.Biography
+	c.Notes = params.Notes
+	folders := make([]domain.CharacterFolder, len(params.FolderIDs))
+	for i, id := range params.FolderIDs {
+		folders[i] = domain.CharacterFolder{CharacterID: parsed, FolderID: id}
 	}
-	if params.IsPublic != nil {
-		c.IsPublic = *params.IsPublic
-	}
-	if params.FolderIDs != nil {
-		folders := make([]domain.CharacterFolder, len(*params.FolderIDs))
-		for i, id := range *params.FolderIDs {
-			folders[i] = domain.CharacterFolder{CharacterID: parsed, FolderID: id}
-		}
-		c.Folders = folders
-	}
+	c.Folders = folders
 	return c, nil
 }
 

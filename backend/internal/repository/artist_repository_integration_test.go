@@ -149,14 +149,12 @@ func TestArtistRepository_Update(t *testing.T) {
 
 	user := seedUser(t, tx, "user_1")
 	artist := seedArtist(t, tx, user.ID, "Jane Doe")
-	newName := "Jane Smith"
-
 	got, err := repo.Update(context.Background(), artist.ID.String(), user.ID, usecase.UpdateArtistParams{
-		Name: &newName,
+		Name: "Jane Smith",
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, newName, got.Name)
+	assert.Equal(t, "Jane Smith", got.Name)
 }
 
 func TestArtistRepository_Update_NotFound(t *testing.T) {
@@ -164,10 +162,8 @@ func TestArtistRepository_Update_NotFound(t *testing.T) {
 	repo := NewArtistRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	newName := "x"
-
 	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateArtistParams{
-		Name: &newName,
+		Name: "x",
 	})
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
@@ -180,10 +176,8 @@ func TestArtistRepository_Update_DuplicateName(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	seedArtist(t, tx, user.ID, "Alice")
 	bob := seedArtist(t, tx, user.ID, "Bob")
-	taken := "Alice"
-
 	_, err := repo.Update(context.Background(), bob.ID.String(), user.ID, usecase.UpdateArtistParams{
-		Name: &taken,
+		Name: "Alice",
 	})
 
 	assert.ErrorIs(t, err, usecase.ErrArtistNameConflict)

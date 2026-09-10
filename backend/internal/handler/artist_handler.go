@@ -38,7 +38,7 @@ type createArtistRequest struct {
 }
 
 type updateArtistRequest struct {
-	Name       *string `json:"name" validate:"omitempty,min=1"`
+	Name       string  `json:"name" validate:"required,min=1"`
 	Notes      *string `json:"notes"`
 	ArtistLink *string `json:"artist_link" validate:"omitempty,url"`
 }

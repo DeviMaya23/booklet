@@ -11,11 +11,10 @@ import (
 var ErrCharacterNotOwned = errors.New("one or more character IDs do not belong to the user")
 
 type UpdateImageParams struct {
-	Title           *string
-	ThumbnailR2Path *string
-	ArtistID        **uuid.UUID
-	Notes           *string
-	CharacterIDs    *[]string
+	Title        *string
+	ArtistID     *uuid.UUID
+	Notes        *string
+	CharacterIDs []string
 }
 
 type ListImageFilters struct {

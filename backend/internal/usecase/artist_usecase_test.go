@@ -74,18 +74,12 @@ func (f *fakeArtistRepository) Update(_ context.Context, id string, _ uuid.UUID,
 	if !ok {
 		return nil, fmt.Errorf("update artist: %w", gorm.ErrRecordNotFound)
 	}
-	if params.Name != nil {
-		if f.conflictName != "" && *params.Name == f.conflictName {
-			return nil, usecase.ErrArtistNameConflict
-		}
-		a.Name = *params.Name
+	if f.conflictName != "" && params.Name == f.conflictName {
+		return nil, usecase.ErrArtistNameConflict
 	}
-	if params.Notes != nil {
-		a.Notes = params.Notes
-	}
-	if params.ArtistLink != nil {
-		a.ArtistLink = params.ArtistLink
-	}
+	a.Name = params.Name
+	a.Notes = params.Notes
+	a.ArtistLink = params.ArtistLink
 	return a, nil
 }
 
@@ -148,9 +142,8 @@ func TestUpdateArtist_DuplicateName_ReturnsConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	repo.conflictName = "Jane Doe"
-	newName := "Jane Doe"
 	_, err = uc.Update(context.Background(), existing.ID.String(), userID, usecase.UpdateArtistParams{
-		Name: &newName,
+		Name: "Jane Doe",
 	})
 
 	require.ErrorIs(t, err, usecase.ErrArtistNameConflict)

@@ -59,38 +59,19 @@ func (r *characterRepository) List(ctx context.Context, userID uuid.UUID, filter
 }
 
 func (r *characterRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
-	updates := map[string]interface{}{}
-	if params.Name != nil {
-		updates["name"] = *params.Name
+	var notes interface{}
+	if params.Notes != nil {
+		notes = *params.Notes
+	}
+	updates := map[string]interface{}{
+		"name":      params.Name,
+		"notes":     notes,
+		"is_public": params.IsPublic,
 	}
 	if params.AvatarR2Path != nil {
 		updates["avatar_r2_path"] = *params.AvatarR2Path
 	}
-	if params.Biography != nil {
-		updates["biography"] = *params.Biography
-	}
-	if params.IsPublic != nil {
-		updates["is_public"] = *params.IsPublic
-	}
-
-	if params.FolderIDs != nil {
-		return r.updateWithFolders(ctx, id, userID, updates, *params.FolderIDs)
-	}
-
-	if len(updates) > 0 {
-		result := dbFromContext(ctx, r.db).
-			Model(&domain.Character{}).
-			Where("id = ? AND user_id = ?", id, userID).
-			Updates(updates)
-		if result.Error != nil {
-			return nil, fmt.Errorf("update character: %w", result.Error)
-		}
-		if result.RowsAffected == 0 {
-			return nil, gorm.ErrRecordNotFound
-		}
-	}
-
-	return r.GetByID(ctx, id, userID)
+	return r.updateWithFolders(ctx, id, userID, updates, params.FolderIDs)
 }
 
 func (r *characterRepository) updateWithFolders(ctx context.Context, id string, userID uuid.UUID, updates map[string]interface{}, folderIDs []uuid.UUID) (*domain.Character, error) {

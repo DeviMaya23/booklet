@@ -181,14 +181,12 @@ func TestCharacterRepository_Update(t *testing.T) {
 
 	user := seedUser(t, tx, "user_1")
 	c := seedCharacter(t, tx, user.ID)
-	newName := "Updated Name"
-
 	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
-		Name: &newName,
+		Name: "Updated Name",
 	})
 
 	require.NoError(t, err)
-	assert.Equal(t, newName, got.Name)
+	assert.Equal(t, "Updated Name", got.Name)
 }
 
 func TestCharacterRepository_Update_NotFound(t *testing.T) {
@@ -196,9 +194,8 @@ func TestCharacterRepository_Update_NotFound(t *testing.T) {
 	repo := NewCharacterRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	newName := "x"
 	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateCharacterParams{
-		Name: &newName,
+		Name: "x",
 	})
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
@@ -209,9 +206,9 @@ func TestCharacterRepository_Update_NotFound_WithFolders(t *testing.T) {
 	repo := NewCharacterRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	folderIDs := []uuid.UUID{uuid.New()}
 	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateCharacterParams{
-		FolderIDs: &folderIDs,
+		Name:      "x",
+		FolderIDs: []uuid.UUID{uuid.New()},
 	})
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
@@ -230,7 +227,8 @@ func TestCharacterRepository_Update_ReplaceFolders(t *testing.T) {
 	newFolders := []uuid.UUID{newFolder}
 
 	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
-		FolderIDs: &newFolders,
+		Name:      "Updated Name",
+		FolderIDs: newFolders,
 	})
 
 	require.NoError(t, err)
@@ -250,10 +248,9 @@ func TestCharacterRepository_Update_ClearFolders(t *testing.T) {
 	folderID := uuid.New()
 	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
 
-	emptyFolders := []uuid.UUID{}
-
 	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
-		FolderIDs: &emptyFolders,
+		Name:      "Updated Name",
+		FolderIDs: []uuid.UUID{},
 	})
 
 	require.NoError(t, err)
@@ -264,25 +261,6 @@ func TestCharacterRepository_Update_ClearFolders(t *testing.T) {
 	assert.Equal(t, int64(0), count)
 }
 
-func TestCharacterRepository_Update_NilFolders_NoOp(t *testing.T) {
-	tx := testutil.NewTestTx(t, testDB)
-	repo := NewCharacterRepository(tx)
-
-	user := seedUser(t, tx, "user_1")
-	folderID := uuid.New()
-	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{folderID})
-
-	newName := "New Name"
-	got, err := repo.Update(context.Background(), c.ID.String(), user.ID, usecase.UpdateCharacterParams{
-		Name:      &newName,
-		FolderIDs: nil,
-	})
-
-	require.NoError(t, err)
-	assert.Equal(t, newName, got.Name)
-	require.Len(t, got.Folders, 1)
-	assert.Equal(t, folderID, got.Folders[0].FolderID)
-}
 
 func TestCharacterRepository_Delete(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)

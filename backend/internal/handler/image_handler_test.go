@@ -352,10 +352,10 @@ func TestUpdateImage_HappyPath(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	body := `{"notes":"some note"}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(body))
+	body := `{"title":null,"notes":"some note","artist_id":null,"character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -366,14 +366,34 @@ func TestUpdateImage_HappyPath(t *testing.T) {
 	require.Equal(t, image.ID.String(), got.ID)
 }
 
+func TestUpdateImage_ClearsTitle(t *testing.T) {
+	image := makeImage()
+	spy := &spyImageUsecase{updateResult: image}
+	h := newImageHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.PUT("/images/:id", h.UpdateImage)
+
+	body := `{"title":null,"notes":null,"artist_id":null,"character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, spy.lastUpdateParams.Title)
+	require.Nil(t, spy.lastUpdateParams.Notes)
+}
+
 func TestUpdateImage_NotFound(t *testing.T) {
 	spy := &spyImageUsecase{updateErr: gorm.ErrRecordNotFound}
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{}`))
+	body := `{"title":null,"notes":null,"artist_id":null,"character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -386,10 +406,10 @@ func TestUpdateImage_CharacterNotOwned(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	body := `{"character_ids":["` + uuid.New().String() + `"]}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
+	body := `{"title":null,"notes":null,"artist_id":null,"character_ids":["` + uuid.New().String() + `"]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -402,24 +422,25 @@ func TestUpdateImage_InvalidArtistID(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{"artist_id":"not-a-uuid"}`))
+	body := `{"title":null,"notes":null,"artist_id":"not-a-uuid","character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var body struct {
+	var respBody struct {
 		Errors []struct {
 			Field   string `json:"field"`
 			Message string `json:"message"`
 		} `json:"errors"`
 	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &body))
-	require.Len(t, body.Errors, 1)
-	require.Equal(t, "artist_id", body.Errors[0].Field)
-	require.Equal(t, "artist_id must be a valid UUID", body.Errors[0].Message)
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &respBody))
+	require.Len(t, respBody.Errors, 1)
+	require.Equal(t, "artist_id", respBody.Errors[0].Field)
+	require.Equal(t, "artist_id must be a valid UUID", respBody.Errors[0].Message)
 }
 
 func TestUpdateImage_ArtistNotOwned(t *testing.T) {
@@ -427,10 +448,10 @@ func TestUpdateImage_ArtistNotOwned(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	body := `{"artist_id":"` + uuid.New().String() + `"}`
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
+	body := `{"title":null,"notes":null,"artist_id":"` + uuid.New().String() + `","character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -444,16 +465,16 @@ func TestUpdateImage_ArtistIDNull_ClearsArtist(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"artist_id":null}`))
+	body := `{"title":null,"notes":null,"artist_id":null,"character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusOK, rec.Code)
-	require.NotNil(t, spy.lastUpdateParams.ArtistID)
-	require.Nil(t, *spy.lastUpdateParams.ArtistID)
+	require.Nil(t, spy.lastUpdateParams.ArtistID)
 }
 
 func TestUpdateImage_MalformedJSON(t *testing.T) {
@@ -461,9 +482,9 @@ func TestUpdateImage_MalformedJSON(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{bad`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/images/%s", uuid.New()), strings.NewReader(`{bad`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
@@ -476,48 +497,15 @@ func TestUpdateImage_InvalidUUID(t *testing.T) {
 	h := newImageHandler(spy)
 
 	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
+	e.PUT("/images/:id", h.UpdateImage)
 
-	req := httptest.NewRequest(http.MethodPatch, "/images/not-a-uuid", strings.NewReader(`{}`))
+	body := `{"title":null,"notes":null,"artist_id":null,"character_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, "/images/not-a-uuid", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
-}
-
-func TestUpdateImage_AbsentCharacterIDs(t *testing.T) {
-	image := makeImage()
-	spy := &spyImageUsecase{updateResult: image}
-	h := newImageHandler(spy)
-
-	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
-
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"notes":"some note"}`))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Nil(t, spy.lastUpdateParams.CharacterIDs)
-}
-
-func TestUpdateImage_AbsentArtistID(t *testing.T) {
-	image := makeImage()
-	spy := &spyImageUsecase{updateResult: image}
-	h := newImageHandler(spy)
-
-	e := setupEcho(testUserID)
-	e.PATCH("/images/:id", h.UpdateImage)
-
-	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/images/%s", image.ID), strings.NewReader(`{"notes":"some note"}`))
-	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	require.Nil(t, spy.lastUpdateParams.ArtistID)
 }
 
 // --- DeleteImage ---

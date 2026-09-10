@@ -68,39 +68,31 @@ func (r *artistRepository) List(ctx context.Context, userID uuid.UUID, filters u
 }
 
 func (r *artistRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
-	updates := map[string]interface{}{}
-	if params.Name != nil {
-		updates["name"] = *params.Name
-	}
+	var notes, artistLink interface{}
 	if params.Notes != nil {
-		updates["notes"] = *params.Notes
+		notes = *params.Notes
 	}
 	if params.ArtistLink != nil {
-		updates["artist_link"] = *params.ArtistLink
+		artistLink = *params.ArtistLink
+	}
+	updates := map[string]interface{}{
+		"name":        params.Name,
+		"notes":       notes,
+		"artist_link": artistLink,
 	}
 
-	if len(updates) > 0 {
-		result := dbFromContext(ctx, r.db).
-			Model(&domain.Artist{}).
-			Where("id = ? AND user_id = ?", id, userID).
-			Updates(updates)
-		if result.Error != nil {
-			if isUniqueConstraintViolation(result.Error) {
-				return nil, usecase.ErrArtistNameConflict
-			}
-			return nil, fmt.Errorf("update artist: %w", result.Error)
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.Artist{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Updates(updates)
+	if result.Error != nil {
+		if isUniqueConstraintViolation(result.Error) {
+			return nil, usecase.ErrArtistNameConflict
 		}
-		if result.RowsAffected == 0 {
-			return nil, gorm.ErrRecordNotFound
-		}
-	} else {
-		var count int64
-		if err := dbFromContext(ctx, r.db).Model(&domain.Artist{}).Where("id = ? AND user_id = ?", id, userID).Count(&count).Error; err != nil {
-			return nil, fmt.Errorf("check artist exists: %w", err)
-		}
-		if count == 0 {
-			return nil, gorm.ErrRecordNotFound
-		}
+		return nil, fmt.Errorf("update artist: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
 	}
 
 	return r.GetByID(ctx, id, userID)

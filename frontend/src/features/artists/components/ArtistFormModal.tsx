@@ -64,15 +64,14 @@ export default function ArtistFormModal({
     e.preventDefault()
     if (!name.trim()) return
 
-    const payload = {
-      name: name.trim(),
-      ...(artistLink.trim() ? { artist_link: artistLink.trim() } : {}),
-      ...(notes.trim() ? { notes: notes.trim() } : {}),
-    }
-
     if (isEditMode) {
       updateMutation.mutate(
-        { id: artist.id, ...payload },
+        {
+          id: artist.id,
+          name: name.trim(),
+          artist_link: artistLink.trim() || null,
+          notes: notes.trim() || null,
+        },
         {
           onSuccess: () => {
             toast.success('Artist updated')
@@ -82,6 +81,8 @@ export default function ArtistFormModal({
             const status = (err as Error & { status?: number }).status
             if (status === 409) {
               toast.error('An artist with this name already exists')
+            } else if (status === 422) {
+              toast.error('Link must be a valid URL')
             } else {
               toast.error('Failed to update artist')
             }
@@ -89,20 +90,29 @@ export default function ArtistFormModal({
         },
       )
     } else {
-      createMutation.mutate(payload, {
-        onSuccess: () => {
-          toast.success('Artist created')
-          onOpenChange(false)
+      createMutation.mutate(
+        {
+          name: name.trim(),
+          ...(artistLink.trim() ? { artist_link: artistLink.trim() } : {}),
+          ...(notes.trim() ? { notes: notes.trim() } : {}),
         },
-        onError: (err) => {
-          const status = (err as Error & { status?: number }).status
-          if (status === 409) {
-            toast.error('An artist with this name already exists')
-          } else {
-            toast.error('Failed to create artist')
-          }
+        {
+          onSuccess: () => {
+            toast.success('Artist created')
+            onOpenChange(false)
+          },
+          onError: (err) => {
+            const status = (err as Error & { status?: number }).status
+            if (status === 409) {
+              toast.error('An artist with this name already exists')
+            } else if (status === 422) {
+              toast.error('Link must be a valid URL')
+            } else {
+              toast.error('Failed to create artist')
+            }
+          },
         },
-      })
+      )
     }
   }
 

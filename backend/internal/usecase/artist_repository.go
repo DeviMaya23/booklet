@@ -14,7 +14,7 @@ var (
 )
 
 type UpdateArtistParams struct {
-	Name       *string
+	Name       string
 	Notes      *string
 	ArtistLink *string
 }

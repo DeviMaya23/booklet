@@ -39,23 +39,23 @@ func NewCharacterHandler(characterUsecase CharacterUsecase, presigner Presigner,
 
 type createCharacterRequest struct {
 	Name      string    `json:"name" validate:"required"`
-	Biography *string   `json:"biography"`
+	Notes *string   `json:"notes"`
 	IsPublic  bool      `json:"is_public"`
 	FolderIDs *[]string `json:"folder_ids" validate:"omitempty,dive,uuid4"`
 }
 
 type updateCharacterRequest struct {
-	Name      *string   `json:"name" validate:"omitempty,min=1"`
-	Biography *string   `json:"biography"`
-	IsPublic  *bool     `json:"is_public"`
-	FolderIDs *[]string `json:"folder_ids" validate:"omitempty,dive,uuid4"`
+	Name      string    `json:"name" validate:"required,min=1"`
+	Notes *string   `json:"notes"`
+	IsPublic  bool      `json:"is_public"`
+	FolderIDs []string  `json:"folder_ids" validate:"dive,uuid4"`
 }
 
 type characterResponse struct {
 	ID        string   `json:"id"`
 	Name      string   `json:"name"`
 	AvatarURL *string  `json:"avatar_url"`
-	Biography *string  `json:"biography"`
+	Notes *string  `json:"notes"`
 	IsPublic  bool     `json:"is_public"`
 	FolderIDs []string `json:"folder_ids"`
 	CreatedAt string   `json:"created_at"`
@@ -97,7 +97,7 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 
 	character, err := h.characterUsecase.Create(ctx, userID, usecase.CreateCharacterParams{
 		Name:      req.Name,
-		Biography: req.Biography,
+		Notes:     req.Notes,
 		IsPublic:  req.IsPublic,
 		FolderIDs: parseFolderIDs(req.FolderIDs),
 	})
@@ -188,9 +188,9 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 
 	character, err := h.characterUsecase.Update(ctx, id, userID, usecase.UpdateCharacterParams{
 		Name:      req.Name,
-		Biography: req.Biography,
+		Notes:     req.Notes,
 		IsPublic:  req.IsPublic,
-		FolderIDs: parseFolderIDs(req.FolderIDs),
+		FolderIDs: parseFolderIDSlice(req.FolderIDs),
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -386,6 +386,19 @@ func parseFolderIDs(strs *[]string) *[]uuid.UUID {
 	return &ids
 }
 
+func parseFolderIDSlice(strs []string) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(strs))
+	ids := make([]uuid.UUID, 0, len(strs))
+	for _, s := range strs {
+		id := uuid.MustParse(s)
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			ids = append(ids, id)
+		}
+	}
+	return ids
+}
+
 func toCharacterResponse(character *domain.Character, avatarURL *string) characterResponse {
 	folderIDs := make([]string, len(character.Folders))
 	for i, f := range character.Folders {
@@ -395,7 +408,7 @@ func toCharacterResponse(character *domain.Character, avatarURL *string) charact
 		ID:        character.ID.String(),
 		Name:      character.Name,
 		AvatarURL: avatarURL,
-		Biography: character.Biography,
+		Notes: character.Notes,
 		IsPublic:  character.IsPublic,
 		FolderIDs: folderIDs,
 		CreatedAt: character.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),

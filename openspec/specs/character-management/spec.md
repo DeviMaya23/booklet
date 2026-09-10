@@ -14,7 +14,7 @@ The `characters` table SHALL use the following schema:
 - `user_id` — `text`, foreign key referencing `users(id)`, not null
 - `name` — `text`, not null
 - `avatar_r2_path` — `text`, nullable — R2 key of the character's avatar image; set exclusively via the avatar upload flow
-- `biography` — `text`, nullable
+- `notes` — `text`, nullable
 - `is_public` — `boolean`, not null, default `false`
 - `created_at`, `updated_at` — `timestamptz`, not null
 - `deleted_at` — `timestamptz`, nullable; used for soft deletes
@@ -50,7 +50,7 @@ The `avatar_r2_path` column is stored in the database but SHALL NOT be exposed i
 ---
 
 ### Requirement: Create character
-An authenticated user SHALL be able to create a character with a required name and optional biography, public visibility flag, and folder IDs. The system SHALL assign a UUID and associate the character with the authenticated user.
+An authenticated user SHALL be able to create a character with a required name and optional notes, public visibility flag, and folder IDs. The system SHALL assign a UUID and associate the character with the authenticated user.
 
 The `avatar_r2_path` field is NOT accepted in the create request body. Avatar images are set exclusively via the avatar upload flow.
 
@@ -116,50 +116,59 @@ Optional query parameters:
 ---
 
 ### Requirement: Partial update character
-An authenticated user SHALL be able to partially update a character they own using PATCH semantics. Only fields present in the request body SHALL be updated; absent fields SHALL remain unchanged.
+An authenticated user SHALL be able to fully replace the editable fields of a character they own using PUT semantics. The request body SHALL always include all updatable fields; the server SHALL write them exactly as received.
 
 The `avatar_r2_path` field is NOT accepted in the update request body. Avatar images are set exclusively via the avatar upload flow.
 
-If `folder_ids` is provided, the character's folder assignments SHALL be replaced with the new set. If `folder_ids` is absent, folder assignments are unchanged. If `folder_ids` is an empty array, all folder assignments are removed.
+Updatable fields: `name`, `notes`, `is_public`, `folder_ids`.
 
-Each value in `folder_ids` SHALL be a valid UUID (format validation only).
+- `name` — required, non-empty string
+- `notes` — nullable string; `null` clears the value
+- `is_public` — required boolean
+- `folder_ids` — required array of UUIDs; an empty array `[]` removes all folder assignments; each value SHALL be a valid UUID (format validation only)
 
-#### Scenario: Successful partial update
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with a subset of updatable fields
-- **THEN** the system returns 200 with the updated character, and omitted fields retain their previous values
+#### Scenario: Successful full update
+- **WHEN** an authenticated user sends `PUT /characters/:id` with all updatable fields
+- **THEN** the system returns 200 with the updated character reflecting the submitted values
+
+#### Scenario: Clearing notes
+- **WHEN** an authenticated user sends `PUT /characters/:id` with `"notes": null`
+- **THEN** the system returns 200 and the character's `notes` is null
 
 #### Scenario: Flipping is_public to false
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with `"is_public": false`
+- **WHEN** an authenticated user sends `PUT /characters/:id` with `"is_public": false`
 - **THEN** the system returns 200 and `is_public` is set to false on the character
 
 #### Scenario: Updating folder_ids replaces assignments
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with a new `folder_ids` array
+- **WHEN** an authenticated user sends `PUT /characters/:id` with a new `folder_ids` array
 - **THEN** the system returns 200 and the character's `folder_ids` reflect the new set
 
+#### Scenario: Clearing all folder assignments
+- **WHEN** an authenticated user sends `PUT /characters/:id` with `"folder_ids": []`
+- **THEN** the system returns 200 and the character has no folder assignments
+
 #### Scenario: Invalid UUID in folder_ids returns 422
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with a `folder_ids` array containing a non-UUID value
+- **WHEN** an authenticated user sends `PUT /characters/:id` with a `folder_ids` array containing a non-UUID value
 - **THEN** the system returns 422 with a structured validation error
 
 #### Scenario: Character not found or not owned
-- **WHEN** an authenticated user sends `PATCH /characters/:id` for a character that does not exist or belongs to another user
+- **WHEN** an authenticated user sends `PUT /characters/:id` for a character that does not exist or belongs to another user
 - **THEN** the system returns 404
 
 #### Scenario: Malformed request body
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with invalid JSON
+- **WHEN** an authenticated user sends `PUT /characters/:id` with invalid JSON
 - **THEN** the system returns 400
 
 ---
 
 ### Requirement: Update character name must not be empty if provided
-If the `name` field is present in a `PATCH /characters/:id` request body, it SHALL contain at least one character. An explicitly empty string SHALL be rejected.
+If the `name` field is present in a `PUT /characters/:id` request body, it SHALL contain at least one character. An explicitly empty string SHALL be rejected.
+
+`name` is always required in a PUT body; it cannot be omitted.
 
 #### Scenario: Empty name on update returns 422
-- **WHEN** an authenticated user sends `PATCH /characters/:id` with `"name": ""`
+- **WHEN** an authenticated user sends `PUT /characters/:id` with `"name": ""`
 - **THEN** the system returns 422 with a structured validation error for the `name` field
-
-#### Scenario: Absent name on update is accepted
-- **WHEN** an authenticated user sends `PATCH /characters/:id` without a `name` field
-- **THEN** the system returns 200 and the character's existing name is unchanged
 
 ---
 

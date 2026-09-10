@@ -21,7 +21,7 @@ var (
 
 type CreateCharacterParams struct {
 	Name      string
-	Biography *string
+	Notes     *string
 	IsPublic  bool
 	FolderIDs *[]uuid.UUID
 }
@@ -66,9 +66,9 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 	character := &domain.Character{
 		ID:        uuid.New(),
 		UserID:    userID,
-		Name:      params.Name,
-		Biography: params.Biography,
-		IsPublic:  params.IsPublic,
+		Name:     params.Name,
+		Notes:    params.Notes,
+		IsPublic: params.IsPublic,
 	}
 	if params.FolderIDs != nil {
 		folders := make([]domain.CharacterFolder, len(*params.FolderIDs))
