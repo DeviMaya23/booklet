@@ -10,11 +10,15 @@ interface ResourceCardProps {
   imageUrl?: string | null
   label: string
   onDeleteClick: () => void
+  onClick?: () => void
 }
 
-export default function ResourceCard({ imageUrl, label, onDeleteClick }: ResourceCardProps) {
+export default function ResourceCard({ imageUrl, label, onDeleteClick, onClick }: ResourceCardProps) {
   return (
-    <div className="relative aspect-square overflow-hidden rounded-lg bg-muted">
+    <div
+      className={`relative aspect-square overflow-hidden rounded-lg bg-muted${onClick ? ' cursor-pointer' : ''}`}
+      onClick={onClick}
+    >
       {imageUrl ? (
         <img
           src={imageUrl}
@@ -31,7 +35,7 @@ export default function ResourceCard({ imageUrl, label, onDeleteClick }: Resourc
         <span className="truncate text-xs font-medium text-white">{label}</span>
       </div>
 
-      <div className="absolute right-1 top-1">
+      <div className="absolute right-1 top-1" onClick={(e) => e.stopPropagation()}>
         <DropdownMenu>
           <DropdownMenuTrigger className="inline-flex size-6 items-center justify-center rounded-[min(var(--radius-md),10px)] bg-black/30 text-white hover:bg-black/50 focus-visible:outline-none">
             <MoreHorizontal className="size-3" />
