@@ -257,7 +257,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
 	imageHandler := httphandler.NewImageHandler(imageUsecase, r2Storage, tel)
 
-	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, imageRepository, transactor, tel)
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, imageRepository, transactor, tel, bookleafClient)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, r2Storage, tel)
 
 	uploadRepository := repository.NewUploadRepository(db)

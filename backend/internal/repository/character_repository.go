@@ -71,10 +71,10 @@ func (r *characterRepository) Update(ctx context.Context, id string, userID uuid
 	if params.AvatarR2Path != nil {
 		updates["avatar_r2_path"] = *params.AvatarR2Path
 	}
-	return r.updateWithFolders(ctx, id, userID, updates, params.FolderIDs)
+	return r.updateWithFolders(ctx, id, userID, updates, params.Folders)
 }
 
-func (r *characterRepository) updateWithFolders(ctx context.Context, id string, userID uuid.UUID, updates map[string]interface{}, folderIDs []uuid.UUID) (*domain.Character, error) {
+func (r *characterRepository) updateWithFolders(ctx context.Context, id string, userID uuid.UUID, updates map[string]interface{}, folders []domain.CharacterFolder) (*domain.Character, error) {
 	err := dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&domain.Character{}).Where("id = ? AND user_id = ?", id, userID).Count(&count).Error; err != nil {
@@ -88,15 +88,7 @@ func (r *characterRepository) updateWithFolders(ctx context.Context, id string, 
 			return fmt.Errorf("delete character folders: %w", err)
 		}
 
-		if len(folderIDs) > 0 {
-			parsedID, err := uuid.Parse(id)
-			if err != nil {
-				return fmt.Errorf("parse character id: %w", err)
-			}
-			folders := make([]domain.CharacterFolder, len(folderIDs))
-			for i, fid := range folderIDs {
-				folders[i] = domain.CharacterFolder{CharacterID: parsedID, FolderID: fid}
-			}
+		if len(folders) > 0 {
 			if err := tx.Create(&folders).Error; err != nil {
 				return fmt.Errorf("insert character folders: %w", err)
 			}

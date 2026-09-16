@@ -10,6 +10,7 @@ import (
 type CharacterFolder struct {
 	CharacterID uuid.UUID `gorm:"type:uuid;primaryKey;column:character_id"`
 	FolderID    uuid.UUID `gorm:"type:uuid;primaryKey;column:folder_id"`
+	FolderName  string    `gorm:"type:text;not null;column:folder_name"`
 }
 
 type Character struct {

@@ -14,6 +14,8 @@ type UpdateCharacterParams struct {
 	Notes        *string
 	IsPublic     bool
 	FolderIDs    []uuid.UUID
+	IDPSubject   string
+	Folders      []domain.CharacterFolder
 }
 
 type ListCharacterFilters struct {

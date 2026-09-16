@@ -1,12 +1,4 @@
-# Spec: Character Folders
-
-## Purpose
-
-Defines the rules for associating characters with Bookleaf folder IDs, including the data model, lifecycle behaviour (cascading hard-delete), and replace-all update semantics.
-
----
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Character-folder association data model
 The `character_folders` table SHALL store associations between characters and Bookleaf folders, including the folder's name at the time of last validation.
@@ -31,7 +23,7 @@ The `character_folders` table SHALL store associations between characters and Bo
 - **WHEN** a character is saved with a folder ID that was previously persisted with an older name
 - **THEN** the `folder_name` is overwritten with the current name from Bookleaf's response
 
----
+## ADDED Requirements
 
 ### Requirement: Bookleaf validation on every folder write
 When a character is created or updated with a non-empty `folder_ids` list, the system SHALL call `GetPublicFolders` once per request to validate the submitted IDs. This call is authoritative — the result determines which IDs are persisted.
@@ -57,29 +49,3 @@ If `folder_ids` is empty or absent, `GetPublicFolders` is NOT called.
 #### Scenario: Empty folder_ids skips Bookleaf call
 - **WHEN** a character update is sent with `folder_ids: []`
 - **THEN** `GetPublicFolders` is not called and all existing folder assignments are removed
-
----
-
-### Requirement: Folder assignments are hard-deleted with their character
-When a character is soft-deleted, all its `character_folders` rows SHALL be hard-deleted in the same database transaction.
-
-#### Scenario: Folder rows removed on character delete
-- **WHEN** an authenticated user deletes a character that has folder assignments
-- **THEN** all `character_folders` rows for that character are removed from the database
-
----
-
-### Requirement: Folder assignment replace-all semantics on update
-When `folder_ids` is provided on a character update, the system SHALL replace all existing folder assignments for that character with the new set in a single atomic operation.
-
-#### Scenario: Existing folders replaced with new set
-- **WHEN** a character has folders [A, B] and an update is sent with `folder_ids: [C]`
-- **THEN** the character's folders are [C] — A and B are removed
-
-#### Scenario: Empty array clears all folders
-- **WHEN** a character has folder assignments and an update is sent with `folder_ids: []`
-- **THEN** all folder assignments for that character are removed
-
-#### Scenario: Absent folder_ids field is a no-op
-- **WHEN** a character update is sent without a `folder_ids` field
-- **THEN** the character's existing folder assignments are unchanged

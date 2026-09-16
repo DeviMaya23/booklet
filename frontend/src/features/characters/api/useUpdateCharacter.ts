@@ -7,6 +7,7 @@ export interface UpdateCharacterInput {
   id: string
   name: string
   notes: string | null
+  folder_ids: string[]
 }
 
 export function useUpdateCharacter() {
@@ -14,11 +15,11 @@ export function useUpdateCharacter() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, name, notes }: UpdateCharacterInput) => {
+    mutationFn: async ({ id, name, notes, folder_ids }: UpdateCharacterInput) => {
       const res = await apiFetch(`/characters/${id}`, getToken, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, notes, is_public: false, folder_ids: [] }),
+        body: JSON.stringify({ name, notes, is_public: false, folder_ids }),
       })
       if (!res.ok) {
         const err = new Error('Failed to update character')
