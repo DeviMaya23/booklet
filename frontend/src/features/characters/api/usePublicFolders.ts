@@ -22,5 +22,7 @@ export function usePublicFolders() {
         (f): PublicFolder => ({ id: f.folder_id, name: f.folder_name }),
       )
     },
+    retry: false,
+    staleTime: 15 * 60 * 1000,
   })
 }

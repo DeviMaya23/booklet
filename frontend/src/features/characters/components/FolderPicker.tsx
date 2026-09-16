@@ -18,6 +18,8 @@ interface FolderPickerProps {
   onAdd: (folder: FolderItem) => void
   onRemove: (id: string) => void
   disabled: boolean
+  isError?: boolean
+  onRetry?: () => void
 }
 
 export function FolderPicker({
@@ -26,6 +28,8 @@ export function FolderPicker({
   onAdd,
   onRemove,
   disabled,
+  isError,
+  onRetry,
 }: FolderPickerProps) {
   function handleChange(items: FolderItem[]) {
     const removedId = selected.find((s) => !items.some((i) => i.id === s.id))?.id
@@ -58,6 +62,18 @@ export function FolderPicker({
         disabled={disabled}
         placeholder="Search folders…"
       />
+      {isError && (
+        <p className="text-sm text-muted-foreground">
+          Couldn't reach folder list.{' '}
+          <button
+            type="button"
+            className="underline hover:text-foreground"
+            onClick={onRetry}
+          >
+            Retry
+          </button>
+        </p>
+      )}
     </div>
   )
 }

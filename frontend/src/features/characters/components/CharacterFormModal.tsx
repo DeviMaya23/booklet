@@ -56,6 +56,7 @@ export default function CharacterFormModal({
   // Folder diff state: track adds/removes against the original character folders
   const [addedFolders, setAddedFolders] = useState<PublicFolder[]>([])
   const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const [renamedFolders, setRenamedFolders] = useState<Map<string, string>>(new Map())
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { getToken } = useKindeAuth()
@@ -76,7 +77,9 @@ export default function CharacterFormModal({
     name: f.name,
   }))
   const selectedFolders: PublicFolder[] = [
-    ...originalFolders.filter((f) => !removedIds.has(f.id)),
+    ...originalFolders
+      .filter((f) => !removedIds.has(f.id))
+      .map((f) => ({ ...f, name: renamedFolders.get(f.id) ?? f.name })),
     ...addedFolders,
   ]
   const selectedIds = new Set(selectedFolders.map((f) => f.id))
@@ -91,6 +94,28 @@ export default function CharacterFormModal({
     }
   }, [localPreviewUrl])
 
+  useEffect(() => {
+    if (!publicFoldersQuery.data) return
+    const liveMap = new Map<string, string>(publicFoldersQuery.data.map((f) => [f.id, f.name]))
+    const nameOverrides = new Map<string, string>()
+    const newRemovedIds = new Set<string>()
+    for (const f of originalFolders) {
+      const liveName = liveMap.get(f.id)
+      if (liveName === undefined) {
+        newRemovedIds.add(f.id)
+      } else if (liveName !== f.name) {
+        nameOverrides.set(f.id, liveName)
+      }
+    }
+    if (nameOverrides.size > 0) {
+      setRenamedFolders(nameOverrides)
+    }
+    if (newRemovedIds.size > 0) {
+      setRemovedIds((prev) => new Set([...prev, ...newRemovedIds]))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicFoldersQuery.data])
+
   const displayUrl = localPreviewUrl ?? (avatarCleared ? null : character?.avatar_url ?? null)
   const showClearButton = isEditMode && !avatarCleared && (localPreviewUrl !== null || character?.avatar_url != null)
 
@@ -103,6 +128,7 @@ export default function CharacterFormModal({
     setDeleteDialogOpen(false)
     setAddedFolders([])
     setRemovedIds(new Set())
+    setRenamedFolders(new Map())
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -306,6 +332,8 @@ export default function CharacterFormModal({
                 }
               }}
               disabled={folderPickerDisabled}
+              isError={publicFoldersQuery.isError}
+              onRetry={() => publicFoldersQuery.refetch()}
             />
           </form>
 
