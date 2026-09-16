@@ -51,15 +51,20 @@ type updateCharacterRequest struct {
 	FolderIDs []string  `json:"folder_ids" validate:"dive,uuid4"`
 }
 
+type folderResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type characterResponse struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	AvatarURL *string  `json:"avatar_url"`
-	Notes *string  `json:"notes"`
-	IsPublic  bool     `json:"is_public"`
-	FolderIDs []string `json:"folder_ids"`
-	CreatedAt string   `json:"created_at"`
-	UpdatedAt string   `json:"updated_at"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	AvatarURL *string          `json:"avatar_url"`
+	Notes     *string          `json:"notes"`
+	IsPublic  bool             `json:"is_public"`
+	Folders   []folderResponse `json:"folders"`
+	CreatedAt string           `json:"created_at"`
+	UpdatedAt string           `json:"updated_at"`
 }
 
 type characterImageResponse struct {
@@ -95,11 +100,17 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
+	idpSubject, ok := middleware.AuthenticatedIDPSubjectFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
 	character, err := h.characterUsecase.Create(ctx, userID, usecase.CreateCharacterParams{
-		Name:      req.Name,
-		Notes:     req.Notes,
-		IsPublic:  req.IsPublic,
-		FolderIDs: parseFolderIDs(req.FolderIDs),
+		Name:       req.Name,
+		Notes:      req.Notes,
+		IsPublic:   req.IsPublic,
+		FolderIDs:  parseFolderIDs(req.FolderIDs),
+		IDPSubject: idpSubject,
 	})
 	if err != nil {
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create character")
@@ -186,11 +197,17 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
+	idpSubject, ok := middleware.AuthenticatedIDPSubjectFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
 	character, err := h.characterUsecase.Update(ctx, id, userID, usecase.UpdateCharacterParams{
-		Name:      req.Name,
-		Notes:     req.Notes,
-		IsPublic:  req.IsPublic,
-		FolderIDs: parseFolderIDSlice(req.FolderIDs),
+		Name:       req.Name,
+		Notes:      req.Notes,
+		IsPublic:   req.IsPublic,
+		FolderIDs:  parseFolderIDSlice(req.FolderIDs),
+		IDPSubject: idpSubject,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -400,17 +417,17 @@ func parseFolderIDSlice(strs []string) []uuid.UUID {
 }
 
 func toCharacterResponse(character *domain.Character, avatarURL *string) characterResponse {
-	folderIDs := make([]string, len(character.Folders))
+	folders := make([]folderResponse, len(character.Folders))
 	for i, f := range character.Folders {
-		folderIDs[i] = f.FolderID.String()
+		folders[i] = folderResponse{ID: f.FolderID.String(), Name: f.FolderName}
 	}
 	return characterResponse{
 		ID:        character.ID.String(),
 		Name:      character.Name,
 		AvatarURL: avatarURL,
-		Notes: character.Notes,
+		Notes:     character.Notes,
 		IsPublic:  character.IsPublic,
-		FolderIDs: folderIDs,
+		Folders:   folders,
 		CreatedAt: character.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: character.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

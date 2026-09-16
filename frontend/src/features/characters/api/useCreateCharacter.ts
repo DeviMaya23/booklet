@@ -6,6 +6,7 @@ import { CHARACTERS_QUERY_KEY, type Character } from './useCharacters'
 export interface CreateCharacterInput {
   name: string
   notes?: string
+  folder_ids?: string[]
 }
 
 export function useCreateCharacter() {
@@ -13,11 +14,14 @@ export function useCreateCharacter() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (input: CreateCharacterInput) => {
+    mutationFn: async ({ name, notes, folder_ids }: CreateCharacterInput) => {
+      const body: Record<string, unknown> = { name }
+      if (notes !== undefined) body.notes = notes
+      if (folder_ids !== undefined) body.folder_ids = folder_ids
       const res = await apiFetch('/characters', getToken, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(input),
+        body: JSON.stringify(body),
       })
       if (!res.ok) {
         const err = new Error('Failed to create character')

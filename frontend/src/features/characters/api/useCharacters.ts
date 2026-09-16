@@ -8,7 +8,7 @@ export interface Character {
   avatar_url: string | null
   notes: string | null
   is_public: boolean
-  folder_ids: string[]
+  folders: { id: string; name: string }[]
   created_at: string
   updated_at: string
 }

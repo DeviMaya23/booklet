@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/devi/booklet/internal/bookleaf"
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/google/uuid"
@@ -75,11 +76,7 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id string, _ uuid.UU
 		c.AvatarR2Path = params.AvatarR2Path
 	}
 	c.Notes = params.Notes
-	folders := make([]domain.CharacterFolder, len(params.FolderIDs))
-	for i, id := range params.FolderIDs {
-		folders[i] = domain.CharacterFolder{CharacterID: parsed, FolderID: id}
-	}
-	c.Folders = folders
+	c.Folders = params.Folders
 	return c, nil
 }
 
@@ -197,6 +194,23 @@ type fakeTransactor struct{}
 
 func (f *fakeTransactor) InTransaction(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
+}
+
+type fakeBookleafClient struct {
+	folderList *bookleaf.FolderList
+	err        error
+	called     bool
+	lastUserID string
+}
+
+func (f *fakeBookleafClient) GetPublicFolders(_ context.Context, userID string) (*bookleaf.FolderList, error) {
+	f.called = true
+	f.lastUserID = userID
+	return f.folderList, f.err
+}
+
+func (f *fakeBookleafClient) DeleteAccount(_ context.Context, _ string) error {
+	return nil
 }
 
 type fakeImageRepository struct {

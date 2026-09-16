@@ -14,16 +14,52 @@ import (
 	"gorm.io/gorm"
 )
 
+// validateAndEnrichFolders calls Bookleaf to validate the given folder IDs for the user.
+// It returns a pre-enriched []domain.CharacterFolder with FolderID and FolderName populated.
+// IDs absent from the Bookleaf response are silently dropped and logged at INFO level.
+// If Bookleaf returns any error, the entire operation should be aborted (the error is returned).
+func (u *characterUsecase) validateAndEnrichFolders(ctx context.Context, characterID uuid.UUID, folderIDs []uuid.UUID, idpSubject string) ([]domain.CharacterFolder, error) {
+	folderList, err := u.bookleafClient.GetPublicFolders(ctx, idpSubject)
+	if err != nil {
+		return nil, fmt.Errorf("validate folders via bookleaf: %w", err)
+	}
+
+	nameByID := make(map[string]string, len(folderList.FolderList))
+	for _, f := range folderList.FolderList {
+		nameByID[f.FolderID] = f.FolderName
+	}
+
+	logger := observability.LoggerFromContext(ctx, u.tel.Logger)
+	var enriched []domain.CharacterFolder
+	for _, id := range folderIDs {
+		name, ok := nameByID[id.String()]
+		if !ok {
+			logger.Info("folder ID not found in Bookleaf response, dropping",
+				zap.String("event", "character.folder.dropped"),
+				zap.String("folder_id", id.String()),
+			)
+			continue
+		}
+		enriched = append(enriched, domain.CharacterFolder{
+			CharacterID: characterID,
+			FolderID:    id,
+			FolderName:  name,
+		})
+	}
+	return enriched, nil
+}
+
 var (
 	ErrCharacterNotFound      = errors.New("character not found or does not belong to the user")
 	ErrPendingUploadNotFound  = errors.New("pending avatar upload not found or does not belong to the user")
 )
 
 type CreateCharacterParams struct {
-	Name      string
-	Notes     *string
-	IsPublic  bool
-	FolderIDs *[]uuid.UUID
+	Name       string
+	Notes      *string
+	IsPublic   bool
+	FolderIDs  *[]uuid.UUID
+	IDPSubject string
 }
 
 type AvatarUploadResult struct {
@@ -39,6 +75,7 @@ type characterUsecase struct {
 	imageRepo        ImageRepository
 	transactor       Transactor
 	tel              *observability.Telemetry
+	bookleafClient   BookleafClient
 }
 
 func NewCharacterUsecase(
@@ -48,6 +85,7 @@ func NewCharacterUsecase(
 	imageRepo ImageRepository,
 	transactor Transactor,
 	tel *observability.Telemetry,
+	bookleafClient BookleafClient,
 ) *characterUsecase {
 	return &characterUsecase{
 		characterRepo:    characterRepo,
@@ -56,6 +94,7 @@ func NewCharacterUsecase(
 		imageRepo:        imageRepo,
 		transactor:       transactor,
 		tel:              tel,
+		bookleafClient:   bookleafClient,
 	}
 }
 
@@ -64,18 +103,20 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 	defer span.End()
 
 	character := &domain.Character{
-		ID:        uuid.New(),
-		UserID:    userID,
+		ID:       uuid.New(),
+		UserID:   userID,
 		Name:     params.Name,
 		Notes:    params.Notes,
 		IsPublic: params.IsPublic,
 	}
-	if params.FolderIDs != nil {
-		folders := make([]domain.CharacterFolder, len(*params.FolderIDs))
-		for i, id := range *params.FolderIDs {
-			folders[i] = domain.CharacterFolder{CharacterID: character.ID, FolderID: id}
+	if params.FolderIDs != nil && len(*params.FolderIDs) > 0 {
+		enriched, err := u.validateAndEnrichFolders(ctx, character.ID, *params.FolderIDs, params.IDPSubject)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
 		}
-		character.Folders = folders
+		character.Folders = enriched
 	}
 	if err := u.characterRepo.Create(ctx, character); err != nil {
 		span.RecordError(err)
@@ -114,6 +155,21 @@ func (u *characterUsecase) List(ctx context.Context, userID uuid.UUID, filters L
 func (u *characterUsecase) Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateCharacter")
 	defer span.End()
+
+	if len(params.FolderIDs) > 0 {
+		charID, err := uuid.Parse(id)
+		if err != nil {
+			return nil, fmt.Errorf("parse character id: %w", err)
+		}
+		enriched, err := u.validateAndEnrichFolders(ctx, charID, params.FolderIDs, params.IDPSubject)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		params.Folders = enriched
+	}
+	// If FolderIDs is empty, params.Folders remains nil/empty → repo will clear all assignments
 
 	res, err := u.characterRepo.Update(ctx, id, userID, params)
 	if err != nil {

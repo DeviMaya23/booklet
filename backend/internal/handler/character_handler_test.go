@@ -27,15 +27,20 @@ var (
 	testIDPSubject = "kp_test_user_1"
 )
 
+type folderResponse struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type characterResponse struct {
-	ID        string   `json:"id"`
-	Name      string   `json:"name"`
-	AvatarURL *string  `json:"avatar_url"`
-	Notes *string  `json:"notes"`
-	IsPublic  bool     `json:"is_public"`
-	FolderIDs []string `json:"folder_ids"`
-	CreatedAt string   `json:"created_at"`
-	UpdatedAt string   `json:"updated_at"`
+	ID        string           `json:"id"`
+	Name      string           `json:"name"`
+	AvatarURL *string          `json:"avatar_url"`
+	Notes     *string          `json:"notes"`
+	IsPublic  bool             `json:"is_public"`
+	Folders   []folderResponse `json:"folders"`
+	CreatedAt string           `json:"created_at"`
+	UpdatedAt string           `json:"updated_at"`
 }
 
 type spyPresigner struct {
@@ -170,7 +175,7 @@ func TestCreateCharacter_HappyPath(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, character.ID.String(), got.ID)
 	require.Equal(t, "Aria", spy.lastCreateParams.Name)
-	require.Equal(t, []string{}, got.FolderIDs)
+	require.Empty(t, got.Folders)
 }
 
 func TestCreateCharacter_MissingName(t *testing.T) {
@@ -445,7 +450,7 @@ func TestUpdateCharacter_HappyPath(t *testing.T) {
 	var got characterResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, character.ID.String(), got.ID)
-	require.Equal(t, []string{}, got.FolderIDs)
+	require.Empty(t, got.Folders)
 }
 
 func TestUpdateCharacter_ClearsNotes(t *testing.T) {
@@ -520,7 +525,7 @@ func TestUpdateCharacter_EmptyName(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got.Errors, 1)
 	require.Equal(t, "name", got.Errors[0].Field)
-	require.Equal(t, "name must not be empty", got.Errors[0].Message)
+	require.Equal(t, "name is required", got.Errors[0].Message)
 }
 
 func TestUpdateCharacter_MissingName(t *testing.T) {
@@ -865,4 +870,87 @@ func TestGetCharacterImages_InvalidUUID(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+// setupEchoNoIDPSubject sets up Echo with a user ID but no IDP subject (simulates missing JWT subject).
+func setupEchoNoIDPSubject(userID uuid.UUID) *echo.Echo {
+	e := echo.New()
+	e.Validator = handler.NewEchoValidator()
+	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			c.Set(string(middleware.AuthenticatedUserIDContextKey), userID)
+			// AuthenticatedIDPSubjectContextKey deliberately not set
+			return next(c)
+		}
+	})
+	return e
+}
+
+// --- idpSubject missing → 401 ---
+
+func TestCreateCharacter_MissingIDPSubject_Returns401(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := newCharacterHandler(spy)
+
+	e := setupEchoNoIDPSubject(testUserID)
+	e.POST("/characters", h.CreateCharacter)
+
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(`{"name":"Aria"}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+func TestUpdateCharacter_MissingIDPSubject_Returns401(t *testing.T) {
+	spy := &spyCharacterUsecase{}
+	h := newCharacterHandler(spy)
+
+	e := setupEchoNoIDPSubject(testUserID)
+	e.PUT("/characters/:id", h.UpdateCharacter)
+
+	body := `{"name":"Aria","notes":null,"is_public":false,"folder_ids":[]}`
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
+}
+
+// --- Bookleaf failure propagates → 500 ---
+
+func TestCreateCharacter_BookleafFailurePropagates_Returns500(t *testing.T) {
+	spy := &spyCharacterUsecase{createErr: errors.New("bookleaf unavailable")}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/characters", h.CreateCharacter)
+
+	folderID := uuid.New().String()
+	body := fmt.Sprintf(`{"name":"Aria","folder_ids":["%s"]}`, folderID)
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+func TestUpdateCharacter_BookleafFailurePropagates_Returns500(t *testing.T) {
+	spy := &spyCharacterUsecase{updateErr: errors.New("bookleaf unavailable")}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.PUT("/characters/:id", h.UpdateCharacter)
+
+	folderID := uuid.New().String()
+	body := fmt.Sprintf(`{"name":"Aria","notes":null,"is_public":false,"folder_ids":["%s"]}`, folderID)
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/characters/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusInternalServerError, rec.Code)
 }

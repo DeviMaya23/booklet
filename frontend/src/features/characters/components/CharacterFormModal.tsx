@@ -29,6 +29,8 @@ import { useUpdateCharacter } from '../api/useUpdateCharacter'
 import { useDeleteCharacter } from '../api/useDeleteCharacter'
 import { useInitAvatarUpload } from '../api/useInitAvatarUpload'
 import { useCompleteAvatarUpload } from '../api/useCompleteAvatarUpload'
+import { usePublicFolders, type PublicFolder } from '../api/usePublicFolders'
+import { FolderPicker } from './FolderPicker'
 
 interface CharacterFormModalProps {
   open: boolean
@@ -51,6 +53,11 @@ export default function CharacterFormModal({
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
 
+  // Folder diff state: track adds/removes against the original character folders
+  const [addedFolders, setAddedFolders] = useState<PublicFolder[]>([])
+  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
+  const [renamedFolders, setRenamedFolders] = useState<Map<string, string>>(new Map())
+
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { getToken } = useKindeAuth()
   const queryClient = useQueryClient()
@@ -60,14 +67,54 @@ export default function CharacterFormModal({
   const deleteMutation = useDeleteCharacter()
   const initUploadMutation = useInitAvatarUpload()
   const completeUploadMutation = useCompleteAvatarUpload()
+  const publicFoldersQuery = usePublicFolders()
 
   const isPending = isSubmitting || deleteMutation.isPending
+
+  // Compute current selected folders: (original + added) - removed
+  const originalFolders: PublicFolder[] = (character?.folders ?? []).map((f) => ({
+    id: f.id,
+    name: f.name,
+  }))
+  const selectedFolders: PublicFolder[] = [
+    ...originalFolders
+      .filter((f) => !removedIds.has(f.id))
+      .map((f) => ({ ...f, name: renamedFolders.get(f.id) ?? f.name })),
+    ...addedFolders,
+  ]
+  const selectedIds = new Set(selectedFolders.map((f) => f.id))
+  const availableFolders: PublicFolder[] = (publicFoldersQuery.data ?? []).filter(
+    (f) => !selectedIds.has(f.id),
+  )
+  const folderPickerDisabled = publicFoldersQuery.isLoading || publicFoldersQuery.isError
 
   useEffect(() => {
     return () => {
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
     }
   }, [localPreviewUrl])
+
+  useEffect(() => {
+    if (!publicFoldersQuery.data) return
+    const liveMap = new Map<string, string>(publicFoldersQuery.data.map((f) => [f.id, f.name]))
+    const nameOverrides = new Map<string, string>()
+    const newRemovedIds = new Set<string>()
+    for (const f of originalFolders) {
+      const liveName = liveMap.get(f.id)
+      if (liveName === undefined) {
+        newRemovedIds.add(f.id)
+      } else if (liveName !== f.name) {
+        nameOverrides.set(f.id, liveName)
+      }
+    }
+    if (nameOverrides.size > 0) {
+      setRenamedFolders(nameOverrides)
+    }
+    if (newRemovedIds.size > 0) {
+      setRemovedIds((prev) => new Set([...prev, ...newRemovedIds]))
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [publicFoldersQuery.data])
 
   const displayUrl = localPreviewUrl ?? (avatarCleared ? null : character?.avatar_url ?? null)
   const showClearButton = isEditMode && !avatarCleared && (localPreviewUrl !== null || character?.avatar_url != null)
@@ -79,6 +126,9 @@ export default function CharacterFormModal({
     setLocalPreviewUrl(null)
     setAvatarCleared(false)
     setDeleteDialogOpen(false)
+    setAddedFolders([])
+    setRemovedIds(new Set())
+    setRenamedFolders(new Map())
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -132,9 +182,11 @@ export default function CharacterFormModal({
   }
 
   async function handleCreateSubmit() {
+    const finalFolderIds = selectedFolders.map((f) => f.id)
     const created = await createMutation.mutateAsync({
       name: name.trim(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
+      folder_ids: finalFolderIds,
     })
 
     if (localFile) {
@@ -170,10 +222,12 @@ export default function CharacterFormModal({
       }
     }
 
+    const finalFolderIds = selectedFolders.map((f) => f.id)
     await updateMutation.mutateAsync({
       id: character.id,
       name: name.trim(),
       notes: notes.trim() || null,
+      folder_ids: finalFolderIds,
     })
 
     toast.success('Character updated')
@@ -252,7 +306,7 @@ export default function CharacterFormModal({
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium" htmlFor="character-notes">
-                Blurb
+                Notes
               </label>
               <textarea
                 id="character-notes"
@@ -264,6 +318,23 @@ export default function CharacterFormModal({
                 className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
+
+            <FolderPicker
+              selected={selectedFolders}
+              available={availableFolders}
+              onAdd={(folder) => setAddedFolders((prev) => [...prev, folder])}
+              onRemove={(id) => {
+                const isOriginal = originalFolders.some((f) => f.id === id)
+                if (isOriginal) {
+                  setRemovedIds((prev) => new Set([...prev, id]))
+                } else {
+                  setAddedFolders((prev) => prev.filter((f) => f.id !== id))
+                }
+              }}
+              disabled={folderPickerDisabled}
+              isError={publicFoldersQuery.isError}
+              onRetry={() => publicFoldersQuery.refetch()}
+            />
           </form>
 
           <DialogFooter>
