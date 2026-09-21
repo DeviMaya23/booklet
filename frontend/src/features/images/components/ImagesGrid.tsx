@@ -16,9 +16,10 @@ import { useDeleteImage } from '../api/useDeleteImage'
 
 interface ImagesGridProps {
   images: Image[]
+  onEditClick?: (image: Image) => void
 }
 
-export default function ImagesGrid({ images }: ImagesGridProps) {
+export default function ImagesGrid({ images, onEditClick }: ImagesGridProps) {
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
   const deleteMutation = useDeleteImage()
 
@@ -45,6 +46,7 @@ export default function ImagesGrid({ images }: ImagesGridProps) {
             imageUrl={image.thumbnail_url}
             label={image.title ?? 'Untitled'}
             onDeleteClick={() => setPendingDeleteId(image.id)}
+            onClick={onEditClick ? () => onEditClick(image) : undefined}
           />
         ))}
       </div>

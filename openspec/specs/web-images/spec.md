@@ -39,11 +39,11 @@ The images page SHALL provide a search bar that filters the displayed image list
 - **THEN** all fetched images SHALL be displayed
 
 ### Requirement: New image button
-The images page SHALL display a `+ New` button. The button SHALL be present but perform no action.
+The images page SHALL display a `+ New` button. Clicking the button SHALL open the `ImageFormModal` in create mode.
 
-#### Scenario: New button is visible but no-op
-- **WHEN** an authenticated user views `/app/images`
-- **THEN** a `+ New` button SHALL be visible and clicking it SHALL have no effect
+#### Scenario: New button opens create modal
+- **WHEN** an authenticated user clicks the `+ New` button on `/app/images`
+- **THEN** the `ImageFormModal` SHALL open in create mode
 
 ### Requirement: Delete image
 Each image card SHALL expose a `(...)` menu in the top-right corner. The menu SHALL contain a Delete option. Selecting Delete SHALL open a confirmation dialog. Confirming SHALL call `DELETE /images/:id`, remove the image from the list, and show a success toast. Cancelling SHALL close the dialog with no change.

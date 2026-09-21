@@ -28,12 +28,14 @@ interface ArtistFormModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
   artist?: Artist
+  onCreated?: (artist: Artist) => void
 }
 
 export default function ArtistFormModal({
   open,
   onOpenChange,
   artist,
+  onCreated,
 }: ArtistFormModalProps) {
   const isEditMode = artist !== undefined
 
@@ -75,7 +77,7 @@ export default function ArtistFormModal({
         {
           onSuccess: () => {
             toast.success('Artist updated')
-            onOpenChange(false)
+            handleOpenChange(false)
           },
           onError: (err) => {
             const status = (err as Error & { status?: number }).status
@@ -97,9 +99,10 @@ export default function ArtistFormModal({
           ...(notes.trim() ? { notes: notes.trim() } : {}),
         },
         {
-          onSuccess: () => {
+          onSuccess: (created) => {
             toast.success('Artist created')
-            onOpenChange(false)
+            onCreated?.(created)
+            handleOpenChange(false)
           },
           onError: (err) => {
             const status = (err as Error & { status?: number }).status
@@ -122,7 +125,7 @@ export default function ArtistFormModal({
       onSuccess: () => {
         toast.success('Artist deleted')
         setDeleteDialogOpen(false)
-        onOpenChange(false)
+        handleOpenChange(false)
       },
       onError: () => {
         toast.error('Failed to delete artist')
