@@ -5,7 +5,7 @@ import {
   TooltipContent,
   TooltipProvider,
 } from '@/components/ui/tooltip'
-import TokenInput from './TokenInput'
+import TokenInput from '@/components/TokenInput'
 
 export interface FolderItem {
   id: string

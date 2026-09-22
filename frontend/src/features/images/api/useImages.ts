@@ -27,5 +27,9 @@ export function useImages() {
       if (!res.ok) throw new Error('Failed to fetch images')
       return res.json() as Promise<Image[]>
     },
+    refetchInterval: (query) => {
+      const data = query.state.data
+      return Array.isArray(data) && data.some((img) => !img.thumbnail_url) ? 2000 : false
+    },
   })
 }

@@ -201,7 +201,7 @@ export default function CharacterFormModal({
     }
 
     toast.success('Character created')
-    onOpenChange(false)
+    handleOpenChange(false)
   }
 
   async function handleEditSubmit() {
@@ -231,7 +231,7 @@ export default function CharacterFormModal({
     })
 
     toast.success('Character updated')
-    onOpenChange(false)
+    handleOpenChange(false)
   }
 
   function handleDeleteConfirm() {
@@ -240,7 +240,7 @@ export default function CharacterFormModal({
       onSuccess: () => {
         toast.success('Character deleted')
         setDeleteDialogOpen(false)
-        onOpenChange(false)
+        handleOpenChange(false)
       },
       onError: () => {
         toast.error('Failed to delete character')
