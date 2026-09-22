@@ -64,6 +64,7 @@ export default function ImageFormModal({ open, onOpenChange, image }: ImageFormM
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
   const [localFile, setLocalFile] = useState<File | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [isLoadingImage, setIsLoadingImage] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -157,14 +158,24 @@ export default function ImageFormModal({ open, onOpenChange, image }: ImageFormM
     onOpenChange(nextOpen)
   }
 
+  function handleFileSet(file: File) {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
+    setLocalFile(file)
+    setLocalPreviewUrl(URL.createObjectURL(file))
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
-    const url = URL.createObjectURL(file)
-    setLocalFile(file)
-    setLocalPreviewUrl(url)
+    handleFileSet(file)
     e.target.value = ''
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragActive(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) handleFileSet(file)
   }
 
   function handleClearFile() {
@@ -273,18 +284,18 @@ export default function ImageFormModal({ open, onOpenChange, image }: ImageFormM
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
+        <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit image' : 'New image'}</DialogTitle>
           </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
             {/* Image preview / file picker */}
             <div className="relative">
               {isEditMode ? (
-                <div className="flex h-40 w-full items-center justify-center overflow-hidden rounded-lg bg-muted">
+                <div className={`flex w-full items-center justify-center overflow-hidden rounded-lg bg-muted${!previewUrl ? ' h-40' : ''}`}>
                   {previewUrl ? (
-                    <img src={previewUrl} alt="Image preview" className="size-full object-cover" />
+                    <img src={previewUrl} alt="Image preview" className="max-h-[35vh] max-w-full" />
                   ) : (
                     <Image className="size-10 text-muted-foreground" />
                   )}
@@ -293,16 +304,19 @@ export default function ImageFormModal({ open, onOpenChange, image }: ImageFormM
                 <>
                   <button
                     type="button"
-                    className="flex h-40 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted"
+                    className={`flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted transition-colors${!localPreviewUrl ? ' h-40' : ''}${dragActive ? ' ring-2 ring-ring' : ''}`}
                     onClick={() => fileInputRef.current?.click()}
+                    onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+                    onDragLeave={() => setDragActive(false)}
+                    onDrop={handleDrop}
                     disabled={isPending}
                   >
                     {localPreviewUrl ? (
-                      <img src={localPreviewUrl} alt="Preview" className="size-full object-cover" />
+                      <img src={localPreviewUrl} alt="Preview" className="max-h-[35vh] max-w-full" />
                     ) : (
                       <div className="flex flex-col items-center gap-2 text-muted-foreground">
                         <Image className="size-10" />
-                        <span className="text-sm">Click to upload image</span>
+                        <span className="text-sm">{dragActive ? 'Drop to upload' : 'Click or drag to upload'}</span>
                       </div>
                     )}
                   </button>
