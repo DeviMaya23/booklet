@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { toast } from 'sonner'
 import { Image, X } from 'lucide-react'
+import AvatarCropDialog from './AvatarCropDialog'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -52,6 +53,8 @@ export default function CharacterFormModal({
   const [avatarCleared, setAvatarCleared] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
+  const [dragActive, setDragActive] = useState(false)
 
   // Folder diff state: track adds/removes against the original character folders
   const [addedFolders, setAddedFolders] = useState<PublicFolder[]>([])
@@ -129,6 +132,11 @@ export default function CharacterFormModal({
     setAddedFolders([])
     setRemovedIds(new Set())
     setRenamedFolders(new Map())
+    if (cropSourceUrl) {
+      URL.revokeObjectURL(cropSourceUrl)
+      setCropSourceUrl(null)
+    }
+    setDragActive(false)
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -136,14 +144,37 @@ export default function CharacterFormModal({
     onOpenChange(nextOpen)
   }
 
+  function stageFileForCrop(file: File) {
+    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
+    setCropSourceUrl(URL.createObjectURL(file))
+  }
+
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const url = URL.createObjectURL(file)
-    setLocalFile(file)
-    setLocalPreviewUrl(url)
-    setAvatarCleared(false)
+    stageFileForCrop(file)
     e.target.value = ''
+  }
+
+  function handleDrop(e: React.DragEvent) {
+    e.preventDefault()
+    setDragActive(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) stageFileForCrop(file)
+  }
+
+  function handleCropConfirm(croppedFile: File) {
+    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
+    setLocalFile(croppedFile)
+    setLocalPreviewUrl(URL.createObjectURL(croppedFile))
+    setAvatarCleared(false)
+    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
+    setCropSourceUrl(null)
+  }
+
+  function handleCropCancel() {
+    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
+    setCropSourceUrl(null)
   }
 
   function handleClearAvatar() {
@@ -261,14 +292,20 @@ export default function CharacterFormModal({
             <div className="relative">
               <button
                 type="button"
-                className="flex h-40 w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted"
+                className={`flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted transition-colors${!displayUrl ? ' h-40' : ''}${dragActive ? ' ring-2 ring-ring' : ''}`}
                 onClick={() => fileInputRef.current?.click()}
+                onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+                onDragLeave={() => setDragActive(false)}
+                onDrop={handleDrop}
                 disabled={isPending}
               >
                 {displayUrl ? (
-                  <img src={displayUrl} alt="Avatar preview" className="size-full object-cover" />
+                  <img src={displayUrl} alt="Avatar preview" className="max-h-[35vh] max-w-full" />
                 ) : (
-                  <Image className="size-10 text-muted-foreground" />
+                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                    <Image className="size-10" />
+                    <span className="text-sm">{dragActive ? 'Drop to upload' : 'Click or drag to upload'}</span>
+                  </div>
                 )}
               </button>
               {showClearButton && (
@@ -367,6 +404,15 @@ export default function CharacterFormModal({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {cropSourceUrl && (
+        <AvatarCropDialog
+          open={!!cropSourceUrl}
+          sourceUrl={cropSourceUrl}
+          onCrop={handleCropConfirm}
+          onCancel={handleCropCancel}
+        />
+      )}
 
       <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
         <AlertDialogContent>
