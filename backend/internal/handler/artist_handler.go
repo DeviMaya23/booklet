@@ -16,10 +16,10 @@ import (
 
 type ArtistUsecase interface {
 	Create(ctx context.Context, userID uuid.UUID, params usecase.CreateArtistParams) (*domain.Artist, error)
-	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error)
-	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error)
-	Delete(ctx context.Context, id string, userID uuid.UUID) error
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error)
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }
 
 type ArtistHandler struct {
@@ -88,8 +88,8 @@ func (h *ArtistHandler) GetArtistByID(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.GetArtistByID")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid artist id")
 	}
 
@@ -140,8 +140,8 @@ func (h *ArtistHandler) UpdateArtist(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.UpdateArtist")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid artist id")
 	}
 
@@ -180,8 +180,8 @@ func (h *ArtistHandler) DeleteArtist(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DeleteArtist")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid artist id")
 	}
 
@@ -190,7 +190,7 @@ func (h *ArtistHandler) DeleteArtist(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	err := h.artistUsecase.Delete(ctx, id, userID)
+	err = h.artistUsecase.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "artist not found")

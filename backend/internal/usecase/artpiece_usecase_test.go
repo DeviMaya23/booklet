@@ -93,7 +93,7 @@ func newFakeArtpieceArtistRepository() *fakeArtpieceArtistRepository {
 	return &fakeArtpieceArtistRepository{artists: make(map[uuid.UUID]*domain.Artist)}
 }
 
-func (f *fakeArtpieceArtistRepository) GetByIDAndUserID(_ context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
+func (f *fakeArtpieceArtistRepository) GetByID(_ context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
 	a, ok := f.artists[id]
 	if !ok || a.UserID != userID {
 		return nil, gorm.ErrRecordNotFound
@@ -222,8 +222,11 @@ func TestDetachFile_CoverReassignedToImage(t *testing.T) {
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{
 		ID: artpieceID, UserID: userID, CoverFileID: &coverFileID,
 	}
-	fileRepo.files[coverFileID] = &domain.File{ID: coverFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
-	fileRepo.files[otherImageID] = &domain.File{ID: otherImageID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png"}
+	coverFile := &domain.File{ID: coverFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	otherFile := &domain.File{ID: otherImageID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png"}
+	fileRepo.files[coverFileID] = coverFile
+	fileRepo.files[otherImageID] = otherFile
+	artpieceRepo.files[artpieceID] = []*domain.File{coverFile, otherFile}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 

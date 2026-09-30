@@ -89,7 +89,7 @@ func TestArtistRepository_GetByID(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	artist := seedArtist(t, tx, user.ID, "Jane Doe")
 
-	got, err := repo.GetByID(context.Background(), artist.ID.String(), user.ID)
+	got, err := repo.GetByID(context.Background(), artist.ID, user.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, artist.ID, got.ID)
@@ -104,7 +104,7 @@ func TestArtistRepository_GetByID_WrongUser(t *testing.T) {
 	user2 := seedUser(t, tx, "user_2")
 	artist := seedArtist(t, tx, user1.ID, "Jane Doe")
 
-	_, err := repo.GetByID(context.Background(), artist.ID.String(), user2.ID)
+	_, err := repo.GetByID(context.Background(), artist.ID, user2.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -149,7 +149,7 @@ func TestArtistRepository_Update(t *testing.T) {
 
 	user := seedUser(t, tx, "user_1")
 	artist := seedArtist(t, tx, user.ID, "Jane Doe")
-	got, err := repo.Update(context.Background(), artist.ID.String(), user.ID, usecase.UpdateArtistParams{
+	got, err := repo.Update(context.Background(), artist.ID, user.ID, usecase.UpdateArtistParams{
 		Name: "Jane Smith",
 	})
 
@@ -162,7 +162,7 @@ func TestArtistRepository_Update_NotFound(t *testing.T) {
 	repo := NewArtistRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	_, err := repo.Update(context.Background(), uuid.NewString(), user.ID, usecase.UpdateArtistParams{
+	_, err := repo.Update(context.Background(), uuid.New(), user.ID, usecase.UpdateArtistParams{
 		Name: "x",
 	})
 
@@ -176,7 +176,7 @@ func TestArtistRepository_Update_DuplicateName(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	seedArtist(t, tx, user.ID, "Alice")
 	bob := seedArtist(t, tx, user.ID, "Bob")
-	_, err := repo.Update(context.Background(), bob.ID.String(), user.ID, usecase.UpdateArtistParams{
+	_, err := repo.Update(context.Background(), bob.ID, user.ID, usecase.UpdateArtistParams{
 		Name: "Alice",
 	})
 
@@ -190,7 +190,7 @@ func TestArtistRepository_Update_NoFields_NoOp(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	artist := seedArtist(t, tx, user.ID, "Jane Doe")
 
-	got, err := repo.Update(context.Background(), artist.ID.String(), user.ID, usecase.UpdateArtistParams{})
+	got, err := repo.Update(context.Background(), artist.ID, user.ID, usecase.UpdateArtistParams{})
 
 	require.NoError(t, err)
 	assert.Equal(t, "Jane Doe", got.Name)
@@ -203,10 +203,10 @@ func TestArtistRepository_Delete(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	artist := seedArtist(t, tx, user.ID, "Jane Doe")
 
-	err := repo.Delete(context.Background(), artist.ID.String(), user.ID)
+	err := repo.Delete(context.Background(), artist.ID, user.ID)
 
 	require.NoError(t, err)
-	_, err = repo.GetByID(context.Background(), artist.ID.String(), user.ID)
+	_, err = repo.GetByID(context.Background(), artist.ID, user.ID)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
@@ -216,7 +216,7 @@ func TestArtistRepository_Delete_NotFound(t *testing.T) {
 
 	user := seedUser(t, tx, "user_1")
 
-	err := repo.Delete(context.Background(), uuid.NewString(), user.ID)
+	err := repo.Delete(context.Background(), uuid.New(), user.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -230,7 +230,7 @@ func TestArtistRepository_Delete_NullsImageArtistID(t *testing.T) {
 	img := seedImage(t, tx, user.ID)
 	require.NoError(t, tx.Model(img).Update("artist_id", artist.ID).Error)
 
-	err := repo.Delete(context.Background(), artist.ID.String(), user.ID)
+	err := repo.Delete(context.Background(), artist.ID, user.ID)
 	require.NoError(t, err)
 
 	var row domain.Image
@@ -247,7 +247,7 @@ func TestArtistRepository_Delete_NullsPendingUploadArtistID(t *testing.T) {
 	pending := seedPendingUpload(t, tx, user.ID)
 	require.NoError(t, tx.Model(pending).Update("artist_id", artist.ID).Error)
 
-	err := repo.Delete(context.Background(), artist.ID.String(), user.ID)
+	err := repo.Delete(context.Background(), artist.ID, user.ID)
 	require.NoError(t, err)
 
 	var row domain.PendingUpload

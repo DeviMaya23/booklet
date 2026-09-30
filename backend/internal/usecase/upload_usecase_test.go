@@ -80,7 +80,7 @@ type spyUploadArtistRepository struct {
 	returnErr      error
 }
 
-func (s *spyUploadArtistRepository) GetByIDAndUserID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artist, error) {
+func (s *spyUploadArtistRepository) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artist, error) {
 	return s.artistToReturn, s.returnErr
 }
 

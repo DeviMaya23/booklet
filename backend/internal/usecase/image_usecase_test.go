@@ -17,18 +17,18 @@ func TestListImages_PassesFiltersToRepo(t *testing.T) {
 	uc := usecase.NewImageUsecase(repo, observability.NewTelemetry(nil, nil, nil))
 
 	q := "sunset"
-	charID := uuid.New().String()
-	artistID := uuid.New().String()
+	charID := uuid.New()
+	artistID := uuid.New()
 	filters := usecase.ListImageFilters{
 		Q:            &q,
-		CharacterIDs: []string{charID},
-		ArtistIDs:    []string{artistID},
+		CharacterIDs: []uuid.UUID{charID},
+		ArtistIDs:    []uuid.UUID{artistID},
 	}
 	_, err := uc.List(context.Background(), img.UserID, filters)
 
 	require.NoError(t, err)
 	require.NotNil(t, repo.lastListFilters.Q)
 	require.Equal(t, "sunset", *repo.lastListFilters.Q)
-	require.Equal(t, []string{charID}, repo.lastListFilters.CharacterIDs)
-	require.Equal(t, []string{artistID}, repo.lastListFilters.ArtistIDs)
+	require.Equal(t, []uuid.UUID{charID}, repo.lastListFilters.CharacterIDs)
+	require.Equal(t, []uuid.UUID{artistID}, repo.lastListFilters.ArtistIDs)
 }

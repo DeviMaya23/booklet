@@ -31,7 +31,7 @@ func (r *characterRepository) Create(ctx context.Context, character *domain.Char
 	})
 }
 
-func (r *characterRepository) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
+func (r *characterRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error) {
 	var character domain.Character
 	err := dbFromContext(ctx, r.db).
 		Preload("Folders").
@@ -58,7 +58,7 @@ func (r *characterRepository) List(ctx context.Context, userID uuid.UUID, filter
 	return characters, nil
 }
 
-func (r *characterRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (r *characterRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	var notes interface{}
 	if params.Notes != nil {
 		notes = *params.Notes
@@ -74,7 +74,7 @@ func (r *characterRepository) Update(ctx context.Context, id string, userID uuid
 	return r.updateWithFolders(ctx, id, userID, updates, params.Folders)
 }
 
-func (r *characterRepository) updateWithFolders(ctx context.Context, id string, userID uuid.UUID, updates map[string]interface{}, folders []domain.CharacterFolder) (*domain.Character, error) {
+func (r *characterRepository) updateWithFolders(ctx context.Context, id uuid.UUID, userID uuid.UUID, updates map[string]interface{}, folders []domain.CharacterFolder) (*domain.Character, error) {
 	err := dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		var count int64
 		if err := tx.Model(&domain.Character{}).Where("id = ? AND user_id = ?", id, userID).Count(&count).Error; err != nil {
@@ -127,7 +127,7 @@ func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.
 	return characters, nil
 }
 
-func (r *characterRepository) UpdateAvatarR2Path(ctx context.Context, id string, userID uuid.UUID, r2Key string) error {
+func (r *characterRepository) UpdateAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID, r2Key string) error {
 	result := dbFromContext(ctx, r.db).
 		Model(&domain.Character{}).
 		Where("id = ? AND user_id = ?", id, userID).
@@ -141,7 +141,7 @@ func (r *characterRepository) UpdateAvatarR2Path(ctx context.Context, id string,
 	return nil
 }
 
-func (r *characterRepository) ClearAvatarR2Path(ctx context.Context, id string, userID uuid.UUID) (string, error) {
+func (r *characterRepository) ClearAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID) (string, error) {
 	db := dbFromContext(ctx, r.db)
 
 	var character domain.Character
@@ -163,7 +163,7 @@ func (r *characterRepository) ClearAvatarR2Path(ctx context.Context, id string, 
 	return *character.AvatarR2Path, nil
 }
 
-func (r *characterRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (r *characterRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	return dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
 		result := tx.Where("id = ? AND user_id = ?", id, userID).Delete(&domain.Character{})
 		if result.Error != nil {

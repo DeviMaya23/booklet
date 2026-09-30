@@ -39,7 +39,7 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 	defer span.End()
 
 	if params.ArtistID != nil {
-		if _, err := u.artistRepo.GetByIDAndUserID(ctx, *params.ArtistID, userID); err != nil {
+		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, userID); err != nil {
 			return nil, ErrArtistNotOwned
 		}
 	}

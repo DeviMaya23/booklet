@@ -19,7 +19,7 @@ type ArtpieceRepository interface {
 }
 
 type ArtpieceArtistRepository interface {
-	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
 }
 
 type ArtpieceCharacterRepository interface {
@@ -33,8 +33,8 @@ type ArtpieceFileRepository interface {
 }
 
 type ListArtpieceFilters struct {
-	CharacterIDs []string `query:"character_ids" validate:"omitempty,dive,uuid4"`
-	ArtistIDs    []string `query:"artist_ids"    validate:"omitempty,dive,uuid4"`
+	CharacterIDs []uuid.UUID `query:"character_ids"`
+	ArtistIDs    []uuid.UUID `query:"artist_ids"`
 }
 
 type CreateArtpieceParams struct {

@@ -34,19 +34,7 @@ func (f *fakeArtistRepository) Create(_ context.Context, artist *domain.Artist) 
 	return artist, nil
 }
 
-func (f *fakeArtistRepository) GetByID(_ context.Context, id string, _ uuid.UUID) (*domain.Artist, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("get artist: %w", err)
-	}
-	a, ok := f.artists[parsed]
-	if !ok {
-		return nil, fmt.Errorf("get artist: %w", gorm.ErrRecordNotFound)
-	}
-	return a, nil
-}
-
-func (f *fakeArtistRepository) GetByIDAndUserID(_ context.Context, id uuid.UUID, _ uuid.UUID) (*domain.Artist, error) {
+func (f *fakeArtistRepository) GetByID(_ context.Context, id uuid.UUID, _ uuid.UUID) (*domain.Artist, error) {
 	a, ok := f.artists[id]
 	if !ok {
 		return nil, fmt.Errorf("get artist: %w", gorm.ErrRecordNotFound)
@@ -65,12 +53,8 @@ func (f *fakeArtistRepository) List(_ context.Context, userID uuid.UUID, filters
 	return result, nil
 }
 
-func (f *fakeArtistRepository) Update(_ context.Context, id string, _ uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("update artist: %w", err)
-	}
-	a, ok := f.artists[parsed]
+func (f *fakeArtistRepository) Update(_ context.Context, id uuid.UUID, _ uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
+	a, ok := f.artists[id]
 	if !ok {
 		return nil, fmt.Errorf("update artist: %w", gorm.ErrRecordNotFound)
 	}
@@ -83,15 +67,11 @@ func (f *fakeArtistRepository) Update(_ context.Context, id string, _ uuid.UUID,
 	return a, nil
 }
 
-func (f *fakeArtistRepository) Delete(_ context.Context, id string, _ uuid.UUID) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("delete artist: %w", err)
-	}
-	if _, ok := f.artists[parsed]; !ok {
+func (f *fakeArtistRepository) Delete(_ context.Context, id uuid.UUID, _ uuid.UUID) error {
+	if _, ok := f.artists[id]; !ok {
 		return fmt.Errorf("delete artist: %w", gorm.ErrRecordNotFound)
 	}
-	delete(f.artists, parsed)
+	delete(f.artists, id)
 	return nil
 }
 
@@ -128,7 +108,7 @@ func TestGetArtistByID_NotFound(t *testing.T) {
 	repo := newFakeArtistRepository()
 	uc := usecase.NewArtistUsecase(repo, observability.NewTelemetry(nil, nil, nil))
 
-	_, err := uc.GetByID(context.Background(), uuid.New().String(), uuid.New())
+	_, err := uc.GetByID(context.Background(), uuid.New(), uuid.New())
 
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -142,7 +122,7 @@ func TestUpdateArtist_DuplicateName_ReturnsConflict(t *testing.T) {
 	require.NoError(t, err)
 
 	repo.conflictName = "Jane Doe"
-	_, err = uc.Update(context.Background(), existing.ID.String(), userID, usecase.UpdateArtistParams{
+	_, err = uc.Update(context.Background(), existing.ID, userID, usecase.UpdateArtistParams{
 		Name: "Jane Doe",
 	})
 
@@ -157,10 +137,10 @@ func TestDeleteArtist_RemovesArtist(t *testing.T) {
 	artist, err := uc.Create(context.Background(), userID, usecase.CreateArtistParams{Name: "Aria"})
 	require.NoError(t, err)
 
-	err = uc.Delete(context.Background(), artist.ID.String(), userID)
+	err = uc.Delete(context.Background(), artist.ID, userID)
 	require.NoError(t, err)
 
-	_, err = uc.GetByID(context.Background(), artist.ID.String(), userID)
+	_, err = uc.GetByID(context.Background(), artist.ID, userID)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 

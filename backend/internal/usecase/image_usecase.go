@@ -21,7 +21,7 @@ func NewImageUsecase(imageRepo ImageRepository, tel *observability.Telemetry) *i
 	}
 }
 
-func (u *imageUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error) {
+func (u *imageUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Image, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetImageByID")
 	defer span.End()
 
@@ -47,7 +47,7 @@ func (u *imageUsecase) List(ctx context.Context, userID uuid.UUID, filters ListI
 	return res, nil
 }
 
-func (u *imageUsecase) Update(ctx context.Context, id string, userID uuid.UUID, params UpdateImageParams) (*domain.Image, error) {
+func (u *imageUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateImageParams) (*domain.Image, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateImage")
 	defer span.End()
 
@@ -60,7 +60,7 @@ func (u *imageUsecase) Update(ctx context.Context, id string, userID uuid.UUID, 
 	return res, nil
 }
 
-func (u *imageUsecase) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (u *imageUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteImage")
 	defer span.End()
 

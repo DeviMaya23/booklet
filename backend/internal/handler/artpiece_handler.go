@@ -36,21 +36,21 @@ func NewArtpieceHandler(artpieceUsecase ArtpieceUsecase, presigner Presigner, te
 }
 
 type createArtpieceRequest struct {
-	Title        *string  `json:"title"`
-	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes        *string  `json:"notes"`
-	CharacterIDs []string `json:"character_ids" validate:"omitempty,dive,uuid4"`
+	Title        *string     `json:"title"`
+	ArtistID     *uuid.UUID  `json:"artist_id"`
+	Notes        *string     `json:"notes"`
+	CharacterIDs []uuid.UUID `json:"character_ids"`
 }
 
 type updateArtpieceRequest struct {
-	Title        *string  `json:"title"`
-	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes        *string  `json:"notes"`
-	CharacterIDs []string `json:"character_ids"`
+	Title        *string     `json:"title"`
+	ArtistID     *uuid.UUID  `json:"artist_id"`
+	Notes        *string     `json:"notes"`
+	CharacterIDs []uuid.UUID `json:"character_ids"`
 }
 
 type setCoverRequest struct {
-	FileID string `json:"file_id" validate:"required,uuid4"`
+	FileID uuid.UUID `json:"file_id"`
 }
 
 type artpieceResponse struct {
@@ -83,22 +83,11 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
-	var artistID *uuid.UUID
-	if req.ArtistID != nil {
-		parsed, _ := uuid.Parse(*req.ArtistID)
-		artistID = &parsed
-	}
-	charIDs := make([]uuid.UUID, 0, len(req.CharacterIDs))
-	for _, s := range req.CharacterIDs {
-		id, _ := uuid.Parse(s)
-		charIDs = append(charIDs, id)
-	}
-
 	artpiece, err := h.artpieceUsecase.Create(ctx, userID, usecase.CreateArtpieceParams{
 		Title:        req.Title,
-		ArtistID:     artistID,
+		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
-		CharacterIDs: charIDs,
+		CharacterIDs: req.CharacterIDs,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtistNotOwned) {
@@ -192,23 +181,11 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	var artistID *uuid.UUID
-	if req.ArtistID != nil {
-		parsed, _ := uuid.Parse(*req.ArtistID)
-		artistID = &parsed
-	}
-
-	charIDs := make([]uuid.UUID, 0, len(req.CharacterIDs))
-	for _, s := range req.CharacterIDs {
-		parsed, _ := uuid.Parse(s)
-		charIDs = append(charIDs, parsed)
-	}
-
 	artpiece, err := h.artpieceUsecase.Update(ctx, id, userID, usecase.UpdateArtpieceParams{
 		Title:        req.Title,
-		ArtistID:     artistID,
+		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
-		CharacterIDs: charIDs,
+		CharacterIDs: req.CharacterIDs,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -339,8 +316,7 @@ func (h *ArtpieceHandler) SetCover(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	fileID, _ := uuid.Parse(req.FileID)
-	artpiece, err := h.artpieceUsecase.SetCover(ctx, artpieceID, fileID, userID)
+	artpiece, err := h.artpieceUsecase.SetCover(ctx, artpieceID, req.FileID, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "artpiece not found")

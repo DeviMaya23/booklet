@@ -29,11 +29,11 @@ func NewUploadHandler(uploadUsecase UploadUsecase, tel *observability.Telemetry)
 }
 
 type initialUploadRequest struct {
-	MimeType     string   `json:"mime_type" validate:"required,oneof=image/jpeg image/png"`
-	Title        *string  `json:"title"`
-	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes        *string  `json:"notes"`
-	CharacterIDs []string `json:"character_ids" validate:"omitempty,dive,uuid4"`
+	MimeType     string      `json:"mime_type" validate:"required,oneof=image/jpeg image/png"`
+	Title        *string     `json:"title"`
+	ArtistID     *uuid.UUID  `json:"artist_id"`
+	Notes        *string     `json:"notes"`
+	CharacterIDs []uuid.UUID `json:"character_ids"`
 }
 
 type initialUploadResponse struct {
@@ -59,25 +59,13 @@ func (h *UploadHandler) InitialUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
-	charIDs := make([]uuid.UUID, 0, len(req.CharacterIDs))
-	for _, s := range req.CharacterIDs {
-		id, _ := uuid.Parse(s) // already validated as uuid4
-		charIDs = append(charIDs, id)
-	}
-
-	var artistID *uuid.UUID
-	if req.ArtistID != nil {
-		parsed, _ := uuid.Parse(*req.ArtistID) // already validated as uuid4
-		artistID = &parsed
-	}
-
 	result, err := h.uploadUsecase.InitialUpload(ctx, usecase.InitialUploadParams{
 		UserID:       userID,
 		MimeType:     req.MimeType,
 		Title:        req.Title,
-		ArtistID:     artistID,
+		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
-		CharacterIDs: charIDs,
+		CharacterIDs: req.CharacterIDs,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtistNotOwned) {

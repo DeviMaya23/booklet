@@ -32,7 +32,7 @@ func TestImageRepository_GetByID(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	img := seedImage(t, tx, user.ID)
 
-	got, err := repo.GetByID(context.Background(), img.ID.String(), user.ID)
+	got, err := repo.GetByID(context.Background(), img.ID, user.ID)
 
 	require.NoError(t, err)
 	assert.Equal(t, img.ID, got.ID)
@@ -47,7 +47,7 @@ func TestImageRepository_GetByID_WrongUser(t *testing.T) {
 	user2 := seedUser(t, tx, "user_2")
 	img := seedImage(t, tx, user1.ID)
 
-	_, err := repo.GetByID(context.Background(), img.ID.String(), user2.ID)
+	_, err := repo.GetByID(context.Background(), img.ID, user2.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
@@ -104,7 +104,7 @@ func TestImageRepository_List_CharacterIDsFilter(t *testing.T) {
 	require.NoError(t, tx.Model(img1).Association("Characters").Replace([]domain.Character{{ID: charA.ID}}))
 	require.NoError(t, tx.Model(img2).Association("Characters").Replace([]domain.Character{{ID: charB.ID}}))
 
-	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{CharacterIDs: []string{charA.ID.String()}})
+	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{CharacterIDs: []uuid.UUID{charA.ID}})
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -122,7 +122,7 @@ func TestImageRepository_List_CharacterIDsFilter_NoDuplicates(t *testing.T) {
 	// tag img with both characters
 	require.NoError(t, tx.Model(img).Association("Characters").Replace([]domain.Character{{ID: charA.ID}, {ID: charB.ID}}))
 
-	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{CharacterIDs: []string{charA.ID.String(), charB.ID.String()}})
+	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{CharacterIDs: []uuid.UUID{charA.ID, charB.ID}})
 
 	require.NoError(t, err)
 	require.Len(t, got, 1, "image should appear once despite matching multiple character IDs")
@@ -139,7 +139,7 @@ func TestImageRepository_List_ArtistIDsFilter(t *testing.T) {
 	img2 := seedImage(t, tx, user.ID)
 	require.NoError(t, tx.Model(img1).Update("artist_id", artist.ID).Error)
 
-	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{ArtistIDs: []string{artist.ID.String()}})
+	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{ArtistIDs: []uuid.UUID{artist.ID}})
 
 	require.NoError(t, err)
 	require.Len(t, got, 1)
@@ -167,8 +167,8 @@ func TestImageRepository_List_CombinedCharacterAndArtistFilter(t *testing.T) {
 	require.NoError(t, tx.Model(img2).Association("Characters").Replace([]domain.Character{{ID: char.ID}}))
 
 	got, err := repo.List(context.Background(), user.ID, usecase.ListImageFilters{
-		CharacterIDs: []string{char.ID.String()},
-		ArtistIDs:    []string{artistA.ID.String()},
+		CharacterIDs: []uuid.UUID{char.ID},
+		ArtistIDs:    []uuid.UUID{artistA.ID},
 	})
 
 	require.NoError(t, err)
@@ -184,8 +184,8 @@ func TestImageRepository_Update_CharacterAssociation(t *testing.T) {
 	img := seedImage(t, tx, user.ID)
 	char := seedCharacter(t, tx, user.ID)
 
-	charIDs := []string{char.ID.String()}
-	got, err := repo.Update(context.Background(), img.ID.String(), user.ID, usecase.UpdateImageParams{
+	charIDs := []uuid.UUID{char.ID}
+	got, err := repo.Update(context.Background(), img.ID, user.ID, usecase.UpdateImageParams{
 		CharacterIDs: charIDs,
 	})
 
@@ -203,8 +203,8 @@ func TestImageRepository_Update_CharacterNotOwned(t *testing.T) {
 	img := seedImage(t, tx, user1.ID)
 	char := seedCharacter(t, tx, user2.ID)
 
-	charIDs := []string{char.ID.String()}
-	_, err := repo.Update(context.Background(), img.ID.String(), user1.ID, usecase.UpdateImageParams{
+	charIDs := []uuid.UUID{char.ID}
+	_, err := repo.Update(context.Background(), img.ID, user1.ID, usecase.UpdateImageParams{
 		CharacterIDs: charIDs,
 	})
 
@@ -218,10 +218,10 @@ func TestImageRepository_Delete(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	img := seedImage(t, tx, user.ID)
 
-	err := repo.Delete(context.Background(), img.ID.String(), user.ID)
+	err := repo.Delete(context.Background(), img.ID, user.ID)
 
 	require.NoError(t, err)
-	_, err = repo.GetByID(context.Background(), img.ID.String(), user.ID)
+	_, err = repo.GetByID(context.Background(), img.ID, user.ID)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
@@ -230,7 +230,7 @@ func TestImageRepository_Delete_NotFound(t *testing.T) {
 	repo := NewImageRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	err := repo.Delete(context.Background(), uuid.NewString(), user.ID)
+	err := repo.Delete(context.Background(), uuid.New(), user.ID)
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }

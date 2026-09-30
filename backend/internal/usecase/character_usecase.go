@@ -30,8 +30,13 @@ func (u *characterUsecase) validateAndEnrichFolders(ctx context.Context, charact
 	}
 
 	logger := observability.LoggerFromContext(ctx, u.tel.Logger)
+	seen := make(map[uuid.UUID]bool, len(folderIDs))
 	var enriched []domain.CharacterFolder
 	for _, id := range folderIDs {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
 		name, ok := nameByID[id.String()]
 		if !ok {
 			logger.Info("folder ID not found in Bookleaf response, dropping",
@@ -126,7 +131,7 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 	return character, nil
 }
 
-func (u *characterUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
+func (u *characterUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetCharacterByID")
 	defer span.End()
 
@@ -152,16 +157,12 @@ func (u *characterUsecase) List(ctx context.Context, userID uuid.UUID, filters L
 	return res, nil
 }
 
-func (u *characterUsecase) Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error) {
+func (u *characterUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateCharacter")
 	defer span.End()
 
 	if len(params.FolderIDs) > 0 {
-		charID, err := uuid.Parse(id)
-		if err != nil {
-			return nil, fmt.Errorf("parse character id: %w", err)
-		}
-		enriched, err := u.validateAndEnrichFolders(ctx, charID, params.FolderIDs, params.IDPSubject)
+		enriched, err := u.validateAndEnrichFolders(ctx, id, params.FolderIDs, params.IDPSubject)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
@@ -180,7 +181,7 @@ func (u *characterUsecase) Update(ctx context.Context, id string, userID uuid.UU
 	return res, nil
 }
 
-func (u *characterUsecase) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (u *characterUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteCharacter")
 	defer span.End()
 
@@ -193,7 +194,7 @@ func (u *characterUsecase) Delete(ctx context.Context, id string, userID uuid.UU
 	return nil
 }
 
-func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, mimeType string) (*AvatarUploadResult, error) {
+func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*AvatarUploadResult, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.InitAvatarUpload")
 	defer span.End()
 
@@ -214,7 +215,7 @@ func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUI
 	observability.LoggerFromContext(ctx, u.tel.Logger).Info("avatar upload initiated",
 		zap.String("event", "r2.avatar.upload.started"),
 		zap.String("pending_id", id.String()),
-		zap.String("character_id", characterID),
+		zap.String("character_id", characterID.String()),
 		zap.String("user_id", userID.String()),
 		zap.String("r2_key", r2Key),
 	)
@@ -226,15 +227,10 @@ func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUI
 		return nil, err
 	}
 
-	charID, err := uuid.Parse(characterID)
-	if err != nil {
-		return nil, fmt.Errorf("parse character id: %w", err)
-	}
-
 	pending := &domain.PendingCharacterAvatarUpload{
 		ID:          id,
 		UserID:      userID,
-		CharacterID: charID,
+		CharacterID: characterID,
 		R2Key:       r2Key,
 		MimeType:    mimeType,
 	}
@@ -247,7 +243,7 @@ func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUI
 	return &AvatarUploadResult{ID: id, UploadURL: uploadURL, ExpiresAt: expiresAt}, nil
 }
 
-func (u *characterUsecase) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, uploadID uuid.UUID) error {
+func (u *characterUsecase) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CompleteAvatarUpload")
 	defer span.End()
 
@@ -261,7 +257,7 @@ func (u *characterUsecase) CompleteAvatarUpload(ctx context.Context, userID uuid
 		return err
 	}
 
-	if pending.CharacterID.String() != characterID {
+	if pending.CharacterID != characterID {
 		return ErrPendingUploadNotFound
 	}
 
@@ -292,7 +288,7 @@ func (u *characterUsecase) CompleteAvatarUpload(ctx context.Context, userID uuid
 		if err := u.storage.DeleteObject(ctx, *oldKey); err != nil {
 			observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to delete old avatar from storage",
 				zap.String("r2_key", *oldKey),
-				zap.String("character_id", characterID),
+				zap.String("character_id", characterID.String()),
 				zap.Error(err),
 			)
 		}
@@ -301,7 +297,7 @@ func (u *characterUsecase) CompleteAvatarUpload(ctx context.Context, userID uuid
 	return nil
 }
 
-func (u *characterUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID string) error {
+func (u *characterUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteAvatar")
 	defer span.End()
 
@@ -322,7 +318,7 @@ func (u *characterUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID, c
 	if err := u.storage.DeleteObject(ctx, oldKey); err != nil {
 		observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to delete avatar from storage",
 			zap.String("r2_key", oldKey),
-			zap.String("character_id", characterID),
+			zap.String("character_id", characterID.String()),
 			zap.Error(err),
 		)
 	}

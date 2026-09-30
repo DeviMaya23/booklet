@@ -31,9 +31,9 @@ func NewFileUploadHandler(fileUploadUsecase FileUploadUsecase, presigner Presign
 }
 
 type initiateFileUploadRequest struct {
-	MimeType   string  `json:"mime_type" validate:"required"`
-	ArtpieceID *string `json:"artpiece_id" validate:"omitempty,uuid4"`
-	Notes      *string `json:"notes"`
+	MimeType   string     `json:"mime_type" validate:"required"`
+	ArtpieceID *uuid.UUID `json:"artpiece_id"`
+	Notes      *string    `json:"notes"`
 }
 
 type initiateFileUploadResponse struct {
@@ -70,16 +70,10 @@ func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
 
-	var artpieceID *uuid.UUID
-	if req.ArtpieceID != nil {
-		parsed, _ := uuid.Parse(*req.ArtpieceID)
-		artpieceID = &parsed
-	}
-
 	result, err := h.fileUploadUsecase.InitiateUpload(ctx, usecase.InitiateFileUploadParams{
 		UserID:     userID,
 		MimeType:   req.MimeType,
-		ArtpieceID: artpieceID,
+		ArtpieceID: req.ArtpieceID,
 		Notes:      req.Notes,
 	})
 	if err != nil {

@@ -49,7 +49,7 @@ func (s *spyArtistUsecase) Create(_ context.Context, _ uuid.UUID, _ usecase.Crea
 	return s.createResult, s.createErr
 }
 
-func (s *spyArtistUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Artist, error) {
+func (s *spyArtistUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artist, error) {
 	return s.getByIDResult, s.getByIDErr
 }
 
@@ -57,11 +57,11 @@ func (s *spyArtistUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListAr
 	return s.listResult, s.listErr
 }
 
-func (s *spyArtistUsecase) Update(_ context.Context, _ string, _ uuid.UUID, _ usecase.UpdateArtistParams) (*domain.Artist, error) {
+func (s *spyArtistUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.UpdateArtistParams) (*domain.Artist, error) {
 	return s.updateResult, s.updateErr
 }
 
-func (s *spyArtistUsecase) Delete(_ context.Context, _ string, _ uuid.UUID) error {
+func (s *spyArtistUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.deleteErr
 }
 
@@ -206,17 +206,17 @@ type captureArtistListSpy struct {
 func (s *captureArtistListSpy) Create(ctx context.Context, userID uuid.UUID, params usecase.CreateArtistParams) (*domain.Artist, error) {
 	return s.inner.Create(ctx, userID, params)
 }
-func (s *captureArtistListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error) {
+func (s *captureArtistListSpy) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
 	return s.inner.GetByID(ctx, id, userID)
 }
 func (s *captureArtistListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error) {
 	*s.capture = filters
 	return s.inner.List(ctx, userID, filters)
 }
-func (s *captureArtistListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
+func (s *captureArtistListSpy) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
 	return s.inner.Update(ctx, id, userID, params)
 }
-func (s *captureArtistListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (s *captureArtistListSpy) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	return s.inner.Delete(ctx, id, userID)
 }
 

@@ -64,7 +64,7 @@ func TestArtpieceRepository_List_FilterByArtist(t *testing.T) {
 	require.NoError(t, tx.Create(a2).Error)
 
 	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{
-		ArtistIDs: []string{artist.ID.String()},
+		ArtistIDs: []uuid.UUID{artist.ID},
 	})
 
 	require.NoError(t, err)
@@ -85,7 +85,7 @@ func TestArtpieceRepository_List_FilterByCharacter(t *testing.T) {
 	require.NoError(t, tx.Create(a2).Error)
 
 	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{
-		CharacterIDs: []string{char.ID.String()},
+		CharacterIDs: []uuid.UUID{char.ID},
 	})
 
 	require.NoError(t, err)

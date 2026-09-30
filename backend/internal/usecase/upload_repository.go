@@ -22,7 +22,7 @@ type UploadCharacterRepository interface {
 }
 
 type UploadArtistRepository interface {
-	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
 }
 
 type UploadImageRepository interface {

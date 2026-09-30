@@ -93,7 +93,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 	)
 
 	if params.ArtistID != nil {
-		if _, err := u.artistRepo.GetByIDAndUserID(ctx, *params.ArtistID, params.UserID); err != nil {
+		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, params.UserID); err != nil {
 			return nil, ErrArtistNotOwned
 		}
 	}
@@ -152,7 +152,7 @@ func (u *uploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID
 
 	var resolvedArtistID *uuid.UUID
 	if pending.ArtistID != nil {
-		_, err := u.artistRepo.GetByIDAndUserID(ctx, *pending.ArtistID, userID)
+		_, err := u.artistRepo.GetByID(ctx, *pending.ArtistID, userID)
 		if err == nil {
 			resolvedArtistID = pending.ArtistID
 		}

@@ -17,7 +17,7 @@ type fakeCharacterRepository struct {
 
 	lastCreated          *domain.Character
 	lastUpdated          usecase.UpdateCharacterParams
-	lastUpdatedAvatarID  string
+	lastUpdatedAvatarID  uuid.UUID
 	lastUpdatedAvatarKey string
 	lastListFilters      usecase.ListCharacterFilters
 }
@@ -34,12 +34,8 @@ func (f *fakeCharacterRepository) Create(_ context.Context, character *domain.Ch
 	return nil
 }
 
-func (f *fakeCharacterRepository) GetByID(_ context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("get character: %w", err)
-	}
-	c, ok := f.characters[parsed]
+func (f *fakeCharacterRepository) GetByID(_ context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error) {
+	c, ok := f.characters[id]
 	if !ok {
 		return nil, fmt.Errorf("get character: %w", gorm.ErrRecordNotFound)
 	}
@@ -60,13 +56,9 @@ func (f *fakeCharacterRepository) List(_ context.Context, userID uuid.UUID, filt
 	return result, nil
 }
 
-func (f *fakeCharacterRepository) Update(_ context.Context, id string, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (f *fakeCharacterRepository) Update(_ context.Context, id uuid.UUID, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	f.lastUpdated = params
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return nil, fmt.Errorf("update character: %w", err)
-	}
-	c, ok := f.characters[parsed]
+	c, ok := f.characters[id]
 	if !ok {
 		return nil, fmt.Errorf("update character: %w", gorm.ErrRecordNotFound)
 	}
@@ -80,24 +72,16 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id string, _ uuid.UU
 	return c, nil
 }
 
-func (f *fakeCharacterRepository) Delete(_ context.Context, id string, _ uuid.UUID) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("delete character: %w", err)
-	}
-	if _, ok := f.characters[parsed]; !ok {
+func (f *fakeCharacterRepository) Delete(_ context.Context, id uuid.UUID, _ uuid.UUID) error {
+	if _, ok := f.characters[id]; !ok {
 		return fmt.Errorf("delete character: %w", gorm.ErrRecordNotFound)
 	}
-	delete(f.characters, parsed)
+	delete(f.characters, id)
 	return nil
 }
 
-func (f *fakeCharacterRepository) ClearAvatarR2Path(_ context.Context, id string, userID uuid.UUID) (string, error) {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return "", fmt.Errorf("clear avatar_r2_path: %w", err)
-	}
-	c, ok := f.characters[parsed]
+func (f *fakeCharacterRepository) ClearAvatarR2Path(_ context.Context, id uuid.UUID, userID uuid.UUID) (string, error) {
+	c, ok := f.characters[id]
 	if !ok || c.UserID != userID {
 		return "", gorm.ErrRecordNotFound
 	}
@@ -109,12 +93,8 @@ func (f *fakeCharacterRepository) ClearAvatarR2Path(_ context.Context, id string
 	return oldKey, nil
 }
 
-func (f *fakeCharacterRepository) UpdateAvatarR2Path(_ context.Context, id string, _ uuid.UUID, r2Key string) error {
-	parsed, err := uuid.Parse(id)
-	if err != nil {
-		return fmt.Errorf("update avatar_r2_path: %w", err)
-	}
-	c, ok := f.characters[parsed]
+func (f *fakeCharacterRepository) UpdateAvatarR2Path(_ context.Context, id uuid.UUID, _ uuid.UUID, r2Key string) error {
+	c, ok := f.characters[id]
 	if !ok {
 		return fmt.Errorf("update avatar_r2_path: %w", gorm.ErrRecordNotFound)
 	}
@@ -219,7 +199,7 @@ type fakeImageRepository struct {
 	lastListFilters   usecase.ListImageFilters
 }
 
-func (f *fakeImageRepository) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Image, error) {
+func (f *fakeImageRepository) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Image, error) {
 	return nil, fmt.Errorf("get image: %w", gorm.ErrRecordNotFound)
 }
 
@@ -228,11 +208,11 @@ func (f *fakeImageRepository) List(_ context.Context, _ uuid.UUID, filters useca
 	return f.images, nil
 }
 
-func (f *fakeImageRepository) Update(_ context.Context, _ string, _ uuid.UUID, _ usecase.UpdateImageParams) (*domain.Image, error) {
+func (f *fakeImageRepository) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.UpdateImageParams) (*domain.Image, error) {
 	return nil, fmt.Errorf("update image: %w", gorm.ErrRecordNotFound)
 }
 
-func (f *fakeImageRepository) Delete(_ context.Context, _ string, _ uuid.UUID) error {
+func (f *fakeImageRepository) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return nil
 }
 
