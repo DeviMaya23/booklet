@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrArtistNotOwned    = errors.New("artist does not belong to the user")
+	ErrArtistNotOwned     = errors.New("artist does not belong to the user")
 	ErrArtistNameConflict = errors.New("an artist with that name already exists")
+	ErrArtpieceNotOwned   = errors.New("artpiece does not exist or does not belong to the user")
 )
 
 type UpdateArtistParams struct {

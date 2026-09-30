@@ -1,0 +1,26 @@
+meta {
+  name: Create Artpiece
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/artpieces
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "My Artwork",
+    "artist_id": null,
+    "notes": "Some notes.",
+    "character_ids": []
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("artpieceId", res.body.id);
+  }
+}

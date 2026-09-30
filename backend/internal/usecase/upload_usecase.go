@@ -8,6 +8,7 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/worker"
+	bookmime "github.com/devi/booklet/pkg/mime"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -79,7 +80,7 @@ func (u *uploadUsecase) InitialUpload(ctx context.Context, params InitialUploadP
 	defer span.End()
 
 	id := uuid.New()
-	ext := mimeTypeToExt(params.MimeType)
+	ext := bookmime.MimeTypeToExt(params.MimeType)
 	r2Key := fmt.Sprintf("users/%s/images/%s%s", params.UserID.String(), id.String(), ext)
 	expiresAt := time.Now().Add(PresignTTL)
 
@@ -227,13 +228,3 @@ func (u *uploadUsecase) CleanupStaleUploads(ctx context.Context, threshold time.
 	return nil
 }
 
-func mimeTypeToExt(mimeType string) string {
-	switch mimeType {
-	case "image/jpeg":
-		return ".jpg"
-	case "image/png":
-		return ".png"
-	default:
-		return ""
-	}
-}

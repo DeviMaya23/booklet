@@ -1,0 +1,21 @@
+meta {
+  name: Set Artpiece Cover
+  type: http
+  seq: 8
+}
+
+put {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}/cover
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "file_id": "{{fileId}}"
+  }
+}
+
+vars:pre-request {
+  fileId: e9a77f23-2530-4283-8886-0b962c378253
+}

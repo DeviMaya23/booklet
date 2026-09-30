@@ -1,0 +1,11 @@
+meta {
+  name: Detach File from Artpiece
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}/files/{{fileId}}
+  body: none
+  auth: inherit
+}
