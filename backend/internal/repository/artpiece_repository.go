@@ -29,6 +29,7 @@ func (r *artpieceRepository) GetByID(ctx context.Context, id uuid.UUID, userID u
 	err := dbFromContext(ctx, r.db).
 		Preload("Artist").
 		Preload("CoverFile").
+		Preload("Files").
 		Preload("Characters").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&a).Error

@@ -59,6 +59,12 @@ type setCoverRequest struct {
 	FileID uuid.UUID `json:"file_id"`
 }
 
+type fileRef struct {
+	ID           string  `json:"id"`
+	FileURL      string  `json:"file_url"`
+	ThumbnailURL *string `json:"thumbnail_url"`
+}
+
 type artpieceResponse struct {
 	ID           string         `json:"id"`
 	Title        *string        `json:"title"`
@@ -68,6 +74,7 @@ type artpieceResponse struct {
 	ThumbnailURL *string        `json:"thumbnail_url"`
 	Notes        *string        `json:"notes"`
 	Characters   []characterRef `json:"characters"`
+	Files        []fileRef      `json:"files"`
 	CreatedAt    string         `json:"created_at"`
 	UpdatedAt    string         `json:"updated_at"`
 }
@@ -110,7 +117,7 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusCreated, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusCreated, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
@@ -136,7 +143,26 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	fileRefs := make([]fileRef, 0, len(artpiece.Files))
+	for _, f := range artpiece.Files {
+		fileURL, err := h.presigner.GeneratePresignedGetURL(ctx, f.FileR2Path, usecase.PresignGetTTL)
+		if err != nil {
+			continue
+		}
+		var thumbURL *string
+		if f.ThumbnailR2Path != nil {
+			u, err := h.presigner.GeneratePresignedGetURL(ctx, *f.ThumbnailR2Path, usecase.PresignGetTTL)
+			if err == nil {
+				thumbURL = &u
+			}
+		}
+		fileRefs = append(fileRefs, fileRef{
+			ID:           f.ID.String(),
+			FileURL:      fileURL,
+			ThumbnailURL: thumbURL,
+		})
+	}
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, fileRefs))
 }
 
 func (h *ArtpieceHandler) ListArtpieces(c echo.Context) error {
@@ -164,7 +190,7 @@ func (h *ArtpieceHandler) ListArtpieces(c echo.Context) error {
 	responses := make([]artpieceResponse, len(artpieces))
 	for i, a := range artpieces {
 		thumbnailURL, _ := h.presignCoverThumbnail(ctx, a)
-		responses[i] = toArtpieceResponse(a, thumbnailURL)
+		responses[i] = toArtpieceResponse(a, thumbnailURL, nil)
 	}
 	return c.JSON(http.StatusOK, responses)
 }
@@ -211,7 +237,7 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) DeleteArtpiece(c echo.Context) error {
@@ -268,7 +294,7 @@ func (h *ArtpieceHandler) AttachFile(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) ReplaceFiles(c echo.Context) error {
@@ -302,7 +328,7 @@ func (h *ArtpieceHandler) ReplaceFiles(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) DetachFile(c echo.Context) error {
@@ -335,7 +361,7 @@ func (h *ArtpieceHandler) DetachFile(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) SetCover(c echo.Context) error {
@@ -372,7 +398,7 @@ func (h *ArtpieceHandler) SetCover(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
 }
 
 func (h *ArtpieceHandler) presignCoverThumbnail(ctx context.Context, a *domain.Artpiece) (*string, error) {
@@ -386,7 +412,7 @@ func (h *ArtpieceHandler) presignCoverThumbnail(ctx context.Context, a *domain.A
 	return &u, nil
 }
 
-func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string) artpieceResponse {
+func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, files []fileRef) artpieceResponse {
 	chars := make([]characterRef, len(a.Characters))
 	for i, c := range a.Characters {
 		chars[i] = characterRef{ID: c.ID.String(), Name: c.Name}
@@ -416,6 +442,7 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string) artpieceRespon
 		ThumbnailURL: thumbnailURL,
 		Notes:        a.Notes,
 		Characters:   chars,
+		Files:        files,
 		CreatedAt:    a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    a.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

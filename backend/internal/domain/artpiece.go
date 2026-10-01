@@ -15,6 +15,7 @@ type Artpiece struct {
 	Notes       *string     `gorm:"type:text;column:notes"`
 	Artist      *Artist     `gorm:"foreignKey:ArtistID"`
 	CoverFile   *File       `gorm:"foreignKey:CoverFileID"`
+	Files       []File      `gorm:"foreignKey:ArtpieceID"`
 	Characters  []Character `gorm:"many2many:artpiece_characters;"`
 	CreatedAt   time.Time   `gorm:"column:created_at"`
 	UpdatedAt   time.Time   `gorm:"column:updated_at"`
