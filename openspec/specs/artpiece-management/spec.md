@@ -5,7 +5,7 @@ This capability covers the CRUD lifecycle of artpieces — the core creative wor
 ## Requirements
 
 ### Requirement: Create artpiece
-The system SHALL allow an authenticated user to create an artpiece with optional title, artist, notes, and a set of characters. The artpiece is created with no files and no cover.
+The system SHALL allow an authenticated user to create an artpiece with optional title, artist, notes, a set of characters, and an optional set of initial file IDs. When no file IDs are provided the artpiece is created with no files and no cover.
 
 #### Scenario: Successful creation with all fields
 - **WHEN** a user posts a valid create request with title, artist_id, notes, and character_ids
@@ -30,7 +30,7 @@ The system SHALL return a single artpiece by ID, scoped to the authenticated use
 
 #### Scenario: Artpiece found
 - **WHEN** a user requests an artpiece by ID that belongs to them
-- **THEN** the system returns the artpiece with artist, characters, and cover file (including thumbnail URL) with HTTP 200
+- **THEN** the system returns the artpiece with artist, characters, cover file (including thumbnail URL), and a `files` array containing each attached file's ID, presigned file URL, and presigned thumbnail URL (null if no thumbnail) with HTTP 200
 
 #### Scenario: Artpiece not found or belongs to another user
 - **WHEN** a user requests an artpiece by ID that does not exist or belongs to another user

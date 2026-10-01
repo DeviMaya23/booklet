@@ -1,0 +1,11 @@
+meta {
+  name: List Files (Unassigned)
+  type: http
+  seq: 5
+}
+
+get {
+  url: {{baseUrl}}/files?unassigned=true
+  body: none
+  auth: inherit
+}

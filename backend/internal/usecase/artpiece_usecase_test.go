@@ -8,6 +8,7 @@ import (
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -142,6 +143,26 @@ func (f *fakeArtpieceFileRepository) UpdateArtpieceID(_ context.Context, fileID 
 	return nil
 }
 
+func (f *fakeArtpieceFileRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error) {
+	var result []*domain.File
+	for _, id := range ids {
+		file, ok := f.files[id]
+		if ok && file.UserID == userID {
+			result = append(result, file)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeArtpieceFileRepository) BulkUpdateArtpieceID(_ context.Context, fileIDs []uuid.UUID, artpieceID *uuid.UUID) error {
+	for _, id := range fileIDs {
+		if file, ok := f.files[id]; ok {
+			file.ArtpieceID = artpieceID
+		}
+	}
+	return nil
+}
+
 func (f *fakeArtpieceFileRepository) GetFilesForArtpiece(_ context.Context, artpieceID uuid.UUID) ([]*domain.File, error) {
 	var result []*domain.File
 	for _, file := range f.files {
@@ -158,7 +179,7 @@ func newArtpieceUsecase(
 	charRepo *fakeArtpieceCharacterRepository,
 	fileRepo *fakeArtpieceFileRepository,
 ) *usecase.ArtpieceUsecase {
-	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, observability.NewTelemetry(nil, nil, nil))
+	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- create tests ---
@@ -255,6 +276,181 @@ func TestDetachFile_CoverClearedWhenNoFilesRemain(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, artpieceRepo.lastCoverArtID == artpieceID)
 	require.Nil(t, artpieceRepo.lastCoverID)
+}
+
+// --- create with file IDs tests ---
+
+func TestCreateArtpiece_WithFileIDs_Success(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, MimeType: "image/jpeg"}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{fileID}})
+
+	require.NoError(t, err)
+	require.NotNil(t, artpieceRepo.lastCoverID)
+	assert.Equal(t, fileID, *artpieceRepo.lastCoverID)
+}
+
+func TestCreateArtpiece_WithFileIDs_Empty(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository())
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{}})
+
+	require.NoError(t, err)
+	assert.Nil(t, artpieceRepo.lastCoverID)
+}
+
+func TestCreateArtpiece_WithFileIDs_FileNotOwned(t *testing.T) {
+	userID := uuid.New()
+	fileRepo := newFakeArtpieceFileRepository()
+	// file not seeded for this user
+
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{uuid.New()}})
+
+	require.ErrorIs(t, err, usecase.ErrFileNotOwned)
+}
+
+func TestCreateArtpiece_WithFileIDs_FileAlreadyAttached(t *testing.T) {
+	userID := uuid.New()
+	otherArtpieceID := uuid.New()
+	fileRepo := newFakeArtpieceFileRepository()
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
+
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{fileID}})
+
+	require.ErrorIs(t, err, usecase.ErrFileAlreadyAttached)
+}
+
+// --- replace files tests ---
+
+func TestReplaceFiles_FullReplace(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	oldFileID := uuid.New()
+	newFileID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	fileRepo.files[oldFileID] = &domain.File{ID: oldFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
+	fileRepo.files[newFileID] = &domain.File{ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
+	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[oldFileID]}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{newFileID})
+
+	require.NoError(t, err)
+	assert.Nil(t, fileRepo.files[oldFileID].ArtpieceID)
+	require.NotNil(t, fileRepo.files[newFileID].ArtpieceID)
+	assert.Equal(t, artpieceID, *fileRepo.files[newFileID].ArtpieceID)
+	require.NotNil(t, artpieceRepo.lastCoverID)
+	assert.Equal(t, newFileID, *artpieceRepo.lastCoverID)
+}
+
+func TestReplaceFiles_EmptySet_ClearsAll(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	fileID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &fileID}
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[fileID]}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{})
+
+	require.NoError(t, err)
+	assert.Nil(t, artpieceRepo.lastCoverID)
+	assert.Equal(t, artpieceID, artpieceRepo.lastCoverArtID)
+}
+
+func TestReplaceFiles_CurrentCoverRemainsInSet(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	coverID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &coverID}
+	fileRepo.files[coverID] = &domain.File{ID: coverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[coverID]}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{coverID})
+
+	require.NoError(t, err)
+	// UpdateCover should not have been called since cover remains
+	assert.Equal(t, uuid.Nil, artpieceRepo.lastCoverArtID)
+}
+
+func TestReplaceFiles_CoverReassignedWhenRemoved(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	oldCoverID := uuid.New()
+	newFileID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &oldCoverID}
+	fileRepo.files[oldCoverID] = &domain.File{ID: oldCoverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
+	fileRepo.files[newFileID] = &domain.File{ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
+	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[oldCoverID]}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{newFileID})
+
+	require.NoError(t, err)
+	require.NotNil(t, artpieceRepo.lastCoverID)
+	assert.Equal(t, newFileID, *artpieceRepo.lastCoverID)
+}
+
+func TestReplaceFiles_FileNotOwned(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository())
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{uuid.New()})
+
+	require.ErrorIs(t, err, usecase.ErrFileNotOwned)
+}
+
+func TestReplaceFiles_FileAttachedToOtherArtpiece(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	otherArtpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	fileID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{fileID})
+
+	require.ErrorIs(t, err, usecase.ErrFileAlreadyAttached)
+}
+
+func TestReplaceFiles_ArtpieceNotFound(t *testing.T) {
+	userID := uuid.New()
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository())
+
+	_, err := uc.ReplaceFiles(context.Background(), uuid.New(), userID, []uuid.UUID{})
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
 // --- set cover tests ---

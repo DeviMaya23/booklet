@@ -1,0 +1,17 @@
+meta {
+  name: Update File
+  type: http
+  seq: 6
+}
+
+put {
+  url: {{baseUrl}}/files/{{fileId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "notes": "Some notes about this file."
+  }
+}

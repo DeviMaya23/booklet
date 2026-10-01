@@ -80,6 +80,76 @@ func (r *fileRepository) UpdateArtpieceID(ctx context.Context, fileID uuid.UUID,
 	return nil
 }
 
+func (r *fileRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var files []*domain.File
+	err := dbFromContext(ctx, r.db).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Find(&files).Error
+	if err != nil {
+		return nil, fmt.Errorf("get files by ids: %w", err)
+	}
+	return files, nil
+}
+
+func (r *fileRepository) List(ctx context.Context, userID uuid.UUID, unassigned bool) ([]*domain.File, error) {
+	var files []*domain.File
+	q := dbFromContext(ctx, r.db).
+		Preload("ImageMetadata").
+		Where("user_id = ?", userID)
+	if unassigned {
+		q = q.Where("artpiece_id IS NULL")
+	}
+	err := q.Order("created_at DESC").Find(&files).Error
+	if err != nil {
+		return nil, fmt.Errorf("list files: %w", err)
+	}
+	return files, nil
+}
+
+func (r *fileRepository) UpdateNotes(ctx context.Context, id uuid.UUID, userID uuid.UUID, notes *string) error {
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.File{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("notes", notes)
+	if result.Error != nil {
+		return fmt.Errorf("update notes: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *fileRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	result := dbFromContext(ctx, r.db).
+		Where("id = ? AND user_id = ?", id, userID).
+		Delete(&domain.File{})
+	if result.Error != nil {
+		return fmt.Errorf("delete file: %w", result.Error)
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+func (r *fileRepository) BulkUpdateArtpieceID(ctx context.Context, fileIDs []uuid.UUID, artpieceID *uuid.UUID) error {
+	if len(fileIDs) == 0 {
+		return nil
+	}
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.File{}).
+		Where("id IN ?", fileIDs).
+		Update("artpiece_id", artpieceID)
+	if result.Error != nil {
+		return fmt.Errorf("bulk update artpiece_id: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *fileRepository) CreateImageMetadata(ctx context.Context, m *domain.ImageMetadata) error {
 	if err := dbFromContext(ctx, r.db).Create(m).Error; err != nil {
 		return fmt.Errorf("insert image_metadata: %w", err)

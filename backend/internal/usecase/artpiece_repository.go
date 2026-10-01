@@ -28,7 +28,9 @@ type ArtpieceCharacterRepository interface {
 
 type ArtpieceFileRepository interface {
 	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error)
+	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error)
 	UpdateArtpieceID(ctx context.Context, fileID uuid.UUID, artpieceID *uuid.UUID) error
+	BulkUpdateArtpieceID(ctx context.Context, fileIDs []uuid.UUID, artpieceID *uuid.UUID) error
 	GetFilesForArtpiece(ctx context.Context, artpieceID uuid.UUID) ([]*domain.File, error)
 }
 
@@ -42,6 +44,7 @@ type CreateArtpieceParams struct {
 	ArtistID     *uuid.UUID
 	Notes        *string
 	CharacterIDs []uuid.UUID
+	FileIDs      []uuid.UUID
 }
 
 type UpdateArtpieceParams struct {

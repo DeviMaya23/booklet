@@ -23,6 +23,7 @@ type ArtpieceUsecase interface {
 	AttachFile(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	DetachFile(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	SetCover(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
+	ReplaceFiles(ctx context.Context, artpieceID uuid.UUID, userID uuid.UUID, fileIDs []uuid.UUID) (*domain.Artpiece, error)
 }
 
 type ArtpieceHandler struct {
@@ -40,6 +41,11 @@ type createArtpieceRequest struct {
 	ArtistID     *uuid.UUID  `json:"artist_id"`
 	Notes        *string     `json:"notes"`
 	CharacterIDs []uuid.UUID `json:"character_ids"`
+	FileIDs      []uuid.UUID `json:"file_ids"`
+}
+
+type replaceFilesRequest struct {
+	FileIDs []uuid.UUID `json:"file_ids"`
 }
 
 type updateArtpieceRequest struct {
@@ -88,12 +94,16 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
+		FileIDs:      req.FileIDs,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtistNotOwned) {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		if errors.Is(err, usecase.ErrCharacterNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
+		if errors.Is(err, usecase.ErrFileNotOwned) || errors.Is(err, usecase.ErrFileAlreadyAttached) {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create artpiece")
@@ -255,6 +265,40 @@ func (h *ArtpieceHandler) AttachFile(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to attach file")
+	}
+
+	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL))
+}
+
+func (h *ArtpieceHandler) ReplaceFiles(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.ReplaceFiles")
+	defer span.End()
+
+	artpieceID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid artpiece id")
+	}
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	var req replaceFilesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+
+	artpiece, err := h.artpieceUsecase.ReplaceFiles(ctx, artpieceID, userID, req.FileIDs)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "artpiece not found")
+		}
+		if errors.Is(err, usecase.ErrFileNotOwned) || errors.Is(err, usecase.ErrFileAlreadyAttached) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to replace files")
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)

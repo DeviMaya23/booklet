@@ -68,6 +68,9 @@ func (s *spyArtpieceUsecase) DetachFile(_ context.Context, _ uuid.UUID, _ uuid.U
 func (s *spyArtpieceUsecase) SetCover(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID) (*domain.Artpiece, error) {
 	return s.setCoverResult, s.setCoverErr
 }
+func (s *spyArtpieceUsecase) ReplaceFiles(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []uuid.UUID) (*domain.Artpiece, error) {
+	return nil, nil
+}
 
 func makeArtpiece() *domain.Artpiece {
 	return &domain.Artpiece{
