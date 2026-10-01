@@ -109,7 +109,7 @@ func TestInitialUpload_InvalidArtistID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestInitialUpload_ArtistNotOwned(t *testing.T) {

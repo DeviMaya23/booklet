@@ -31,18 +31,7 @@ func (r *artistRepository) Create(ctx context.Context, artist *domain.Artist) (*
 	return artist, nil
 }
 
-func (r *artistRepository) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error) {
-	var artist domain.Artist
-	err := dbFromContext(ctx, r.db).
-		Where("id = ? AND user_id = ?", id, userID).
-		First(&artist).Error
-	if err != nil {
-		return nil, fmt.Errorf("get artist: %w", err)
-	}
-	return &artist, nil
-}
-
-func (r *artistRepository) GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
+func (r *artistRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
 	var artist domain.Artist
 	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
@@ -67,7 +56,7 @@ func (r *artistRepository) List(ctx context.Context, userID uuid.UUID, filters u
 	return artists, nil
 }
 
-func (r *artistRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
+func (r *artistRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
 	var notes, artistLink interface{}
 	if params.Notes != nil {
 		notes = *params.Notes
@@ -98,7 +87,7 @@ func (r *artistRepository) Update(ctx context.Context, id string, userID uuid.UU
 	return r.GetByID(ctx, id, userID)
 }
 
-func (r *artistRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (r *artistRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.Artist{})

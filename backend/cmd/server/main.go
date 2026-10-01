@@ -264,6 +264,16 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, enqueuer, tel)
 	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 
+	fileRepository := repository.NewFileRepository(db)
+	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
+	artpieceRepository := repository.NewArtpieceRepository(db)
+	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, transactor, tel)
+	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, tel)
+	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
+	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, enqueuer, tel)
+	artpieceHandler := httphandler.NewArtpieceHandler(artpieceUsecase, r2Storage, tel)
+	fileUploadHandler := httphandler.NewFileUploadHandler(fileUploadUsecase, r2Storage, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
@@ -277,6 +287,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
+	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage))
+	river.AddWorker(workers, worker.NewPurgeExpiredFileUploadsWorker(fileUploadUsecase, usecase.PresignTTL))
 
 	periodicJobs := []*river.PeriodicJob{
 		river.NewPeriodicJob(
@@ -290,6 +302,13 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 			river.PeriodicInterval(5*time.Minute),
 			func() (river.JobArgs, *river.InsertOpts) {
 				return worker.PurgeExpiredCharacterAvatarUploadsArgs{}, nil
+			},
+			&river.PeriodicJobOpts{RunOnStart: true},
+		),
+		river.NewPeriodicJob(
+			river.PeriodicInterval(5*time.Minute),
+			func() (river.JobArgs, *river.InsertOpts) {
+				return worker.PurgeExpiredFileUploadsArgs{}, nil
 			},
 			&river.PeriodicJobOpts{RunOnStart: true},
 		),
@@ -338,6 +357,23 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/images/:id", imageHandler.DeleteImage)
 	protected.POST("/images", uploadHandler.InitialUpload)
 	protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
+
+	protected.POST("/artpieces", artpieceHandler.CreateArtpiece)
+	protected.GET("/artpieces", artpieceHandler.ListArtpieces)
+	protected.GET("/artpieces/:id", artpieceHandler.GetArtpieceByID)
+	protected.PUT("/artpieces/:id", artpieceHandler.UpdateArtpiece)
+	protected.DELETE("/artpieces/:id", artpieceHandler.DeleteArtpiece)
+	protected.POST("/artpieces/:id/files/:file_id", artpieceHandler.AttachFile)
+	protected.DELETE("/artpieces/:id/files/:file_id", artpieceHandler.DetachFile)
+	protected.PUT("/artpieces/:id/cover", artpieceHandler.SetCover)
+	protected.PUT("/artpieces/:id/files", artpieceHandler.ReplaceFiles)
+
+	protected.POST("/files", fileUploadHandler.InitiateUpload)
+	protected.POST("/files/:id/complete", fileUploadHandler.CompleteUpload)
+	protected.GET("/files/:id", fileHandler.GetFile)
+	protected.GET("/files", fileHandler.ListFiles)
+	protected.PUT("/files/:id", fileHandler.UpdateFile)
+	protected.DELETE("/files/:id", fileHandler.DeleteFile)
 
 	protected.DELETE("/me", userHandler.DeleteMe)
 

@@ -24,12 +24,12 @@ type ListCharacterFilters struct {
 
 type CharacterRepository interface {
 	Create(ctx context.Context, character *domain.Character) error
-	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error)
 	List(ctx context.Context, userID uuid.UUID, filters ListCharacterFilters) ([]*domain.Character, error)
-	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error)
-	Delete(ctx context.Context, id string, userID uuid.UUID) error
-	UpdateAvatarR2Path(ctx context.Context, id string, userID uuid.UUID, r2Key string) error
-	ClearAvatarR2Path(ctx context.Context, id string, userID uuid.UUID) (oldKey string, err error)
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error)
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	UpdateAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID, r2Key string) error
+	ClearAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID) (oldKey string, err error)
 }
 
 type CharacterAvatarUploadRepository interface {

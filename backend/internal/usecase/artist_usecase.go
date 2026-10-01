@@ -47,7 +47,7 @@ func (u *artistUsecase) Create(ctx context.Context, userID uuid.UUID, params Cre
 	return res, nil
 }
 
-func (u *artistUsecase) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error) {
+func (u *artistUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetArtistByID")
 	defer span.End()
 
@@ -73,7 +73,7 @@ func (u *artistUsecase) List(ctx context.Context, userID uuid.UUID, filters List
 	return res, nil
 }
 
-func (u *artistUsecase) Update(ctx context.Context, id string, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error) {
+func (u *artistUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateArtist")
 	defer span.End()
 
@@ -86,7 +86,7 @@ func (u *artistUsecase) Update(ctx context.Context, id string, userID uuid.UUID,
 	return res, nil
 }
 
-func (u *artistUsecase) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (u *artistUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteArtist")
 	defer span.End()
 

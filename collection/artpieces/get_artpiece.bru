@@ -1,0 +1,11 @@
+meta {
+  name: Get Artpiece
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}
+  body: none
+  auth: inherit
+}

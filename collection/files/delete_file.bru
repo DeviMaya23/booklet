@@ -1,0 +1,15 @@
+meta {
+  name: Delete File
+  type: http
+  seq: 7
+}
+
+delete {
+  url: {{baseUrl}}/files/{{fileId}}
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  fileId: 7d3ab851-65e3-4d8b-8925-676093ead720
+}

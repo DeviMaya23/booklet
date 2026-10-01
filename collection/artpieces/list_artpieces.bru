@@ -1,0 +1,20 @@
+meta {
+  name: List Artpieces
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/artpieces
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~artist_ids: {{artistId}}
+  ~character_ids: {{characterId}}
+}
+
+vars:pre-request {
+  characterId: 8f9acc37-4836-4f3a-84f5-9966ac387460
+}

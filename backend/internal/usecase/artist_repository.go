@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrArtistNotOwned    = errors.New("artist does not belong to the user")
+	ErrArtistNotOwned     = errors.New("artist does not belong to the user")
 	ErrArtistNameConflict = errors.New("an artist with that name already exists")
+	ErrArtpieceNotOwned   = errors.New("artpiece does not exist or does not belong to the user")
 )
 
 type UpdateArtistParams struct {
@@ -25,9 +26,8 @@ type ListArtistFilters struct {
 
 type ArtistRepository interface {
 	Create(ctx context.Context, artist *domain.Artist) (*domain.Artist, error)
-	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Artist, error)
-	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
 	List(ctx context.Context, userID uuid.UUID, filters ListArtistFilters) ([]*domain.Artist, error)
-	Update(ctx context.Context, id string, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error)
-	Delete(ctx context.Context, id string, userID uuid.UUID) error
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error)
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }

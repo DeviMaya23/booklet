@@ -1,0 +1,17 @@
+meta {
+  name: Replace Files
+  type: http
+  seq: 9
+}
+
+put {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}/files
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "file_ids": []
+  }
+}

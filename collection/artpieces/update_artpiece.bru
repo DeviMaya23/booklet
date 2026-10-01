@@ -1,0 +1,20 @@
+meta {
+  name: Update Artpiece
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": "Updated Title",
+    "artist_id": null,
+    "notes": "Updated notes.",
+    "character_ids": []
+  }
+}

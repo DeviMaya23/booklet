@@ -53,7 +53,7 @@ type spyImageUsecase struct {
 	deleteErr error
 }
 
-func (s *spyImageUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Image, error) {
+func (s *spyImageUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Image, error) {
 	return s.getByIDResult, s.getByIDErr
 }
 
@@ -61,12 +61,12 @@ func (s *spyImageUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListIma
 	return s.listResult, s.listErr
 }
 
-func (s *spyImageUsecase) Update(_ context.Context, _ string, _ uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
+func (s *spyImageUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
 	s.lastUpdateParams = params
 	return s.updateResult, s.updateErr
 }
 
-func (s *spyImageUsecase) Delete(_ context.Context, _ string, _ uuid.UUID) error {
+func (s *spyImageUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.deleteErr
 }
 
@@ -276,7 +276,7 @@ func TestListImages_CharacterIDsFilterBoundToUsecase(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, spy.capturedFilters.CharacterIDs, 1)
-	require.Equal(t, charID.String(), spy.capturedFilters.CharacterIDs[0])
+	require.Equal(t, charID, spy.capturedFilters.CharacterIDs[0])
 }
 
 func TestListImages_ArtistIDsFilterBoundToUsecase(t *testing.T) {
@@ -294,7 +294,7 @@ func TestListImages_ArtistIDsFilterBoundToUsecase(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, rec.Code)
 	require.Len(t, spy.capturedFilters.ArtistIDs, 1)
-	require.Equal(t, artistID.String(), spy.capturedFilters.ArtistIDs[0])
+	require.Equal(t, artistID, spy.capturedFilters.ArtistIDs[0])
 }
 
 func TestListImages_MalformedCharacterID_Returns400(t *testing.T) {
@@ -330,17 +330,17 @@ type captureImageListSpy struct {
 	capturedFilters usecase.ListImageFilters
 }
 
-func (s *captureImageListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error) {
+func (s *captureImageListSpy) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Image, error) {
 	return s.inner.GetByID(ctx, id, userID)
 }
 func (s *captureImageListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error) {
 	s.capturedFilters = filters
 	return s.inner.List(ctx, userID, filters)
 }
-func (s *captureImageListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
+func (s *captureImageListSpy) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
 	return s.inner.Update(ctx, id, userID, params)
 }
-func (s *captureImageListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (s *captureImageListSpy) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	return s.inner.Delete(ctx, id, userID)
 }
 
@@ -430,17 +430,7 @@ func TestUpdateImage_InvalidArtistID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var respBody struct {
-		Errors []struct {
-			Field   string `json:"field"`
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &respBody))
-	require.Len(t, respBody.Errors, 1)
-	require.Equal(t, "artist_id", respBody.Errors[0].Field)
-	require.Equal(t, "artist_id must be a valid UUID", respBody.Errors[0].Message)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestUpdateImage_ArtistNotOwned(t *testing.T) {

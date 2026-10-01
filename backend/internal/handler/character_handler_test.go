@@ -96,7 +96,7 @@ func (s *spyCharacterUsecase) Create(_ context.Context, _ uuid.UUID, params usec
 	return s.createResult, s.createErr
 }
 
-func (s *spyCharacterUsecase) GetByID(_ context.Context, _ string, _ uuid.UUID) (*domain.Character, error) {
+func (s *spyCharacterUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Character, error) {
 	return s.getByIDResult, s.getByIDErr
 }
 
@@ -104,24 +104,24 @@ func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.Lis
 	return s.listResult, s.listErr
 }
 
-func (s *spyCharacterUsecase) Update(_ context.Context, _ string, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (s *spyCharacterUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	s.lastUpdateParams = params
 	return s.updateResult, s.updateErr
 }
 
-func (s *spyCharacterUsecase) Delete(_ context.Context, _ string, _ uuid.UUID) error {
+func (s *spyCharacterUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.deleteErr
 }
 
-func (s *spyCharacterUsecase) InitAvatarUpload(_ context.Context, _ uuid.UUID, _ string, _ string) (*usecase.AvatarUploadResult, error) {
+func (s *spyCharacterUsecase) InitAvatarUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string) (*usecase.AvatarUploadResult, error) {
 	return s.initAvatarUploadResult, s.initAvatarUploadErr
 }
 
-func (s *spyCharacterUsecase) CompleteAvatarUpload(_ context.Context, _ uuid.UUID, _ string, _ uuid.UUID) error {
+func (s *spyCharacterUsecase) CompleteAvatarUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID) error {
 	return s.completeAvatarUploadErr
 }
 
-func (s *spyCharacterUsecase) DeleteAvatar(_ context.Context, _ uuid.UUID, _ string) error {
+func (s *spyCharacterUsecase) DeleteAvatar(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.deleteAvatarErr
 }
 
@@ -404,26 +404,26 @@ type captureCharacterListSpy struct {
 func (s *captureCharacterListSpy) Create(ctx context.Context, userID uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error) {
 	return s.inner.Create(ctx, userID, params)
 }
-func (s *captureCharacterListSpy) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error) {
+func (s *captureCharacterListSpy) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error) {
 	return s.inner.GetByID(ctx, id, userID)
 }
 func (s *captureCharacterListSpy) List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error) {
 	*s.capture = filters
 	return s.inner.List(ctx, userID, filters)
 }
-func (s *captureCharacterListSpy) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
+func (s *captureCharacterListSpy) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error) {
 	return s.inner.Update(ctx, id, userID, params)
 }
-func (s *captureCharacterListSpy) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (s *captureCharacterListSpy) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	return s.inner.Delete(ctx, id, userID)
 }
-func (s *captureCharacterListSpy) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, mimeType string) (*usecase.AvatarUploadResult, error) {
+func (s *captureCharacterListSpy) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*usecase.AvatarUploadResult, error) {
 	return s.inner.InitAvatarUpload(ctx, userID, characterID, mimeType)
 }
-func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, uploadID uuid.UUID) error {
+func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error {
 	return s.inner.CompleteAvatarUpload(ctx, userID, characterID, uploadID)
 }
-func (s *captureCharacterListSpy) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID string) error {
+func (s *captureCharacterListSpy) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error {
 	return s.inner.DeleteAvatar(ctx, userID, characterID)
 }
 func (s *captureCharacterListSpy) GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error) {
@@ -574,7 +574,7 @@ func TestDeleteCharacter_NotFound(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
-func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
+func TestCreateCharacter_FolderIDsPassedToUsecase(t *testing.T) {
 	character := makeCharacter()
 	spy := &spyCharacterUsecase{createResult: character}
 	h := newCharacterHandler(spy)
@@ -583,7 +583,7 @@ func TestCreateCharacter_DuplicateFolderIDs_Deduped(t *testing.T) {
 	e.POST("/characters", h.CreateCharacter)
 
 	folderID := uuid.New().String()
-	body := fmt.Sprintf(`{"name":"Aria","folder_ids":["%s","%s"]}`, folderID, folderID)
+	body := fmt.Sprintf(`{"name":"Aria","folder_ids":["%s"]}`, folderID)
 	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -607,15 +607,7 @@ func TestCreateCharacter_InvalidFolderID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var got struct {
-		Errors []struct {
-			Field   string `json:"field"`
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.NotEmpty(t, got.Errors)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
@@ -631,15 +623,7 @@ func TestUpdateCharacter_InvalidFolderID(t *testing.T) {
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
-	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
-	var got struct {
-		Errors []struct {
-			Field   string `json:"field"`
-			Message string `json:"message"`
-		} `json:"errors"`
-	}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.NotEmpty(t, got.Errors)
+	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 // --- InitAvatarUpload ---

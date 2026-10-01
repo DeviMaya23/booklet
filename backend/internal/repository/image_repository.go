@@ -26,7 +26,7 @@ func (r *imageRepository) Create(ctx context.Context, image *domain.Image) (*dom
 	return image, nil
 }
 
-func (r *imageRepository) GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error) {
+func (r *imageRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Image, error) {
 	var image domain.Image
 	err := dbFromContext(ctx, r.db).
 		Preload("Characters").
@@ -51,10 +51,10 @@ func (r *imageRepository) List(ctx context.Context, userID uuid.UUID, filters us
 	if len(filters.CharacterIDs) > 0 {
 		q = q.Distinct().
 			Joins("JOIN image_characters ON image_characters.image_id = images.id").
-			Where("image_characters.character_id::text IN ?", filters.CharacterIDs)
+			Where("image_characters.character_id IN ?", filters.CharacterIDs)
 	}
 	if len(filters.ArtistIDs) > 0 {
-		q = q.Where("images.artist_id::text IN ?", filters.ArtistIDs)
+		q = q.Where("images.artist_id IN ?", filters.ArtistIDs)
 	}
 	err := q.Order("images.created_at DESC").Find(&images).Error
 	if err != nil {
@@ -63,7 +63,7 @@ func (r *imageRepository) List(ctx context.Context, userID uuid.UUID, filters us
 	return images, nil
 }
 
-func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
+func (r *imageRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error) {
 	var image domain.Image
 	err := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
@@ -114,8 +114,7 @@ func (r *imageRepository) Update(ctx context.Context, id string, userID uuid.UUI
 
 	characters := make([]domain.Character, len(charIDs))
 	for i, cid := range charIDs {
-		parsed, _ := uuid.Parse(cid)
-		characters[i] = domain.Character{ID: parsed}
+		characters[i] = domain.Character{ID: cid}
 	}
 	if err := dbFromContext(ctx, r.db).Model(&image).Association("Characters").Replace(characters); err != nil {
 		return nil, fmt.Errorf("replace characters: %w", err)
@@ -158,7 +157,7 @@ func (r *imageRepository) ListByCharacterID(ctx context.Context, characterID uui
 	return images, nil
 }
 
-func (r *imageRepository) Delete(ctx context.Context, id string, userID uuid.UUID) error {
+func (r *imageRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	result := dbFromContext(ctx, r.db).
 		Where("id = ? AND user_id = ?", id, userID).
 		Delete(&domain.Image{})

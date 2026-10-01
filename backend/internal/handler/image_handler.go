@@ -15,10 +15,10 @@ import (
 )
 
 type ImageUsecase interface {
-	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Image, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Image, error)
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error)
-	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error)
-	Delete(ctx context.Context, id string, userID uuid.UUID) error
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateImageParams) (*domain.Image, error)
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }
 
 type ImageHandler struct {
@@ -32,10 +32,10 @@ func NewImageHandler(imageUsecase ImageUsecase, presigner Presigner, tel *observ
 }
 
 type updateImageRequest struct {
-	Title        *string  `json:"title"`
-	ArtistID     *string  `json:"artist_id" validate:"omitempty,uuid4"`
-	Notes        *string  `json:"notes"`
-	CharacterIDs []string `json:"character_ids"`
+	Title        *string     `json:"title"`
+	ArtistID     *uuid.UUID  `json:"artist_id"`
+	Notes        *string     `json:"notes"`
+	CharacterIDs []uuid.UUID `json:"character_ids"`
 }
 
 type characterRef struct {
@@ -61,8 +61,8 @@ func (h *ImageHandler) GetImageByID(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.GetImageByID")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid image id")
 	}
 
@@ -120,8 +120,8 @@ func (h *ImageHandler) UpdateImage(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.UpdateImage")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid image id")
 	}
 
@@ -138,15 +138,9 @@ func (h *ImageHandler) UpdateImage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	var artistID *uuid.UUID
-	if req.ArtistID != nil {
-		parsed, _ := uuid.Parse(*req.ArtistID) // already validated
-		artistID = &parsed
-	}
-
 	image, err := h.imageUsecase.Update(ctx, id, userID, usecase.UpdateImageParams{
 		Title:        req.Title,
-		ArtistID:     artistID,
+		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
 	})
@@ -172,8 +166,8 @@ func (h *ImageHandler) DeleteImage(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DeleteImage")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid image id")
 	}
 
@@ -182,7 +176,7 @@ func (h *ImageHandler) DeleteImage(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	err := h.imageUsecase.Delete(ctx, id, userID)
+	err = h.imageUsecase.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "image not found")

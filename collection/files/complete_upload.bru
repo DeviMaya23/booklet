@@ -1,0 +1,15 @@
+meta {
+  name: Complete File Upload
+  type: http
+  seq: 3
+}
+
+post {
+  url: {{baseUrl}}/files/{{pendingFileUploadId}}/complete
+  body: none
+  auth: inherit
+}
+
+vars:pre-request {
+  pendingFileUploadId: e9a77f23-2530-4283-8886-0b962c378253
+}

@@ -17,13 +17,13 @@ import (
 
 type CharacterUsecase interface {
 	Create(ctx context.Context, userID uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error)
-	GetByID(ctx context.Context, id string, userID uuid.UUID) (*domain.Character, error)
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Character, error)
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error)
-	Update(ctx context.Context, id string, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error)
-	Delete(ctx context.Context, id string, userID uuid.UUID) error
-	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, mimeType string) (*usecase.AvatarUploadResult, error)
-	CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID string, uploadID uuid.UUID) error
-	DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID string) error
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error)
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*usecase.AvatarUploadResult, error)
+	CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error
+	DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error
 	GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error)
 }
 
@@ -38,17 +38,17 @@ func NewCharacterHandler(characterUsecase CharacterUsecase, presigner Presigner,
 }
 
 type createCharacterRequest struct {
-	Name      string    `json:"name" validate:"required"`
-	Notes *string   `json:"notes"`
-	IsPublic  bool      `json:"is_public"`
-	FolderIDs *[]string `json:"folder_ids" validate:"omitempty,dive,uuid4"`
+	Name      string       `json:"name" validate:"required"`
+	Notes     *string      `json:"notes"`
+	IsPublic  bool         `json:"is_public"`
+	FolderIDs *[]uuid.UUID `json:"folder_ids"`
 }
 
 type updateCharacterRequest struct {
-	Name      string    `json:"name" validate:"required,min=1"`
-	Notes *string   `json:"notes"`
-	IsPublic  bool      `json:"is_public"`
-	FolderIDs []string  `json:"folder_ids" validate:"dive,uuid4"`
+	Name      string      `json:"name" validate:"required,min=1"`
+	Notes     *string     `json:"notes"`
+	IsPublic  bool        `json:"is_public"`
+	FolderIDs []uuid.UUID `json:"folder_ids"`
 }
 
 type folderResponse struct {
@@ -109,7 +109,7 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 		Name:       req.Name,
 		Notes:      req.Notes,
 		IsPublic:   req.IsPublic,
-		FolderIDs:  parseFolderIDs(req.FolderIDs),
+		FolderIDs:  req.FolderIDs,
 		IDPSubject: idpSubject,
 	})
 	if err != nil {
@@ -125,8 +125,8 @@ func (h *CharacterHandler) GetCharacterByID(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.GetCharacterByID")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -179,8 +179,8 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.UpdateCharacter")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -206,7 +206,7 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 		Name:       req.Name,
 		Notes:      req.Notes,
 		IsPublic:   req.IsPublic,
-		FolderIDs:  parseFolderIDSlice(req.FolderIDs),
+		FolderIDs:  req.FolderIDs,
 		IDPSubject: idpSubject,
 	})
 	if err != nil {
@@ -224,8 +224,8 @@ func (h *CharacterHandler) DeleteCharacter(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DeleteCharacter")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -234,7 +234,7 @@ func (h *CharacterHandler) DeleteCharacter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	err := h.characterUsecase.Delete(ctx, id, userID)
+	err = h.characterUsecase.Delete(ctx, id, userID)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "character not found")
@@ -249,8 +249,8 @@ func (h *CharacterHandler) InitAvatarUpload(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.InitAvatarUpload")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -286,8 +286,8 @@ func (h *CharacterHandler) CompleteAvatarUpload(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.CompleteAvatarUpload")
 	defer span.End()
 
-	characterID := c.Param("id")
-	if _, err := uuid.Parse(characterID); err != nil {
+	characterID, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -318,8 +318,8 @@ func (h *CharacterHandler) DeleteAvatar(c echo.Context) error {
 	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DeleteAvatar")
 	defer span.End()
 
-	id := c.Param("id")
-	if _, err := uuid.Parse(id); err != nil {
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
 	}
 
@@ -387,34 +387,6 @@ func (h *CharacterHandler) presignAvatarURL(ctx context.Context, r2Path *string)
 	return &u, nil
 }
 
-func parseFolderIDs(strs *[]string) *[]uuid.UUID {
-	if strs == nil {
-		return nil
-	}
-	seen := make(map[uuid.UUID]struct{}, len(*strs))
-	ids := make([]uuid.UUID, 0, len(*strs))
-	for _, s := range *strs {
-		id := uuid.MustParse(s)
-		if _, ok := seen[id]; !ok {
-			seen[id] = struct{}{}
-			ids = append(ids, id)
-		}
-	}
-	return &ids
-}
-
-func parseFolderIDSlice(strs []string) []uuid.UUID {
-	seen := make(map[uuid.UUID]struct{}, len(strs))
-	ids := make([]uuid.UUID, 0, len(strs))
-	for _, s := range strs {
-		id := uuid.MustParse(s)
-		if _, ok := seen[id]; !ok {
-			seen[id] = struct{}{}
-			ids = append(ids, id)
-		}
-	}
-	return ids
-}
 
 func toCharacterResponse(character *domain.Character, avatarURL *string) characterResponse {
 	folders := make([]folderResponse, len(character.Folders))

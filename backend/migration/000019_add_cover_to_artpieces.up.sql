@@ -1,0 +1,1 @@
+ALTER TABLE artpieces ADD COLUMN cover_file_id UUID REFERENCES files(id) ON DELETE SET NULL;

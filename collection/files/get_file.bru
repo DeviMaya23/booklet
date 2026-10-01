@@ -1,0 +1,11 @@
+meta {
+  name: Get File
+  type: http
+  seq: 3
+}
+
+get {
+  url: {{baseUrl}}/files/{{fileId}}
+  body: none
+  auth: inherit
+}
