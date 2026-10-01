@@ -19,6 +19,7 @@ type FileUsecase interface {
 	List(ctx context.Context, userID uuid.UUID, unassigned bool) ([]*domain.File, error)
 	UpdateNotes(ctx context.Context, id uuid.UUID, userID uuid.UUID, notes *string) (*domain.File, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 }
 
 type FileHandler struct {
@@ -37,6 +38,10 @@ type listFilesQuery struct {
 
 type updateFileRequest struct {
 	Notes *string `json:"notes"`
+}
+
+type bulkDeleteFilesRequest struct {
+	IDs []string `json:"ids" validate:"required,min=1"`
 }
 
 func (h *FileHandler) GetFile(c echo.Context) error {
@@ -148,6 +153,42 @@ func (h *FileHandler) DeleteFile(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusNotFound, "file not found")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to delete file")
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
+func (h *FileHandler) BulkDeleteFiles(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.BulkDeleteFiles")
+	defer span.End()
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	var req bulkDeleteFilesRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
+	}
+
+	ids := make([]uuid.UUID, 0, len(req.IDs))
+	for _, raw := range req.IDs {
+		id, err := uuid.Parse(raw)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "invalid file id: "+raw)
+		}
+		ids = append(ids, id)
+	}
+
+	if err := h.fileUsecase.BulkDelete(ctx, ids, userID); err != nil {
+		if errors.Is(err, usecase.ErrFileOwnershipViolation) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "one or more file IDs do not belong to the user")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to bulk delete files")
 	}
 
 	return c.NoContent(http.StatusNoContent)

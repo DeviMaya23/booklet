@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/sidebar'
 
 const navItems = [
+  { label: 'Inbox', to: '/app/files' },
   { label: 'Characters', to: '/app/characters' },
   { label: 'Images', to: '/app/images' },
   { label: 'Artists', to: '/app/artists' },

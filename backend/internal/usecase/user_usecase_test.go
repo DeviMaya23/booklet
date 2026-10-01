@@ -118,7 +118,7 @@ func TestPurgeUserData_WithKeys_EnqueuesStorageCleanup(t *testing.T) {
 
 	require.NoError(t, err)
 	require.NotNil(t, jobSpy.lastArgs)
-	got, ok := jobSpy.lastArgs.(worker.PurgeUserStorageArgs)
+	got, ok := jobSpy.lastArgs.(worker.PurgeR2ObjectsArgs)
 	require.True(t, ok)
 	require.Equal(t, keys, got.R2Keys)
 }

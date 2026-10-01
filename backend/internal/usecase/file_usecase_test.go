@@ -8,7 +8,10 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	rivertype "github.com/riverqueue/river/rivertype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -19,9 +22,11 @@ import (
 type fakeFileRepository struct {
 	files map[uuid.UUID]*domain.File
 
-	lastUpdatedNotesID    uuid.UUID
-	lastUpdatedNotes      *string
-	lastDeletedID         uuid.UUID
+	lastUpdatedNotesID uuid.UUID
+	lastUpdatedNotes   *string
+	lastDeletedID      uuid.UUID
+	bulkDeleteCalled   bool
+	bulkDeletedIDs     []uuid.UUID
 }
 
 func newFakeFileRepository() *fakeFileRepository {
@@ -34,6 +39,17 @@ func (f *fakeFileRepository) GetByIDAndUserID(_ context.Context, id uuid.UUID, u
 		return nil, gorm.ErrRecordNotFound
 	}
 	return file, nil
+}
+
+func (f *fakeFileRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error) {
+	var result []*domain.File
+	for _, id := range ids {
+		file, ok := f.files[id]
+		if ok && file.UserID == userID {
+			result = append(result, file)
+		}
+	}
+	return result, nil
 }
 
 func (f *fakeFileRepository) List(_ context.Context, userID uuid.UUID, unassigned bool) ([]*domain.File, error) {
@@ -71,6 +87,15 @@ func (f *fakeFileRepository) Delete(_ context.Context, id uuid.UUID, userID uuid
 	return nil
 }
 
+func (f *fakeFileRepository) BulkDelete(_ context.Context, ids []uuid.UUID, _ uuid.UUID) error {
+	f.bulkDeleteCalled = true
+	f.bulkDeletedIDs = ids
+	for _, id := range ids {
+		delete(f.files, id)
+	}
+	return nil
+}
+
 type fakeFileStorageService struct {
 	deleteErr   error
 	deletedKeys []string
@@ -81,8 +106,18 @@ func (f *fakeFileStorageService) DeleteObject(_ context.Context, key string) err
 	return f.deleteErr
 }
 
+type fakeJobInserter struct {
+	insertErr    error
+	insertedArgs []any
+}
+
+func (f *fakeJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	f.insertedArgs = append(f.insertedArgs, args)
+	return &rivertype.JobInsertResult{}, f.insertErr
+}
+
 func newFileUsecase(repo *fakeFileRepository, storage *fakeFileStorageService) *usecase.FileUsecase {
-	return usecase.NewFileUsecase(repo, storage, observability.NewTelemetry(nil, nil, nil))
+	return usecase.NewFileUsecase(repo, storage, &fakeJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- tests ---
@@ -174,4 +209,50 @@ func TestFileUsecase_Delete_R2ErrorStillDeletesRecord(t *testing.T) {
 	require.NoError(t, err)
 	_, err = repo.GetByIDAndUserID(context.Background(), fileID, userID)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestFileUsecase_BulkDelete_AllOwned(t *testing.T) {
+	userID := uuid.New()
+	f1ID, f2ID := uuid.New(), uuid.New()
+	thumbPath := "users/thumb/f2.jpg"
+	repo := newFakeFileRepository()
+	repo.files[f1ID] = &domain.File{ID: f1ID, UserID: userID, FileR2Path: "users/files/f1.jpg"}
+	repo.files[f2ID] = &domain.File{ID: f2ID, UserID: userID, FileR2Path: "users/files/f2.jpg", ThumbnailR2Path: &thumbPath}
+	inserter := &fakeJobInserter{}
+	uc := usecase.NewFileUsecase(repo, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.BulkDelete(context.Background(), []uuid.UUID{f1ID, f2ID}, userID)
+	require.NoError(t, err)
+	assert.True(t, repo.bulkDeleteCalled)
+	require.Len(t, inserter.insertedArgs, 1)
+	args, ok := inserter.insertedArgs[0].(worker.PurgeR2ObjectsArgs)
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"users/files/f1.jpg", "users/files/f2.jpg", thumbPath}, args.R2Keys)
+}
+
+func TestFileUsecase_BulkDelete_OwnershipViolation(t *testing.T) {
+	userID := uuid.New()
+	otherUserID := uuid.New()
+	f1ID, f2ID := uuid.New(), uuid.New()
+	repo := newFakeFileRepository()
+	repo.files[f1ID] = &domain.File{ID: f1ID, UserID: userID, FileR2Path: "users/files/f1.jpg"}
+	repo.files[f2ID] = &domain.File{ID: f2ID, UserID: otherUserID, FileR2Path: "users/files/f2.jpg"}
+	uc := newFileUsecase(repo, &fakeFileStorageService{})
+
+	err := uc.BulkDelete(context.Background(), []uuid.UUID{f1ID, f2ID}, userID)
+	require.ErrorIs(t, err, usecase.ErrFileOwnershipViolation)
+	assert.False(t, repo.bulkDeleteCalled)
+}
+
+func TestFileUsecase_BulkDelete_JobEnqueueFailureStillSucceeds(t *testing.T) {
+	userID := uuid.New()
+	f1ID := uuid.New()
+	repo := newFakeFileRepository()
+	repo.files[f1ID] = &domain.File{ID: f1ID, UserID: userID, FileR2Path: "users/files/f1.jpg"}
+	inserter := &fakeJobInserter{insertErr: errors.New("river unavailable")}
+	uc := usecase.NewFileUsecase(repo, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
+
+	err := uc.BulkDelete(context.Background(), []uuid.UUID{f1ID}, userID)
+	require.NoError(t, err)
+	assert.True(t, repo.bulkDeleteCalled)
 }

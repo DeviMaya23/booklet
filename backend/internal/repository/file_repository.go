@@ -150,6 +150,19 @@ func (r *fileRepository) BulkUpdateArtpieceID(ctx context.Context, fileIDs []uui
 	return nil
 }
 
+func (r *fileRepository) BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := dbFromContext(ctx, r.db).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Delete(&domain.File{})
+	if result.Error != nil {
+		return fmt.Errorf("bulk delete files: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *fileRepository) CreateImageMetadata(ctx context.Context, m *domain.ImageMetadata) error {
 	if err := dbFromContext(ctx, r.db).Create(m).Error; err != nil {
 		return fmt.Errorf("insert image_metadata: %w", err)

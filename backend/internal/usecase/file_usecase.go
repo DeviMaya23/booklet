@@ -2,22 +2,25 @@ package usecase
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
 type FileUsecase struct {
-	fileRepo FileRepository
-	storage  FileStorageService
-	tel      *observability.Telemetry
+	fileRepo    FileRepository
+	storage     FileStorageService
+	jobInserter JobInserter
+	tel         *observability.Telemetry
 }
 
-func NewFileUsecase(fileRepo FileRepository, storage FileStorageService, tel *observability.Telemetry) *FileUsecase {
-	return &FileUsecase{fileRepo: fileRepo, storage: storage, tel: tel}
+func NewFileUsecase(fileRepo FileRepository, storage FileStorageService, jobInserter JobInserter, tel *observability.Telemetry) *FileUsecase {
+	return &FileUsecase{fileRepo: fileRepo, storage: storage, jobInserter: jobInserter, tel: tel}
 }
 
 func (u *FileUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error) {
@@ -91,6 +94,45 @@ func (u *FileUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID
 				zap.Error(err),
 			)
 		}
+	}
+
+	return nil
+}
+
+var ErrFileOwnershipViolation = fmt.Errorf("one or more file IDs do not belong to the user")
+
+func (u *FileUsecase) BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.BulkDeleteFiles")
+	defer span.End()
+
+	files, err := u.fileRepo.GetByIDsAndUserID(ctx, ids, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	if len(files) != len(ids) {
+		return ErrFileOwnershipViolation
+	}
+
+	if err := u.fileRepo.BulkDelete(ctx, ids, userID); err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	var r2Keys []string
+	for _, f := range files {
+		r2Keys = append(r2Keys, f.FileR2Path)
+		if f.ThumbnailR2Path != nil {
+			r2Keys = append(r2Keys, *f.ThumbnailR2Path)
+		}
+	}
+
+	if _, err := u.jobInserter.Insert(ctx, worker.PurgeR2ObjectsArgs{R2Keys: r2Keys}, nil); err != nil {
+		observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to enqueue purge_r2_objects job after bulk delete",
+			zap.Error(err),
+		)
 	}
 
 	return nil
