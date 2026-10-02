@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { type File as InboxFile } from '../api/useFiles'
 import { useInitFileUpload } from '../api/useInitFileUpload'
@@ -123,6 +124,11 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
       onClick={(e) => { if (e.target === e.currentTarget) onSelectionChange(new Set()) }}
     >
       <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5 lg:grid-cols-6">
+        {placeholders.map((p) => (
+          <div key={p.clientId} className="aspect-square rounded-md bg-muted flex items-center justify-center">
+            <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
+          </div>
+        ))}
         {files.map((file) => (
           <FileTile
             key={file.id}
@@ -133,9 +139,6 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
             onDeleteClick={() => setDeleteTarget([file.id])}
             onContextMenu={(e) => handleTileContextMenu(file.id, e)}
           />
-        ))}
-        {placeholders.map((p) => (
-          <div key={p.clientId} className="aspect-square rounded-md bg-muted animate-pulse" />
         ))}
       </div>
 
