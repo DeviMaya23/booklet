@@ -165,31 +165,34 @@ func TestFileRepository_List_Unassigned(t *testing.T) {
 	assert.Equal(t, unassigned.ID, files[0].ID)
 }
 
-func TestFileRepository_UpdateNotes(t *testing.T) {
+func TestFileRepository_Update(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewFileRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
 	f := seedFile(t, tx, user.ID, "image/jpeg")
+	name := "my sketch.png"
 	notes := "updated notes"
 
-	err := repo.UpdateNotes(context.Background(), f.ID, user.ID, &notes)
+	err := repo.Update(context.Background(), f.ID, user.ID, &name, &notes)
 	require.NoError(t, err)
 
 	got, err := repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
 	require.NoError(t, err)
+	require.NotNil(t, got.Name)
+	assert.Equal(t, name, *got.Name)
 	require.NotNil(t, got.Notes)
 	assert.Equal(t, notes, *got.Notes)
 }
 
-func TestFileRepository_UpdateNotes_NotFound(t *testing.T) {
+func TestFileRepository_Update_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewFileRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
 	notes := "notes"
 
-	err := repo.UpdateNotes(context.Background(), uuid.New(), user.ID, &notes)
+	err := repo.Update(context.Background(), uuid.New(), user.ID, nil, &notes)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 

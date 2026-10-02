@@ -17,7 +17,7 @@ import (
 type FileUsecase interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error)
 	List(ctx context.Context, userID uuid.UUID, unassigned bool) ([]*domain.File, error)
-	UpdateNotes(ctx context.Context, id uuid.UUID, userID uuid.UUID, notes *string) (*domain.File, error)
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) (*domain.File, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 	BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 }
@@ -37,6 +37,7 @@ type listFilesQuery struct {
 }
 
 type updateFileRequest struct {
+	Name  *string `json:"name"`
 	Notes *string `json:"notes"`
 }
 
@@ -121,7 +122,7 @@ func (h *FileHandler) UpdateFile(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
 	}
 
-	file, err := h.fileUsecase.UpdateNotes(ctx, id, userID, req.Notes)
+	file, err := h.fileUsecase.Update(ctx, id, userID, req.Name, req.Notes)
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "file not found")

@@ -17,14 +17,17 @@ export default function FilesPage() {
   const { data: files = [], isLoading } = useFiles()
 
   const filtered = search.trim()
-    ? files.filter((f) => f.notes?.toLowerCase().includes(search.toLowerCase()))
+    ? files.filter((f) =>
+        f.notes?.toLowerCase().includes(search.toLowerCase()) ||
+        f.name?.toLowerCase().includes(search.toLowerCase())
+      )
     : files
 
   return (
     <div className="flex flex-col gap-4 h-full relative">
       <div className="flex items-center gap-2">
         <Input
-          placeholder="Search by notes..."
+          placeholder="Search files..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"

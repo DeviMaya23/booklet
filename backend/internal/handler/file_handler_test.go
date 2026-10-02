@@ -32,7 +32,7 @@ func (s *spyFileUsecase) List(_ context.Context, _ uuid.UUID, _ bool) ([]*domain
 	return nil, nil
 }
 
-func (s *spyFileUsecase) UpdateNotes(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *string) (*domain.File, error) {
+func (s *spyFileUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *string, _ *string) (*domain.File, error) {
 	return nil, nil
 }
 

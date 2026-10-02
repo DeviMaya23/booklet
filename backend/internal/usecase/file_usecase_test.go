@@ -22,11 +22,9 @@ import (
 type fakeFileRepository struct {
 	files map[uuid.UUID]*domain.File
 
-	lastUpdatedNotesID uuid.UUID
-	lastUpdatedNotes   *string
-	lastDeletedID      uuid.UUID
-	bulkDeleteCalled   bool
-	bulkDeletedIDs     []uuid.UUID
+	lastDeletedID    uuid.UUID
+	bulkDeleteCalled bool
+	bulkDeletedIDs   []uuid.UUID
 }
 
 func newFakeFileRepository() *fakeFileRepository {
@@ -66,13 +64,12 @@ func (f *fakeFileRepository) List(_ context.Context, userID uuid.UUID, unassigne
 	return result, nil
 }
 
-func (f *fakeFileRepository) UpdateNotes(_ context.Context, id uuid.UUID, userID uuid.UUID, notes *string) error {
+func (f *fakeFileRepository) Update(_ context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) error {
 	file, ok := f.files[id]
 	if !ok || file.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
-	f.lastUpdatedNotesID = id
-	f.lastUpdatedNotes = notes
+	file.Name = name
 	file.Notes = notes
 	return nil
 }
@@ -164,11 +161,11 @@ func TestFileUsecase_List_Unassigned(t *testing.T) {
 	assert.Equal(t, unassignedID, files[0].ID)
 }
 
-func TestFileUsecase_UpdateNotes_NotOwned(t *testing.T) {
+func TestFileUsecase_Update_NotOwned(t *testing.T) {
 	repo := newFakeFileRepository()
 	uc := newFileUsecase(repo, &fakeFileStorageService{})
 
-	_, err := uc.UpdateNotes(context.Background(), uuid.New(), uuid.New(), nil)
+	_, err := uc.Update(context.Background(), uuid.New(), uuid.New(), nil, nil)
 
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }

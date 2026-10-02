@@ -76,7 +76,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
-          const result = await initUpload.mutateAsync(file.type || 'application/octet-stream')
+          const result = await initUpload.mutateAsync({ mimeType: file.type || 'application/octet-stream', name: file.name })
           await fetch(result.upload_url, { method: 'PUT', body: file })
           await completeUpload.mutateAsync(result.id)
         } catch {

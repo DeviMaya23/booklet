@@ -109,13 +109,13 @@ func (r *fileRepository) List(ctx context.Context, userID uuid.UUID, unassigned 
 	return files, nil
 }
 
-func (r *fileRepository) UpdateNotes(ctx context.Context, id uuid.UUID, userID uuid.UUID, notes *string) error {
+func (r *fileRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) error {
 	result := dbFromContext(ctx, r.db).
 		Model(&domain.File{}).
 		Where("id = ? AND user_id = ?", id, userID).
-		Update("notes", notes)
+		Updates(map[string]interface{}{"name": name, "notes": notes})
 	if result.Error != nil {
-		return fmt.Errorf("update notes: %w", result.Error)
+		return fmt.Errorf("update file: %w", result.Error)
 	}
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound

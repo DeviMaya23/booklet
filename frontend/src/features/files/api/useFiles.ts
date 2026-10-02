@@ -8,6 +8,7 @@ export interface File {
   mime_type: string
   thumbnail_url: string | null
   artpiece_id: string | null
+  name: string | null
   notes: string | null
   created_at: string
   updated_at: string

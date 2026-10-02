@@ -49,11 +49,11 @@ func (u *FileUsecase) List(ctx context.Context, userID uuid.UUID, unassigned boo
 	return files, nil
 }
 
-func (u *FileUsecase) UpdateNotes(ctx context.Context, id uuid.UUID, userID uuid.UUID, notes *string) (*domain.File, error) {
-	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateFileNotes")
+func (u *FileUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) (*domain.File, error) {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateFile")
 	defer span.End()
 
-	if err := u.fileRepo.UpdateNotes(ctx, id, userID, notes); err != nil {
+	if err := u.fileRepo.Update(ctx, id, userID, name, notes); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
