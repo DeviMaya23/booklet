@@ -33,6 +33,7 @@ func NewFileUploadHandler(fileUploadUsecase FileUploadUsecase, presigner Presign
 type initiateFileUploadRequest struct {
 	MimeType   string     `json:"mime_type" validate:"required"`
 	ArtpieceID *uuid.UUID `json:"artpiece_id"`
+	Name       *string    `json:"name"`
 	Notes      *string    `json:"notes"`
 }
 
@@ -43,14 +44,15 @@ type initiateFileUploadResponse struct {
 }
 
 type fileResponse struct {
-	ID              string  `json:"id"`
-	FileURL         *string `json:"file_url,omitempty"`
-	MimeType        string  `json:"mime_type"`
-	ThumbnailURL    *string `json:"thumbnail_url"`
-	ArtpieceID      *string `json:"artpiece_id"`
-	Notes           *string `json:"notes"`
-	CreatedAt       string  `json:"created_at"`
-	UpdatedAt       string  `json:"updated_at"`
+	ID           string  `json:"id"`
+	FileURL      *string `json:"file_url,omitempty"`
+	MimeType     string  `json:"mime_type"`
+	ThumbnailURL *string `json:"thumbnail_url"`
+	ArtpieceID   *string `json:"artpiece_id"`
+	Name         *string `json:"name"`
+	Notes        *string `json:"notes"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
@@ -74,6 +76,7 @@ func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
 		UserID:     userID,
 		MimeType:   req.MimeType,
 		ArtpieceID: req.ArtpieceID,
+		Name:       req.Name,
 		Notes:      req.Notes,
 	})
 	if err != nil {
@@ -148,6 +151,7 @@ func toFileResponse(f *domain.File, fileURL *string, thumbnailURL *string) fileR
 		MimeType:     f.MimeType,
 		ThumbnailURL: thumbnailURL,
 		ArtpieceID:   artpieceID,
+		Name:         f.Name,
 		Notes:        f.Notes,
 		CreatedAt:    f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    f.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

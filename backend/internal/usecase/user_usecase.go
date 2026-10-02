@@ -137,7 +137,7 @@ func (u *userUsecase) PurgeUserData(ctx context.Context, userID uuid.UUID) error
 		zap.Int("images_to_be_deleted", len(keys)),
 	)
 	if len(keys) > 0 {
-		if _, err := u.jobInserter.Insert(ctx, worker.PurgeUserStorageArgs{R2Keys: keys}, nil); err != nil {
+		if _, err := u.jobInserter.Insert(ctx, worker.PurgeR2ObjectsArgs{R2Keys: keys}, nil); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return err

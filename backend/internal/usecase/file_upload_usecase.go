@@ -18,6 +18,7 @@ type InitiateFileUploadParams struct {
 	UserID     uuid.UUID
 	MimeType   string
 	ArtpieceID *uuid.UUID
+	Name       *string
 	Notes      *string
 }
 
@@ -92,6 +93,7 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		R2Key:      r2Key,
 		MimeType:   params.MimeType,
 		ArtpieceID: params.ArtpieceID,
+		Name:       params.Name,
 		Notes:      params.Notes,
 	}
 	if _, err := u.pendingRepo.Create(ctx, pending); err != nil {
@@ -120,6 +122,7 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 		ArtpieceID: pending.ArtpieceID,
 		FileR2Path: pending.R2Key,
 		MimeType:   pending.MimeType,
+		Name:       pending.Name,
 		Notes:      pending.Notes,
 	}
 

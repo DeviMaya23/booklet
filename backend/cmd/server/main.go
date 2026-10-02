@@ -268,7 +268,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
 	artpieceRepository := repository.NewArtpieceRepository(db)
 	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, transactor, tel)
-	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, tel)
+	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, enqueuer, tel)
 	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
 	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, enqueuer, tel)
 	artpieceHandler := httphandler.NewArtpieceHandler(artpieceUsecase, r2Storage, tel)
@@ -284,7 +284,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	workers := river.NewWorkers()
 	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeExpiredCharacterAvatarUploadsWorker(characterUsecase, usecase.PresignTTL))
-	river.AddWorker(workers, worker.NewPurgeUserStorageWorker(r2Storage, logger))
+	river.AddWorker(workers, worker.NewPurgeR2ObjectsWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
 	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage))
@@ -374,6 +374,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/files", fileHandler.ListFiles)
 	protected.PUT("/files/:id", fileHandler.UpdateFile)
 	protected.DELETE("/files/:id", fileHandler.DeleteFile)
+	protected.DELETE("/files", fileHandler.BulkDeleteFiles)
 
 	protected.DELETE("/me", userHandler.DeleteMe)
 

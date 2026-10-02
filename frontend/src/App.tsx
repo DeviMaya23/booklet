@@ -8,6 +8,7 @@ import CallbackPage from './pages/CallbackPage'
 import CharactersPage from './pages/CharactersPage'
 import ImagesPage from './pages/ImagesPage'
 import ArtistsPage from './pages/ArtistsPage'
+import FilesPage from './pages/FilesPage'
 
 export default function App() {
   return (
@@ -23,6 +24,7 @@ export default function App() {
             <Route path="/app/characters" element={<CharactersPage />} />
             <Route path="/app/images" element={<ImagesPage />} />
             <Route path="/app/artists" element={<ArtistsPage />} />
+            <Route path="/app/files" element={<FilesPage />} />
           </Route>
         </Route>
       </Route>

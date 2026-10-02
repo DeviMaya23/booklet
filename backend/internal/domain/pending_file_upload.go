@@ -12,6 +12,7 @@ type PendingFileUpload struct {
 	R2Key      string     `gorm:"type:text;not null;column:r2_key"`
 	MimeType   string     `gorm:"type:text;not null;column:mime_type"`
 	ArtpieceID *uuid.UUID `gorm:"type:uuid;column:artpiece_id"`
+	Name       *string    `gorm:"type:text;column:name"`
 	Notes      *string    `gorm:"type:text;column:notes"`
 	CreatedAt  time.Time  `gorm:"column:created_at"`
 }
