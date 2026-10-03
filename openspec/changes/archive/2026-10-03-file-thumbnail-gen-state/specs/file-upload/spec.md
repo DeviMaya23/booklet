@@ -1,21 +1,4 @@
-## Purpose
-
-This capability covers the full lifecycle of file uploads: initiating an upload (generating a presigned R2 PUT URL), completing an upload (creating the file record and enqueuing post-processing), generating thumbnails for image files, and cleaning up stale pending upload records.
-
-## Requirements
-
-### Requirement: Initiate file upload
-The system SHALL allow an authenticated user to initiate a file upload by generating a presigned PUT URL for R2, optionally associating the upload with an artpiece, notes, and a name. A pending_file_upload record is created to track the in-flight upload.
-
-#### Scenario: Successful initiation
-- **WHEN** a user posts a valid initiate request with a `mime_type` and optional `artpiece_id`, `notes`, and `name`
-- **THEN** the system creates a pending_file_upload record (storing `name` if provided) and returns a presigned PUT URL with an expiry
-
-#### Scenario: Artpiece not owned by user
-- **WHEN** a user initiates an upload with an artpiece_id that does not belong to them
-- **THEN** the system returns HTTP 422
-
----
+## MODIFIED Requirements
 
 ### Requirement: Complete file upload
 The system SHALL allow an authenticated user to complete a pending file upload. On completion, the pending record is deleted and a file row is created, carrying over `name`, `notes`, `artpiece_id`, and `mime_type` from the pending record. The file row is created with `thumbnail_gen_state` set based on mime type. For image-type files, an image_metadata row is inserted and a thumbnail generation job is enqueued. Cover auto-selection runs if the file is attached to an artpiece.
@@ -48,12 +31,3 @@ The system SHALL generate a 600×600 JPEG thumbnail for image-type files after u
 #### Scenario: Thumbnail generation fails before final attempt
 - **WHEN** the generate_file_thumbnail worker encounters an error and `job.Attempt < job.MaxAttempts`
 - **THEN** the system returns the error so River retries the job; `thumbnail_gen_state` remains `"pending"`
-
----
-
-### Requirement: Stale pending file upload cleanup
-The system SHALL periodically delete pending_file_upload records older than the presign TTL (15 minutes) and remove their corresponding R2 objects.
-
-#### Scenario: Stale upload purged
-- **WHEN** a pending_file_upload record's created_at is older than 15 minutes
-- **THEN** the system deletes the R2 object and removes the pending record

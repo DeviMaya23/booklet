@@ -57,6 +57,17 @@ func (r *fileRepository) UpdateThumbnailPath(ctx context.Context, id uuid.UUID, 
 	return nil
 }
 
+func (r *fileRepository) UpdateThumbnailGenState(ctx context.Context, id uuid.UUID, state string) error {
+	result := r.db.WithContext(ctx).
+		Model(&domain.File{}).
+		Where("id = ?", id).
+		Update("thumbnail_gen_state", state)
+	if result.Error != nil {
+		return fmt.Errorf("update thumbnail_gen_state: %w", result.Error)
+	}
+	return nil
+}
+
 func (r *fileRepository) GetFilesForArtpiece(ctx context.Context, artpieceID uuid.UUID) ([]*domain.File, error) {
 	var files []*domain.File
 	err := dbFromContext(ctx, r.db).

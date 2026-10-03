@@ -82,6 +82,22 @@ func TestFileRepository_UpdateThumbnailPath(t *testing.T) {
 	assert.Equal(t, "users/x/thumbnails/abc.jpg", *got.ThumbnailR2Path)
 }
 
+func TestFileRepository_UpdateThumbnailGenState(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewFileRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	f := seedFile(t, tx, user.ID, "image/jpeg")
+
+	err := repo.UpdateThumbnailGenState(context.Background(), f.ID, "done")
+	require.NoError(t, err)
+
+	got, err := repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
+	require.NoError(t, err)
+	require.NotNil(t, got.ThumbnailGenState)
+	assert.Equal(t, "done", *got.ThumbnailGenState)
+}
+
 func TestFileRepository_GetFilesForArtpiece(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewFileRepository(tx)

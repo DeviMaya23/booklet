@@ -7,6 +7,7 @@ export interface File {
   file_url: string | null
   mime_type: string
   thumbnail_url: string | null
+  thumbnail_gen_state: 'pending' | 'done' | 'failed' | 'not_applicable'
   artpiece_id: string | null
   name: string | null
   notes: string | null
@@ -28,7 +29,7 @@ export function useFiles() {
     },
     refetchInterval: (query) => {
       const data = query.state.data
-      return Array.isArray(data) && data.some((f) => !f.thumbnail_url) ? 2000 : false
+      return Array.isArray(data) && data.some((f) => f.thumbnail_gen_state === 'pending') ? 2000 : false
     },
   })
 }

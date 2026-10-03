@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { Loader2, X } from 'lucide-react'
+import { FileIcon, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { useInitFileUpload } from '../api/useInitFileUpload'
@@ -7,9 +7,11 @@ import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
 import { useFiles } from '../api/useFiles'
 
+type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
+
 type DraftFile =
   | { status: 'uploading'; clientId: string; fileName: string }
-  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null }
+  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState }
 
 interface ArtpieceFilesInputProps {
   initialFiles?: { id: string; name: string | null; notes: string | null }[]
@@ -32,6 +34,7 @@ export default function ArtpieceFilesInput({
       name: f.name ?? '',
       notes: f.notes ?? '',
       thumbnailUrl: null,
+      thumbnailGenState: 'pending' as ThumbnailGenState,
     })),
   )
   const [dragOver, setDragOver] = useState(false)
@@ -42,14 +45,15 @@ export default function ArtpieceFilesInput({
   const updateFile = useUpdateFile()
   const { data: inboxFiles = [] } = useFiles()
 
-  // Sync thumbnailUrl from the useFiles query for uploaded rows
+  // Sync thumbnailUrl and thumbnailGenState from the useFiles query for uploaded rows
   useEffect(() => {
     setFiles((prev) =>
       prev.map((f) => {
         if (f.status !== 'uploaded') return f
         const match = inboxFiles.find((inf) => inf.id === f.id)
-        if (!match || match.thumbnail_url === f.thumbnailUrl) return f
-        return { ...f, thumbnailUrl: match.thumbnail_url }
+        if (!match) return f
+        if (match.thumbnail_url === f.thumbnailUrl && match.thumbnail_gen_state === f.thumbnailGenState) return f
+        return { ...f, thumbnailUrl: match.thumbnail_url, thumbnailGenState: match.thumbnail_gen_state }
       }),
     )
   }, [inboxFiles])
@@ -95,6 +99,7 @@ export default function ArtpieceFilesInput({
                       name: file.name,
                       notes: '',
                       thumbnailUrl: null,
+                      thumbnailGenState: 'pending' as ThumbnailGenState,
                     }
                   : f,
               ),
@@ -186,14 +191,16 @@ export default function ArtpieceFilesInput({
               )
             }
 
-            const thumbnailPending = file.thumbnailUrl === null
+            const thumbnailPending = file.thumbnailGenState === 'pending'
             return (
               <div key={file.clientId} className="flex gap-3 rounded-md border p-2">
                 <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                  {thumbnailPending ? (
+                  {file.thumbnailUrl ? (
+                    <img src={file.thumbnailUrl} alt="" className="h-full w-full object-cover" />
+                  ) : thumbnailPending ? (
                     <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
                   ) : (
-                    <img src={file.thumbnailUrl!} alt="" className="h-full w-full object-cover" />
+                    <FileIcon className="h-5 w-5 text-muted-foreground" />
                   )}
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
@@ -201,7 +208,7 @@ export default function ArtpieceFilesInput({
                     <Input
                       value={file.name}
                       placeholder="Name"
-                      disabled={disabled}
+                      disabled={disabled || thumbnailPending}
                       onChange={(e) => updateLocalName(file.clientId, e.target.value)}
                       onBlur={() => handleNameBlur(file)}
                       className="flex-1"
@@ -219,7 +226,7 @@ export default function ArtpieceFilesInput({
                   <Input
                     value={file.notes}
                     placeholder="Notes"
-                    disabled={disabled}
+                    disabled={disabled || thumbnailPending}
                     onChange={(e) => updateLocalNotes(file.clientId, e.target.value)}
                     onBlur={() => handleNotesBlur(file)}
                   />

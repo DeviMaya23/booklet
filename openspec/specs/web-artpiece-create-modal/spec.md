@@ -50,8 +50,12 @@ The system SHALL populate the files list with the pre-selected file IDs when the
 - **THEN** the file row shows the thumbnail, the existing name (if any), the existing notes (if any), and a remove button
 
 #### Scenario: Pre-populated file with thumbnail pending
-- **WHEN** the modal opens with a pre-selected file whose `thumbnail_url` is null
-- **THEN** the file row shows a spinner in the thumbnail slot and the name/notes fields are disabled until the thumbnail becomes available
+- **WHEN** the modal opens with a pre-selected file whose `thumbnail_gen_state === "pending"`
+- **THEN** the file row shows a spinner in the thumbnail slot and the name/notes fields are disabled
+
+#### Scenario: Pre-populated file with thumbnail settled (no thumbnail)
+- **WHEN** the modal opens with a pre-selected file whose `thumbnail_url === null` and `thumbnail_gen_state !== "pending"`
+- **THEN** the file row shows a fallback icon in the thumbnail slot and the name/notes fields are enabled
 
 ---
 
@@ -76,12 +80,16 @@ The system SHALL render a persistent upload affordance pinned at the top of the 
 The system SHALL manage the per-file upload flow within the modal, including thumbnail readiness and error handling.
 
 #### Scenario: Upload completes — thumbnail pending
-- **WHEN** the complete-upload call succeeds but `thumbnail_url` is still null
-- **THEN** the row remains with a spinner in the thumbnail slot and disabled name/notes fields until the thumbnail becomes available
+- **WHEN** the complete-upload call succeeds and `thumbnail_gen_state === "pending"`
+- **THEN** the row remains with a spinner in the thumbnail slot and disabled name/notes fields
 
-#### Scenario: Upload completes — thumbnail ready
-- **WHEN** the thumbnail poll detects a non-null `thumbnail_url` for the file
+#### Scenario: Upload completes — thumbnail done
+- **WHEN** `thumbnail_gen_state` becomes `"done"` for a file
 - **THEN** the spinner is replaced with the thumbnail image and the name/notes fields become editable
+
+#### Scenario: Upload completes — thumbnail failed or not applicable
+- **WHEN** `thumbnail_gen_state` becomes `"failed"` or `"not_applicable"` for a file
+- **THEN** the spinner is replaced with a fallback icon and the name/notes fields become editable
 
 #### Scenario: Upload fails
 - **WHEN** any step of the upload flow (init, PUT, or complete) throws an error
@@ -118,7 +126,7 @@ The system SHALL allow the user to edit a file's name and notes inline, saving e
 - **THEN** `PUT /files/:id` is called with the updated notes; the field shows the saved value
 
 #### Scenario: Name and notes fields disabled during thumbnail pending
-- **WHEN** a file row is in the thumbnail-pending state (thumbnail_url is null)
+- **WHEN** a file row has `thumbnail_gen_state === "pending"`
 - **THEN** the name and notes fields are disabled and cannot be edited
 
 ---

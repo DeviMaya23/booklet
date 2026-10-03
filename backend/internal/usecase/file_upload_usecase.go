@@ -116,14 +116,20 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 		return nil, err
 	}
 
+	thumbnailGenState := "not_applicable"
+	if bookmime.IsImage(pending.MimeType) {
+		thumbnailGenState = "pending"
+	}
+
 	file := &domain.File{
-		ID:         pending.ID,
-		UserID:     pending.UserID,
-		ArtpieceID: pending.ArtpieceID,
-		FileR2Path: pending.R2Key,
-		MimeType:   pending.MimeType,
-		Name:       pending.Name,
-		Notes:      pending.Notes,
+		ID:                pending.ID,
+		UserID:            pending.UserID,
+		ArtpieceID:        pending.ArtpieceID,
+		FileR2Path:        pending.R2Key,
+		MimeType:          pending.MimeType,
+		ThumbnailGenState: &thumbnailGenState,
+		Name:              pending.Name,
+		Notes:             pending.Notes,
 	}
 
 	created, err := u.fileRepo.Create(ctx, file)

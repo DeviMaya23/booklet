@@ -287,7 +287,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	river.AddWorker(workers, worker.NewPurgeR2ObjectsWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
 	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
-	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage))
+	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeExpiredFileUploadsWorker(fileUploadUsecase, usecase.PresignTTL))
 
 	periodicJobs := []*river.PeriodicJob{

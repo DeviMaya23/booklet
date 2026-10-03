@@ -1,4 +1,4 @@
-import { MoreHorizontal } from 'lucide-react'
+import { FileIcon, MoreHorizontal } from 'lucide-react'
 import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
@@ -34,8 +34,12 @@ export default function FileTile({ file, selected, onClick, onDoubleClick, onDel
           className="w-full h-full object-cover"
           draggable={false}
         />
-      ) : (
+      ) : file.thumbnail_gen_state === 'pending' ? (
         <Skeleton className="w-full h-full rounded-none" />
+      ) : (
+        <div className="flex h-full w-full items-center justify-center bg-muted">
+          <FileIcon size={24} className="text-muted-foreground" />
+        </div>
       )}
 
       <div
