@@ -10,11 +10,19 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useFiles } from '@/features/files/api/useFiles'
 import FileInboxGrid from '@/features/files/components/FileInboxGrid'
+import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
 
 export default function FilesPage() {
   const [search, setSearch] = useState('')
   const [selection, setSelection] = useState<Set<string>>(new Set())
+  const [artpieceModalOpen, setArtpieceModalOpen] = useState(false)
+  const [artpieceModalFileIds, setArtpieceModalFileIds] = useState<string[]>([])
   const { data: files = [], isLoading } = useFiles()
+
+  function openNewArtpieceModal(fileIds: string[]) {
+    setArtpieceModalFileIds(fileIds)
+    setArtpieceModalOpen(true)
+  }
 
   const filtered = search.trim()
     ? files.filter((f) =>
@@ -38,7 +46,7 @@ export default function FilesPage() {
               Add to artpiece <ChevronDown className="h-4 w-4" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => {/* no-op */}}>
+              <DropdownMenuItem onClick={() => openNewArtpieceModal(Array.from(selection))}>
                 New Artpiece
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => {/* no-op */}}>
@@ -54,6 +62,7 @@ export default function FilesPage() {
           files={filtered}
           selection={selection}
           onSelectionChange={setSelection}
+          onNewArtpiece={(fileIds) => openNewArtpieceModal(fileIds)}
         />
       )}
 
@@ -67,6 +76,13 @@ export default function FilesPage() {
       >
         <Plus className="h-5 w-5" />
       </Button>
+
+      <ArtpieceFormModal
+        open={artpieceModalOpen}
+        onOpenChange={setArtpieceModalOpen}
+        initialFileIds={artpieceModalFileIds}
+        onSuccess={() => setSelection(new Set())}
+      />
     </div>
   )
 }

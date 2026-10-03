@@ -18,9 +18,10 @@ interface FileInboxGridProps {
   files: InboxFile[]
   selection: Set<string>
   onSelectionChange: (next: Set<string>) => void
+  onNewArtpiece?: (fileIds: string[]) => void
 }
 
-export default function FileInboxGrid({ files, selection, onSelectionChange }: FileInboxGridProps) {
+export default function FileInboxGrid({ files, selection, onSelectionChange, onNewArtpiece }: FileInboxGridProps) {
   const [placeholders, setPlaceholders] = useState<PlaceholderTile[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null)
@@ -146,7 +147,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
         <FileContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          onNewArtpiece={() => {/* no-op */}}
+          onNewArtpiece={() => onNewArtpiece?.(contextMenu.ids)}
           onAddToExisting={() => {/* no-op */}}
           onDelete={() => setDeleteTarget(contextMenu.ids)}
           onClose={() => setContextMenu(null)}
