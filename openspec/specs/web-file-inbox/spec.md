@@ -84,7 +84,7 @@ The system SHALL show a toolbar button when one or more files are selected.
 
 #### Scenario: Clicking "Add to Existing Artpiece" from selection toolbar
 - **WHEN** the user clicks "Add to Existing Artpiece" in the dropdown
-- **THEN** no action is taken (no-op placeholder for a future proposal)
+- **THEN** the "Add to Existing Artpiece" modal opens with the currently selected files pre-populated
 
 ---
 
@@ -93,7 +93,7 @@ The system SHALL show a context menu on right-click containing artpiece actions 
 
 #### Scenario: Context menu items
 - **WHEN** the context menu is open
-- **THEN** it shows "New Artpiece", "Add to Existing Artpiece" (no-op), a visual divider, and "Delete"
+- **THEN** it shows "New Artpiece", "Add to Existing Artpiece", a visual divider, and "Delete"
 
 #### Scenario: Clicking "New Artpiece" from context menu
 - **WHEN** the user clicks "New Artpiece" in the context menu
@@ -101,7 +101,7 @@ The system SHALL show a context menu on right-click containing artpiece actions 
 
 #### Scenario: Clicking "Add to Existing Artpiece" from context menu
 - **WHEN** the user clicks "Add to Existing Artpiece" in the context menu
-- **THEN** no action is taken (no-op placeholder for a future proposal)
+- **THEN** the "Add to Existing Artpiece" modal opens with the right-clicked selection pre-populated
 
 #### Scenario: Delete from context menu
 - **WHEN** the user clicks "Delete" in the context menu

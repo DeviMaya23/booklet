@@ -11,17 +11,25 @@ import {
 import { useFiles } from '@/features/files/api/useFiles'
 import FileInboxGrid from '@/features/files/components/FileInboxGrid'
 import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
+import AddToExistingArtpieceModal from '@/features/files/components/AddToExistingArtpieceModal'
 
 export default function FilesPage() {
   const [search, setSearch] = useState('')
   const [selection, setSelection] = useState<Set<string>>(new Set())
   const [artpieceModalOpen, setArtpieceModalOpen] = useState(false)
   const [artpieceModalFileIds, setArtpieceModalFileIds] = useState<string[]>([])
+  const [addToArtpieceModalOpen, setAddToArtpieceModalOpen] = useState(false)
+  const [addToArtpieceModalFileIds, setAddToArtpieceModalFileIds] = useState<string[]>([])
   const { data: files = [], isLoading } = useFiles()
 
   function openNewArtpieceModal(fileIds: string[]) {
     setArtpieceModalFileIds(fileIds)
     setArtpieceModalOpen(true)
+  }
+
+  function openAddToArtpieceModal(fileIds: string[]) {
+    setAddToArtpieceModalFileIds(fileIds)
+    setAddToArtpieceModalOpen(true)
   }
 
   const filtered = search.trim()
@@ -49,7 +57,7 @@ export default function FilesPage() {
               <DropdownMenuItem onClick={() => openNewArtpieceModal(Array.from(selection))}>
                 New Artpiece
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => {/* no-op */}}>
+              <DropdownMenuItem onClick={() => openAddToArtpieceModal(Array.from(selection))}>
                 Add to Existing Artpiece
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -63,6 +71,7 @@ export default function FilesPage() {
           selection={selection}
           onSelectionChange={setSelection}
           onNewArtpiece={(fileIds) => openNewArtpieceModal(fileIds)}
+          onAddToExisting={(fileIds) => openAddToArtpieceModal(fileIds)}
         />
       )}
 
@@ -81,6 +90,13 @@ export default function FilesPage() {
         open={artpieceModalOpen}
         onOpenChange={setArtpieceModalOpen}
         initialFileIds={artpieceModalFileIds}
+        onSuccess={() => setSelection(new Set())}
+      />
+
+      <AddToExistingArtpieceModal
+        open={addToArtpieceModalOpen}
+        onOpenChange={setAddToArtpieceModalOpen}
+        fileIds={addToArtpieceModalFileIds}
         onSuccess={() => setSelection(new Set())}
       />
     </div>
