@@ -45,10 +45,13 @@ Hooks and components
 - One hook per cohesive concern (state + its effects + its handlers). A concern can be described in one sentence without mentioning the rest of the component. Flag components that own several concerns inline.
 - Hooks return semantic mutators (`removeImage(id)`, `toggleFlip()`), never raw setters (`setImages`).
 - Related DOM handlers a hook exposes are grouped in one spreadable object (like `dragHandlers`).
-- New hooks and extracted components have a colocated test file written in the same change. Hooks that attach to a DOM ref are tested through a small harness component, not bare `renderHook`.
+- New hooks, and extracted components that have behavior (state, effects, or handlers), have a colocated test file written in the same change. Purely presentational components (props in, markup out) do not need their own test. Hooks that attach to a DOM ref are tested through a small harness component, not bare `renderHook`.
 - New dialogs, confirmations, and nav rows match the shape of existing siblings: `{ item: T | null, onCancel, onConfirm }` or `{ open, onCancel, onConfirm }`.
 - No new shared abstraction (e.g. a generic `ConfirmDialog` in `components/ui/`) on the first or second occurrence. Two similar feature-owned components are fine. Reach for a shared base on the third.
-- Reusable JSX is not stored in local variables (`const filtersContent = <div>...</div>`). Extract a component with explicit props. A closure-captured JSX variable hides what it depends on and cannot be tested alone. Flag it as Debt, and as a Bug risk if the same variable is rendered in more than one place (both copies mount, which can duplicate IDs and effects).
+- JSX in local variables (`const filtersContent = <div>...</div>`). A variable holding JSX hides what it depends on, because it reads state and props through closure rather than explicit props.
+  - Rendered once: cosmetic. Suggest inlining it, as Style at most, never as Debt.
+  - Rendered in more than one place: Debt, because the name hides duplicated rendering. Extract a component that takes the data as props (pass one object, not field by field) and keep each call site's placement, visibility classes, and show condition outside it. Do not suggest pasting the markup into each location.
+  - If the multiple renders are both mounted at once with one hidden by CSS, note that both instances mount (duplicate IDs, double effects, tests matching two elements). That is a layout question, not a reason to skip the extraction.
 
 Duplication
 - A multi-step flow (validate, transform, upload, finalize) used from more than one place belongs in `lib/` as one function. Flag copy-pasted flows.
