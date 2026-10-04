@@ -7,6 +7,7 @@ import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import FileTile from './FileTile'
 import FileContextMenu from './FileContextMenu'
 import FileDeleteDialog from './FileDeleteDialog'
+import FileTileEditOverlay from './FileTileEditOverlay'
 import { useDeleteFile } from '../api/useDeleteFile'
 import { useBulkDeleteFiles } from '../api/useBulkDeleteFiles'
 
@@ -27,6 +28,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [editingFile, setEditingFile] = useState<InboxFile | null>(null)
   const lastClickedId = useRef<string | null>(null)
 
   const initUpload = useInitFileUpload()
@@ -137,7 +139,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
             file={file}
             selected={selection.has(file.id)}
             onClick={(e) => handleTileClick(file.id, e)}
-            onDoubleClick={() => {/* no-op */}}
+            onDoubleClick={() => { setEditingFile(file); onSelectionChange(new Set(selection)) }}
             onDeleteClick={() => setDeleteTarget([file.id])}
             onContextMenu={(e) => handleTileContextMenu(file.id, e)}
           />
@@ -162,6 +164,13 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {editingFile && (
+        <FileTileEditOverlay
+          file={editingFile}
+          onClose={() => setEditingFile(null)}
+        />
+      )}
     </div>
   )
 }

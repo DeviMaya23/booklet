@@ -12,6 +12,7 @@ import { useFiles } from '@/features/files/api/useFiles'
 import FileInboxGrid from '@/features/files/components/FileInboxGrid'
 import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
 import AddToExistingArtpieceModal from '@/features/files/components/AddToExistingArtpieceModal'
+import AddFilesModal from '@/features/files/components/AddFilesModal'
 
 export default function FilesPage() {
   const [search, setSearch] = useState('')
@@ -20,6 +21,7 @@ export default function FilesPage() {
   const [artpieceModalFileIds, setArtpieceModalFileIds] = useState<string[]>([])
   const [addToArtpieceModalOpen, setAddToArtpieceModalOpen] = useState(false)
   const [addToArtpieceModalFileIds, setAddToArtpieceModalFileIds] = useState<string[]>([])
+  const [addFilesModalOpen, setAddFilesModalOpen] = useState(false)
   const { data: files = [], isLoading } = useFiles()
 
   function openNewArtpieceModal(fileIds: string[]) {
@@ -80,7 +82,7 @@ export default function FilesPage() {
       <Button
         size="icon"
         className="fixed bottom-6 right-6 h-12 w-12 rounded-full shadow-lg"
-        onClick={() => {/* no-op */}}
+        onClick={() => setAddFilesModalOpen(true)}
         aria-label="Upload file"
       >
         <Plus className="h-5 w-5" />
@@ -99,6 +101,8 @@ export default function FilesPage() {
         fileIds={addToArtpieceModalFileIds}
         onSuccess={() => setSelection(new Set())}
       />
+
+      <AddFilesModal open={addFilesModalOpen} onOpenChange={setAddFilesModalOpen} />
     </div>
   )
 }
