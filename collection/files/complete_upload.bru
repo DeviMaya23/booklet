@@ -13,3 +13,22 @@ post {
 vars:pre-request {
   pendingFileUploadId: e9a77f23-2530-4283-8886-0b962c378253
 }
+
+docs {
+  ## Response
+
+  ```json
+  {
+    "id": "uuid",
+    "file_url": "https://...",
+    "mime_type": "image/jpeg",
+    "thumbnail_url": null,
+    "thumbnail_gen_state": "pending | done | failed | not_applicable",
+    "artpiece_id": null,
+    "name": "sketch.jpg",
+    "notes": null,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+  ```
+}

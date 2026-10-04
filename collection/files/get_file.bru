@@ -9,3 +9,22 @@ get {
   body: none
   auth: inherit
 }
+
+docs {
+  ## Response
+
+  ```json
+  {
+    "id": "uuid",
+    "file_url": "https://...",
+    "mime_type": "image/jpeg",
+    "thumbnail_url": "https://...",
+    "thumbnail_gen_state": "pending | done | failed | not_applicable",
+    "artpiece_id": "uuid | null",
+    "name": "sketch.jpg",
+    "notes": null,
+    "created_at": "2024-01-01T00:00:00Z",
+    "updated_at": "2024-01-01T00:00:00Z"
+  }
+  ```
+}

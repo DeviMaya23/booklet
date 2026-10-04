@@ -7,6 +7,7 @@ import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import FileTile from './FileTile'
 import FileContextMenu from './FileContextMenu'
 import FileDeleteDialog from './FileDeleteDialog'
+import FileTileEditOverlay from './FileTileEditOverlay'
 import { useDeleteFile } from '../api/useDeleteFile'
 import { useBulkDeleteFiles } from '../api/useBulkDeleteFiles'
 
@@ -18,13 +19,16 @@ interface FileInboxGridProps {
   files: InboxFile[]
   selection: Set<string>
   onSelectionChange: (next: Set<string>) => void
+  onNewArtpiece?: (fileIds: string[]) => void
+  onAddToExisting?: (fileIds: string[]) => void
 }
 
-export default function FileInboxGrid({ files, selection, onSelectionChange }: FileInboxGridProps) {
+export default function FileInboxGrid({ files, selection, onSelectionChange, onNewArtpiece, onAddToExisting }: FileInboxGridProps) {
   const [placeholders, setPlaceholders] = useState<PlaceholderTile[]>([])
   const [contextMenu, setContextMenu] = useState<{ x: number; y: number; ids: string[] } | null>(null)
   const [deleteTarget, setDeleteTarget] = useState<string[] | null>(null)
   const [dragOver, setDragOver] = useState(false)
+  const [editingFile, setEditingFile] = useState<InboxFile | null>(null)
   const lastClickedId = useRef<string | null>(null)
 
   const initUpload = useInitFileUpload()
@@ -135,7 +139,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
             file={file}
             selected={selection.has(file.id)}
             onClick={(e) => handleTileClick(file.id, e)}
-            onDoubleClick={() => {/* no-op */}}
+            onDoubleClick={() => { setEditingFile(file); onSelectionChange(new Set(selection)) }}
             onDeleteClick={() => setDeleteTarget([file.id])}
             onContextMenu={(e) => handleTileContextMenu(file.id, e)}
           />
@@ -146,8 +150,8 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
         <FileContextMenu
           x={contextMenu.x}
           y={contextMenu.y}
-          onNewArtpiece={() => {/* no-op */}}
-          onAddToExisting={() => {/* no-op */}}
+          onNewArtpiece={() => onNewArtpiece?.(contextMenu.ids)}
+          onAddToExisting={() => onAddToExisting?.(contextMenu.ids)}
           onDelete={() => setDeleteTarget(contextMenu.ids)}
           onClose={() => setContextMenu(null)}
         />
@@ -160,6 +164,13 @@ export default function FileInboxGrid({ files, selection, onSelectionChange }: F
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {editingFile && (
+        <FileTileEditOverlay
+          file={editingFile}
+          onClose={() => setEditingFile(null)}
+        />
+      )}
     </div>
   )
 }
