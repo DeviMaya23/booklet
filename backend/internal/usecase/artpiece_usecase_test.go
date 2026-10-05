@@ -86,6 +86,43 @@ func (f *fakeArtpieceRepository) GetFilesForArtpiece(_ context.Context, artpiece
 	return f.files[artpieceID], nil
 }
 
+func (f *fakeArtpieceRepository) GetByIDAndUserID(_ context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error) {
+	a, ok := f.artpieces[id]
+	if !ok || a.UserID != userID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return a, nil
+}
+
+func (f *fakeArtpieceRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.Artpiece, error) {
+	var result []*domain.Artpiece
+	for _, id := range ids {
+		if a, ok := f.artpieces[id]; ok && a.UserID == userID {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeArtpieceRepository) BulkUpdateCommissionID(_ context.Context, artpieceIDs []uuid.UUID, commissionID *uuid.UUID) error {
+	for _, id := range artpieceIDs {
+		if a, ok := f.artpieces[id]; ok {
+			a.CommissionID = commissionID
+		}
+	}
+	return nil
+}
+
+func (f *fakeArtpieceRepository) GetArtpiecesForCommission(_ context.Context, commissionID uuid.UUID) ([]*domain.Artpiece, error) {
+	var result []*domain.Artpiece
+	for _, a := range f.artpieces {
+		if a.CommissionID != nil && *a.CommissionID == commissionID {
+			result = append(result, a)
+		}
+	}
+	return result, nil
+}
+
 type fakeArtpieceArtistRepository struct {
 	artists map[uuid.UUID]*domain.Artist
 }

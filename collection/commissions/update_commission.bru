@@ -1,0 +1,25 @@
+meta {
+  name: Update Commission
+  type: http
+  seq: 4
+}
+
+put {
+  url: {{baseUrl}}/commissions/{{commissionId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "title": null,
+    "artist_id": null,
+    "status": "waitlist",
+    "price": null,
+    "paid": false,
+    "paid_date": null,
+    "finish_date": null,
+    "notes": null,
+    "character_ids": []
+  }
+}

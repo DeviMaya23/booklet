@@ -274,6 +274,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	artpieceHandler := httphandler.NewArtpieceHandler(artpieceUsecase, r2Storage, tel)
 	fileUploadHandler := httphandler.NewFileUploadHandler(fileUploadUsecase, r2Storage, tel)
 
+	commissionRepository := repository.NewCommissionRepository(db)
+	commissionUsecase := usecase.NewCommissionUsecase(commissionRepository, artistRepository, characterRepository, artpieceRepository, transactor, tel)
+	commissionHandler := httphandler.NewCommissionHandler(commissionUsecase, r2Storage, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
@@ -367,6 +371,15 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/artpieces/:id/files/:file_id", artpieceHandler.DetachFile)
 	protected.PUT("/artpieces/:id/cover", artpieceHandler.SetCover)
 	protected.PUT("/artpieces/:id/files", artpieceHandler.ReplaceFiles)
+
+	protected.POST("/commissions", commissionHandler.CreateCommission)
+	protected.GET("/commissions", commissionHandler.ListCommissions)
+	protected.GET("/commissions/:id", commissionHandler.GetCommissionByID)
+	protected.PUT("/commissions/:id", commissionHandler.UpdateCommission)
+	protected.DELETE("/commissions/:id", commissionHandler.DeleteCommission)
+	protected.POST("/commissions/:id/artpieces", commissionHandler.AttachArtpieces)
+	protected.DELETE("/commissions/:id/artpieces", commissionHandler.DetachArtpieces)
+	protected.PUT("/commissions/:id/artpieces", commissionHandler.ReplaceArtpieces)
 
 	protected.POST("/files", fileUploadHandler.InitiateUpload)
 	protected.POST("/files/:id/complete", fileUploadHandler.CompleteUpload)

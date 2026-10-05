@@ -1,0 +1,17 @@
+meta {
+  name: Attach Artpieces
+  type: http
+  seq: 6
+}
+
+post {
+  url: {{baseUrl}}/commissions/{{commissionId}}/artpieces
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "artpiece_ids": []
+  }
+}

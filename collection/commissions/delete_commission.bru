@@ -1,0 +1,11 @@
+meta {
+  name: Delete Commission
+  type: http
+  seq: 5
+}
+
+delete {
+  url: {{baseUrl}}/commissions/{{commissionId}}
+  body: none
+  auth: inherit
+}
