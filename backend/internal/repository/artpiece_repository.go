@@ -170,3 +170,43 @@ func (r *artpieceRepository) GetByIDAndUserID(ctx context.Context, id uuid.UUID,
 	return &a, nil
 }
 
+func (r *artpieceRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.Artpiece, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var artpieces []*domain.Artpiece
+	err := dbFromContext(ctx, r.db).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Find(&artpieces).Error
+	if err != nil {
+		return nil, fmt.Errorf("get artpieces by ids: %w", err)
+	}
+	return artpieces, nil
+}
+
+func (r *artpieceRepository) BulkUpdateCommissionID(ctx context.Context, artpieceIDs []uuid.UUID, commissionID *uuid.UUID) error {
+	if len(artpieceIDs) == 0 {
+		return nil
+	}
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.Artpiece{}).
+		Where("id IN ?", artpieceIDs).
+		Update("commission_id", commissionID)
+	if result.Error != nil {
+		return fmt.Errorf("bulk update commission_id: %w", result.Error)
+	}
+	return nil
+}
+
+func (r *artpieceRepository) GetArtpiecesForCommission(ctx context.Context, commissionID uuid.UUID) ([]*domain.Artpiece, error) {
+	var artpieces []*domain.Artpiece
+	err := dbFromContext(ctx, r.db).
+		Where("commission_id = ?", commissionID).
+		Order("created_at ASC").
+		Find(&artpieces).Error
+	if err != nil {
+		return nil, fmt.Errorf("get artpieces for commission: %w", err)
+	}
+	return artpieces, nil
+}
+

@@ -11,11 +11,15 @@ import (
 type ArtpieceRepository interface {
 	Create(ctx context.Context, a *domain.Artpiece) (*domain.Artpiece, error)
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
+	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
+	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.Artpiece, error)
 	List(ctx context.Context, userID uuid.UUID, filters ListArtpieceFilters) ([]*domain.Artpiece, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateArtpieceParams) (*domain.Artpiece, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 	UpdateCover(ctx context.Context, artpieceID uuid.UUID, coverFileID *uuid.UUID) error
 	GetFilesForArtpiece(ctx context.Context, artpieceID uuid.UUID) ([]*domain.File, error)
+	BulkUpdateCommissionID(ctx context.Context, artpieceIDs []uuid.UUID, commissionID *uuid.UUID) error
+	GetArtpiecesForCommission(ctx context.Context, commissionID uuid.UUID) ([]*domain.Artpiece, error)
 }
 
 type ArtpieceArtistRepository interface {

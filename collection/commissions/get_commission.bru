@@ -1,0 +1,11 @@
+meta {
+  name: Get Commission
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/commissions/{{commissionId}}
+  body: none
+  auth: inherit
+}
