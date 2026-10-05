@@ -59,6 +59,11 @@ type setCoverRequest struct {
 	FileID uuid.UUID `json:"file_id"`
 }
 
+type characterRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
 type fileRef struct {
 	ID           string  `json:"id"`
 	FileURL      string  `json:"file_url"`

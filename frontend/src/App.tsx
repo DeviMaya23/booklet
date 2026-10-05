@@ -6,7 +6,6 @@ import AppShell from './components/AppShell'
 import HomePage from './pages/HomePage'
 import CallbackPage from './pages/CallbackPage'
 import CharactersPage from './pages/CharactersPage'
-import ImagesPage from './pages/ImagesPage'
 import ArtistsPage from './pages/ArtistsPage'
 import FilesPage from './pages/FilesPage'
 import ArtpiecesPage from './pages/ArtpiecesPage'
@@ -23,7 +22,6 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index path="/app" element={<Navigate to="/app/characters" replace />} />
             <Route path="/app/characters" element={<CharactersPage />} />
-            <Route path="/app/images" element={<ImagesPage />} />
             <Route path="/app/artists" element={<ArtistsPage />} />
             <Route path="/app/files" element={<FilesPage />} />
             <Route path="/app/artpieces" element={<ArtpiecesPage />} />

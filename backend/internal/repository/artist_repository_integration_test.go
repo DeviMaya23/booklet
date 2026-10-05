@@ -221,36 +221,3 @@ func TestArtistRepository_Delete_NotFound(t *testing.T) {
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
-func TestArtistRepository_Delete_NullsImageArtistID(t *testing.T) {
-	tx := testutil.NewTestTx(t, testDB)
-	repo := NewArtistRepository(tx)
-
-	user := seedUser(t, tx, "user_1")
-	artist := seedArtist(t, tx, user.ID, "Jane Doe")
-	img := seedImage(t, tx, user.ID)
-	require.NoError(t, tx.Model(img).Update("artist_id", artist.ID).Error)
-
-	err := repo.Delete(context.Background(), artist.ID, user.ID)
-	require.NoError(t, err)
-
-	var row domain.Image
-	require.NoError(t, tx.First(&row, "id = ?", img.ID).Error)
-	assert.Nil(t, row.ArtistID)
-}
-
-func TestArtistRepository_Delete_NullsPendingUploadArtistID(t *testing.T) {
-	tx := testutil.NewTestTx(t, testDB)
-	repo := NewArtistRepository(tx)
-
-	user := seedUser(t, tx, "user_1")
-	artist := seedArtist(t, tx, user.ID, "Jane Doe")
-	pending := seedPendingUpload(t, tx, user.ID)
-	require.NoError(t, tx.Model(pending).Update("artist_id", artist.ID).Error)
-
-	err := repo.Delete(context.Background(), artist.ID, user.ID)
-	require.NoError(t, err)
-
-	var row domain.PendingUpload
-	require.NoError(t, tx.First(&row, "id = ?", pending.ID).Error)
-	assert.Nil(t, row.ArtistID)
-}

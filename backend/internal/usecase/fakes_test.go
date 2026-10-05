@@ -9,6 +9,8 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
+	rivertype "github.com/riverqueue/river/rivertype"
 	"gorm.io/gorm"
 )
 
@@ -193,29 +195,29 @@ func (f *fakeBookleafClient) DeleteAccount(_ context.Context, _ string) error {
 	return nil
 }
 
-type fakeImageRepository struct {
-	images            []*domain.Image
-	listByCharacterID []*domain.Image
-	lastListFilters   usecase.ListImageFilters
+type spyTransactor struct{}
+
+func (s *spyTransactor) InTransaction(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
 }
 
-func (f *fakeImageRepository) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Image, error) {
-	return nil, fmt.Errorf("get image: %w", gorm.ErrRecordNotFound)
+type spyJobInserter struct {
+	lastArgs  river.JobArgs
+	returnErr error
 }
 
-func (f *fakeImageRepository) List(_ context.Context, _ uuid.UUID, filters usecase.ListImageFilters) ([]*domain.Image, error) {
-	f.lastListFilters = filters
-	return f.images, nil
+func (s *spyJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
+	s.lastArgs = args
+	return &rivertype.JobInsertResult{}, s.returnErr
 }
 
-func (f *fakeImageRepository) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.UpdateImageParams) (*domain.Image, error) {
-	return nil, fmt.Errorf("update image: %w", gorm.ErrRecordNotFound)
+type spyStorageService struct{}
+
+func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, _ string, _ string, _ time.Duration) (string, error) {
+	return "https://presigned.example.com/put", nil
 }
 
-func (f *fakeImageRepository) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+func (s *spyStorageService) DeleteObject(_ context.Context, _ string) error {
 	return nil
 }
 
-func (f *fakeImageRepository) ListByCharacterID(_ context.Context, _ uuid.UUID, _ uuid.UUID) ([]*domain.Image, error) {
-	return f.listByCharacterID, nil
-}
