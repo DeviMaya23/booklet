@@ -73,17 +73,6 @@ func (r *userRepository) DeleteAllUserData(ctx context.Context, userID uuid.UUID
 
 	var keys []string
 
-	var images []domain.Image
-	if err := db.Select("image_r2_path", "thumbnail_r2_path").Where("user_id = ?", userID).Find(&images).Error; err != nil {
-		return nil, fmt.Errorf("collect image keys: %w", err)
-	}
-	for _, img := range images {
-		keys = append(keys, img.ImageR2Path)
-		if img.ThumbnailR2Path != nil {
-			keys = append(keys, *img.ThumbnailR2Path)
-		}
-	}
-
 	var chars []domain.Character
 	if err := db.Select("avatar_r2_path").Where("user_id = ?", userID).Find(&chars).Error; err != nil {
 		return nil, fmt.Errorf("collect character keys: %w", err)
@@ -92,26 +81,6 @@ func (r *userRepository) DeleteAllUserData(ctx context.Context, userID uuid.UUID
 		if c.AvatarR2Path != nil {
 			keys = append(keys, *c.AvatarR2Path)
 		}
-	}
-
-	var uploads []domain.PendingUpload
-	if err := db.Select("r2_key").Where("user_id = ?", userID).Find(&uploads).Error; err != nil {
-		return nil, fmt.Errorf("collect upload keys: %w", err)
-	}
-	for _, u := range uploads {
-		keys = append(keys, u.R2Key)
-	}
-
-	if err := db.Where("user_id = ?", userID).Delete(&domain.PendingUpload{}).Error; err != nil {
-		return nil, fmt.Errorf("delete pending uploads: %w", err)
-	}
-
-	if err := db.Exec("DELETE FROM image_characters WHERE image_id IN (SELECT id FROM images WHERE user_id = ?)", userID).Error; err != nil {
-		return nil, fmt.Errorf("delete image characters: %w", err)
-	}
-
-	if err := db.Where("user_id = ?", userID).Delete(&domain.Image{}).Error; err != nil {
-		return nil, fmt.Errorf("delete images: %w", err)
 	}
 
 	if err := db.Exec("DELETE FROM character_folders WHERE character_id IN (SELECT id FROM characters WHERE user_id = ?)", userID).Error; err != nil {

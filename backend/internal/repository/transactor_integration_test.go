@@ -18,16 +18,15 @@ func TestGormTransactor_RollsBackOnError(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	user := seedUser(t, tx, "transactor_rollback_test_user")
 
-	pendingID := uuid.New()
+	characterID := uuid.New()
 	transactor := NewGormTransactor(testDB)
-	uploadRepo := NewUploadRepository(testDB)
+	characterRepo := NewCharacterRepository(testDB)
 
 	err := transactor.InTransaction(ctx, func(txCtx context.Context) error {
-		_, createErr := uploadRepo.Create(txCtx, &domain.PendingUpload{
-			ID:       pendingID,
-			UserID:   user.ID,
-			R2Key:    "users/" + user.ID.String() + "/images/test.jpg",
-			MimeType: "image/jpeg",
+		createErr := characterRepo.Create(txCtx, &domain.Character{
+			ID:     characterID,
+			UserID: user.ID,
+			Name:   "Rollback Test Character",
 		})
 		if createErr != nil {
 			return createErr
@@ -38,6 +37,6 @@ func TestGormTransactor_RollsBackOnError(t *testing.T) {
 	require.Error(t, err)
 
 	var count int64
-	testDB.Model(&domain.PendingUpload{}).Where("id = ?", pendingID).Count(&count)
-	assert.Equal(t, int64(0), count, "pending_upload row must not exist after rollback")
+	testDB.Model(&domain.Character{}).Where("id = ?", characterID).Count(&count)
+	assert.Equal(t, int64(0), count, "character row must not exist after rollback")
 }

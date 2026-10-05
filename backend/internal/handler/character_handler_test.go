@@ -84,9 +84,6 @@ type spyCharacterUsecase struct {
 
 	deleteAvatarErr error
 
-	getCharacterImagesResult []*domain.Image
-	getCharacterImagesErr    error
-
 	lastCreateParams usecase.CreateCharacterParams
 	lastUpdateParams usecase.UpdateCharacterParams
 }
@@ -123,10 +120,6 @@ func (s *spyCharacterUsecase) CompleteAvatarUpload(_ context.Context, _ uuid.UUI
 
 func (s *spyCharacterUsecase) DeleteAvatar(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
 	return s.deleteAvatarErr
-}
-
-func (s *spyCharacterUsecase) GetCharacterImages(_ context.Context, _ uuid.UUID, _ uuid.UUID) ([]*domain.Image, error) {
-	return s.getCharacterImagesResult, s.getCharacterImagesErr
 }
 
 func setupEcho(userID uuid.UUID) *echo.Echo {
@@ -426,10 +419,6 @@ func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, user
 func (s *captureCharacterListSpy) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error {
 	return s.inner.DeleteAvatar(ctx, userID, characterID)
 }
-func (s *captureCharacterListSpy) GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error) {
-	return s.inner.GetCharacterImages(ctx, characterID, userID)
-}
-
 // --- UpdateCharacter ---
 
 func TestUpdateCharacter_HappyPath(t *testing.T) {
@@ -791,69 +780,6 @@ func TestDeleteAvatar_Success(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNoContent, rec.Code)
-}
-
-// --- GetCharacterImages ---
-
-func TestGetCharacterImages_ReturnsPressignedThumbnails(t *testing.T) {
-	thumbKey := "users/1/thumbnails/img.jpg"
-	img := &domain.Image{
-		ID:              uuid.New(),
-		UserID:          testUserID,
-		ImageR2Path:     "users/1/images/img.jpg",
-		MimeType:        "image/jpeg",
-		ThumbnailR2Path: &thumbKey,
-		Characters:      []domain.Character{},
-	}
-	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/thumb?sig=xyz"}
-	spy := &spyCharacterUsecase{getCharacterImagesResult: []*domain.Image{img}}
-	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
-
-	e := setupEcho(testUserID)
-	e.GET("/characters/:id/images", h.GetCharacterImages)
-
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s/images", uuid.New()), nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	var got []map[string]interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Len(t, got, 1)
-	require.Equal(t, img.ID.String(), got[0]["image_id"])
-	require.Equal(t, "https://cdn.example.com/thumb?sig=xyz", got[0]["thumbnail_url"])
-	require.Contains(t, presigner.calls, thumbKey)
-}
-
-func TestGetCharacterImages_ReturnsEmptyArray(t *testing.T) {
-	spy := &spyCharacterUsecase{getCharacterImagesResult: []*domain.Image{}}
-	h := newCharacterHandler(spy)
-
-	e := setupEcho(testUserID)
-	e.GET("/characters/:id/images", h.GetCharacterImages)
-
-	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/characters/%s/images", uuid.New()), nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	var got []interface{}
-	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
-	require.Empty(t, got)
-}
-
-func TestGetCharacterImages_InvalidUUID(t *testing.T) {
-	spy := &spyCharacterUsecase{}
-	h := newCharacterHandler(spy)
-
-	e := setupEcho(testUserID)
-	e.GET("/characters/:id/images", h.GetCharacterImages)
-
-	req := httptest.NewRequest(http.MethodGet, "/characters/not-a-uuid/images", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
-
-	require.Equal(t, http.StatusBadRequest, rec.Code)
 }
 
 // setupEchoNoIDPSubject sets up Echo with a user ID but no IDP subject (simulates missing JWT subject).

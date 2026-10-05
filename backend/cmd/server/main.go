@@ -221,8 +221,7 @@ func initRiverClient(ctx context.Context, pool *pgxpool.Pool, workers *river.Wor
 }
 
 // riverEnqueuer wraps river.Client[pgx.Tx] to satisfy usecase.JobInserter.
-// Its client field is set after river.NewClient to break the
-// uploadUsecase ↔ riverClient init cycle.
+// Its client field is set after river.NewClient to break the init cycle.
 type riverEnqueuer struct {
 	client *river.Client[pgx.Tx]
 }
@@ -234,8 +233,6 @@ func (e *riverEnqueuer) Insert(ctx context.Context, args river.JobArgs, opts *ri
 func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pgxpool.Pool, tel *observability.Telemetry, e *echo.Echo, logger *zap.Logger) *river.Client[pgx.Tx] {
 	r2Storage := storage.NewR2Storage(cfg.R2, tel)
 
-	// Deferred enqueuer: client field is set after river.NewClient to break the
-	// uploadUsecase ↔ riverClient init cycle.
 	enqueuer := &riverEnqueuer{}
 
 	bookleafClient := bookleaf.NewClient(cfg.Bookleaf.Host, cfg.Bookleaf.InternalSecret)
@@ -253,16 +250,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	artistUsecase := usecase.NewArtistUsecase(artistRepository, tel)
 	artistHandler := httphandler.NewArtistHandler(artistUsecase, tel)
 
-	imageRepository := repository.NewImageRepository(db)
-	imageUsecase := usecase.NewImageUsecase(imageRepository, tel)
-	imageHandler := httphandler.NewImageHandler(imageUsecase, r2Storage, tel)
-
-	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, imageRepository, transactor, tel, bookleafClient)
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, transactor, tel, bookleafClient)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, r2Storage, tel)
-
-	uploadRepository := repository.NewUploadRepository(db)
-	uploadUsecase := usecase.NewUploadUsecase(uploadRepository, r2Storage, characterRepository, artistRepository, imageRepository, transactor, enqueuer, tel)
-	uploadHandler := httphandler.NewUploadHandler(uploadUsecase, tel)
 
 	fileRepository := repository.NewFileRepository(db)
 	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
@@ -286,22 +275,13 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	healthHandler := httphandler.NewHealthHandler(db, r2Storage)
 
 	workers := river.NewWorkers()
-	river.AddWorker(workers, worker.NewPurgeExpiredUploadsWorker(uploadUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeExpiredCharacterAvatarUploadsWorker(characterUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeR2ObjectsWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
-	river.AddWorker(workers, worker.NewGenerateThumbnailWorker(imageRepository, r2Storage))
 	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeExpiredFileUploadsWorker(fileUploadUsecase, usecase.PresignTTL))
 
 	periodicJobs := []*river.PeriodicJob{
-		river.NewPeriodicJob(
-			river.PeriodicInterval(5*time.Minute),
-			func() (river.JobArgs, *river.InsertOpts) {
-				return worker.PurgeExpiredUploadsArgs{}, nil
-			},
-			&river.PeriodicJobOpts{RunOnStart: true},
-		),
 		river.NewPeriodicJob(
 			river.PeriodicInterval(5*time.Minute),
 			func() (river.JobArgs, *river.InsertOpts) {
@@ -345,7 +325,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.POST("/characters/:id/avatar/init", characterHandler.InitAvatarUpload)
 	protected.POST("/characters/:id/avatar/:uploadID/complete", characterHandler.CompleteAvatarUpload)
 	protected.DELETE("/characters/:id/avatar", characterHandler.DeleteAvatar)
-	protected.GET("/characters/:id/images", characterHandler.GetCharacterImages)
 
 	protected.GET("/folders", folderHandler.ListFolders)
 
@@ -354,13 +333,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/artists/:id", artistHandler.GetArtistByID)
 	protected.PUT("/artists/:id", artistHandler.UpdateArtist)
 	protected.DELETE("/artists/:id", artistHandler.DeleteArtist)
-
-	protected.GET("/images", imageHandler.ListImages)
-	protected.GET("/images/:id", imageHandler.GetImageByID)
-	protected.PUT("/images/:id", imageHandler.UpdateImage)
-	protected.DELETE("/images/:id", imageHandler.DeleteImage)
-	protected.POST("/images", uploadHandler.InitialUpload)
-	protected.POST("/images/:id/complete", uploadHandler.CompleteUpload)
 
 	protected.POST("/artpieces", artpieceHandler.CreateArtpiece)
 	protected.GET("/artpieces", artpieceHandler.ListArtpieces)

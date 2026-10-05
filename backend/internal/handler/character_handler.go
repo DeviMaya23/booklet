@@ -24,7 +24,6 @@ type CharacterUsecase interface {
 	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*usecase.AvatarUploadResult, error)
 	CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error
 	DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error
-	GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error)
 }
 
 type CharacterHandler struct {
@@ -65,12 +64,6 @@ type characterResponse struct {
 	Folders   []folderResponse `json:"folders"`
 	CreatedAt string           `json:"created_at"`
 	UpdatedAt string           `json:"updated_at"`
-}
-
-type characterImageResponse struct {
-	ImageID      string  `json:"image_id"`
-	ImageName    *string `json:"image_name"`
-	ThumbnailURL *string `json:"thumbnail_url"`
 }
 
 type initAvatarUploadRequest struct {
@@ -336,44 +329,6 @@ func (h *CharacterHandler) DeleteAvatar(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
-}
-
-func (h *CharacterHandler) GetCharacterImages(c echo.Context) error {
-	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.GetCharacterImages")
-	defer span.End()
-
-	characterID, err := uuid.Parse(c.Param("id"))
-	if err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid character id")
-	}
-
-	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
-	if !ok {
-		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
-	}
-
-	images, err := h.characterUsecase.GetCharacterImages(ctx, characterID, userID)
-	if err != nil {
-		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get character images")
-	}
-
-	responses := make([]characterImageResponse, len(images))
-	for i, img := range images {
-		var thumbnailURL *string
-		if img.ThumbnailR2Path != nil {
-			u, presignErr := h.presigner.GeneratePresignedGetURL(ctx, *img.ThumbnailR2Path, usecase.PresignGetTTL)
-			if presignErr == nil {
-				thumbnailURL = &u
-			}
-		}
-		responses[i] = characterImageResponse{
-			ImageID:      img.ID.String(),
-			ImageName:    img.Title,
-			ThumbnailURL: thumbnailURL,
-		}
-	}
-
-	return c.JSON(http.StatusOK, responses)
 }
 
 func (h *CharacterHandler) presignAvatarURL(ctx context.Context, r2Path *string) (*string, error) {

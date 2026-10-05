@@ -77,7 +77,6 @@ type characterUsecase struct {
 	characterRepo    CharacterRepository
 	storage          StorageService
 	avatarUploadRepo CharacterAvatarUploadRepository
-	imageRepo        ImageRepository
 	transactor       Transactor
 	tel              *observability.Telemetry
 	bookleafClient   BookleafClient
@@ -87,7 +86,6 @@ func NewCharacterUsecase(
 	characterRepo CharacterRepository,
 	storage StorageService,
 	avatarUploadRepo CharacterAvatarUploadRepository,
-	imageRepo ImageRepository,
 	transactor Transactor,
 	tel *observability.Telemetry,
 	bookleafClient BookleafClient,
@@ -96,7 +94,6 @@ func NewCharacterUsecase(
 		characterRepo:    characterRepo,
 		storage:          storage,
 		avatarUploadRepo: avatarUploadRepo,
-		imageRepo:        imageRepo,
 		transactor:       transactor,
 		tel:              tel,
 		bookleafClient:   bookleafClient,
@@ -324,19 +321,6 @@ func (u *characterUsecase) DeleteAvatar(ctx context.Context, userID uuid.UUID, c
 	}
 
 	return nil
-}
-
-func (u *characterUsecase) GetCharacterImages(ctx context.Context, characterID uuid.UUID, userID uuid.UUID) ([]*domain.Image, error) {
-	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetCharacterImages")
-	defer span.End()
-
-	images, err := u.imageRepo.ListByCharacterID(ctx, characterID, userID)
-	if err != nil {
-		span.RecordError(err)
-		span.SetStatus(codes.Error, err.Error())
-		return nil, err
-	}
-	return images, nil
 }
 
 func (u *characterUsecase) CleanupStaleAvatarUploads(ctx context.Context, threshold time.Duration) error {

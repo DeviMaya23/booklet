@@ -13,10 +13,10 @@ describe('apiFetch', () => {
   it('attaches Authorization header with bearer token', async () => {
     const getToken = vi.fn().mockResolvedValue('test-token')
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/images'),
+      expect.stringContaining('/artpieces'),
       expect.objectContaining({
         headers: expect.objectContaining({
           Authorization: 'Bearer test-token',
@@ -28,7 +28,7 @@ describe('apiFetch', () => {
   it('sends request without Authorization header when token is undefined', async () => {
     const getToken = vi.fn().mockResolvedValue(undefined)
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     const [, options] = vi.mocked(fetch).mock.calls[0]
     expect((options?.headers as Record<string, string>)?.Authorization).toBeUndefined()
@@ -38,10 +38,10 @@ describe('apiFetch', () => {
     localStorage.setItem('booklet-maintenance-bypass', 'bypass-token')
     const getToken = vi.fn().mockResolvedValue('test-token')
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     expect(fetch).toHaveBeenCalledWith(
-      expect.stringContaining('/images'),
+      expect.stringContaining('/artpieces'),
       expect.objectContaining({
         headers: expect.objectContaining({
           'X-Booklet-Bypass': 'bypass-token',
@@ -53,7 +53,7 @@ describe('apiFetch', () => {
   it('omits X-Booklet-Bypass header when no bypass token is stored', async () => {
     const getToken = vi.fn().mockResolvedValue('test-token')
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     const [, options] = vi.mocked(fetch).mock.calls[0]
     expect((options?.headers as Record<string, string>)?.['X-Booklet-Bypass']).toBeUndefined()
@@ -65,7 +65,7 @@ describe('apiFetch', () => {
     })))
     const getToken = vi.fn().mockResolvedValue('test-token')
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     const { result } = renderHook(() => useMaintenanceActive())
     expect(result.current).toBe(true)
@@ -75,7 +75,7 @@ describe('apiFetch', () => {
     setMaintenanceActive(true)
     const getToken = vi.fn().mockResolvedValue('test-token')
 
-    await apiFetch('/images', getToken)
+    await apiFetch('/artpieces', getToken)
 
     const { result } = renderHook(() => useMaintenanceActive())
     expect(result.current).toBe(false)

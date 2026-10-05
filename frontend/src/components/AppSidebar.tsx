@@ -14,7 +14,6 @@ const navItems = [
   { label: 'Inbox', to: '/app/files' },
   { label: 'Artpieces', to: '/app/artpieces' },
   { label: 'Characters', to: '/app/characters' },
-  { label: 'Images', to: '/app/images' },
   { label: 'Artists', to: '/app/artists' },
 ]
 
