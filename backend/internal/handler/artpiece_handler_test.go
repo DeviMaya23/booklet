@@ -56,7 +56,7 @@ func (s *spyArtpieceUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.List
 func (s *spyArtpieceUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.UpdateArtpieceParams) (*domain.Artpiece, error) {
 	return s.updateResult, s.updateErr
 }
-func (s *spyArtpieceUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+func (s *spyArtpieceUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ bool) error {
 	return s.deleteErr
 }
 func (s *spyArtpieceUsecase) AttachFile(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ uuid.UUID) (*domain.Artpiece, error) {

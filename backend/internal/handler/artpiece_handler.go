@@ -19,7 +19,7 @@ type ArtpieceUsecase interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtpieceFilters) ([]*domain.Artpiece, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateArtpieceParams) (*domain.Artpiece, error)
-	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID, deleteFiles bool) error
 	AttachFile(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	DetachFile(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	SetCover(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
@@ -260,7 +260,9 @@ func (h *ArtpieceHandler) DeleteArtpiece(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	if err := h.artpieceUsecase.Delete(ctx, id, userID); err != nil {
+	deleteFiles := c.QueryParam("delete_files") == "true"
+
+	if err := h.artpieceUsecase.Delete(ctx, id, userID, deleteFiles); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "artpiece not found")
 		}

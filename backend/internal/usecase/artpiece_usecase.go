@@ -5,9 +5,11 @@ import (
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
+	"github.com/devi/booklet/internal/worker"
 	bookmime "github.com/devi/booklet/pkg/mime"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
+	"go.uber.org/zap"
 )
 
 type ArtpieceUsecase struct {
@@ -16,6 +18,7 @@ type ArtpieceUsecase struct {
 	characterRepo ArtpieceCharacterRepository
 	fileRepo      ArtpieceFileRepository
 	transactor    Transactor
+	jobInserter   JobInserter
 	tel           *observability.Telemetry
 }
 
@@ -25,6 +28,7 @@ func NewArtpieceUsecase(
 	characterRepo ArtpieceCharacterRepository,
 	fileRepo ArtpieceFileRepository,
 	transactor Transactor,
+	jobInserter JobInserter,
 	tel *observability.Telemetry,
 ) *ArtpieceUsecase {
 	return &ArtpieceUsecase{
@@ -33,6 +37,7 @@ func NewArtpieceUsecase(
 		characterRepo: characterRepo,
 		fileRepo:      fileRepo,
 		transactor:    transactor,
+		jobInserter:   jobInserter,
 		tel:           tel,
 	}
 }
@@ -158,15 +163,65 @@ func (u *ArtpieceUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.
 	return res, nil
 }
 
-func (u *ArtpieceUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+func (u *ArtpieceUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID, deleteFiles bool) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteArtpiece")
 	defer span.End()
 
-	if err := u.artpieceRepo.Delete(ctx, id, userID); err != nil {
+	if !deleteFiles {
+		if err := u.artpieceRepo.Delete(ctx, id, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return err
+		}
+		return nil
+	}
+
+	if _, err := u.artpieceRepo.GetByID(ctx, id, userID); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err
 	}
+
+	files, err := u.fileRepo.GetFilesForArtpiece(ctx, id)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	fileIDs := make([]uuid.UUID, len(files))
+	var r2Keys []string
+	for i, f := range files {
+		fileIDs[i] = f.ID
+		r2Keys = append(r2Keys, f.FileR2Path)
+		if f.ThumbnailR2Path != nil {
+			r2Keys = append(r2Keys, *f.ThumbnailR2Path)
+		}
+	}
+
+	err = u.transactor.InTransaction(ctx, func(ctx context.Context) error {
+		if len(fileIDs) > 0 {
+			if err := u.fileRepo.BulkDelete(ctx, fileIDs, userID); err != nil {
+				return err
+			}
+		}
+		return u.artpieceRepo.Delete(ctx, id, userID)
+	})
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	if len(r2Keys) > 0 {
+		if _, err := u.jobInserter.Insert(ctx, worker.PurgeR2ObjectsArgs{R2Keys: r2Keys}, nil); err != nil {
+			observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to enqueue purge_r2_objects job after artpiece delete with files",
+				zap.String("artpiece_id", id.String()),
+				zap.Error(err),
+			)
+		}
+	}
+
 	return nil
 }
 

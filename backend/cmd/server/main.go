@@ -256,7 +256,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	fileRepository := repository.NewFileRepository(db)
 	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
 	artpieceRepository := repository.NewArtpieceRepository(db)
-	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, transactor, tel)
+	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, transactor, enqueuer, tel)
 	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, enqueuer, tel)
 	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
 	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, enqueuer, tel)

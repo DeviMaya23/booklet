@@ -2,11 +2,13 @@ package usecase_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -210,13 +212,30 @@ func (f *fakeArtpieceFileRepository) GetFilesForArtpiece(_ context.Context, artp
 	return result, nil
 }
 
+func (f *fakeArtpieceFileRepository) BulkDelete(_ context.Context, ids []uuid.UUID, _ uuid.UUID) error {
+	for _, id := range ids {
+		delete(f.files, id)
+	}
+	return nil
+}
+
 func newArtpieceUsecase(
 	artpieceRepo *fakeArtpieceRepository,
 	artistRepo *fakeArtpieceArtistRepository,
 	charRepo *fakeArtpieceCharacterRepository,
 	fileRepo *fakeArtpieceFileRepository,
 ) *usecase.ArtpieceUsecase {
-	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil))
+	return newArtpieceUsecaseWithJobInserter(artpieceRepo, artistRepo, charRepo, fileRepo, &spyJobInserter{})
+}
+
+func newArtpieceUsecaseWithJobInserter(
+	artpieceRepo *fakeArtpieceRepository,
+	artistRepo *fakeArtpieceArtistRepository,
+	charRepo *fakeArtpieceCharacterRepository,
+	fileRepo *fakeArtpieceFileRepository,
+	jobInserter *spyJobInserter,
+) *usecase.ArtpieceUsecase {
+	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, &fakeTransactor{}, jobInserter, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- create tests ---
@@ -508,4 +527,104 @@ func TestSetCover_FileNotInArtpiece(t *testing.T) {
 
 	_, err := uc.SetCover(context.Background(), artpieceID, fileID, userID)
 	require.ErrorIs(t, err, usecase.ErrFileNotInArtpiece)
+}
+
+// --- delete tests ---
+
+func TestDeleteArtpiece_DeleteFilesfalse_NoFileDeletion(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID}
+
+	spy := &spyJobInserter{}
+	uc := newArtpieceUsecaseWithJobInserter(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo, spy)
+
+	err := uc.Delete(context.Background(), artpieceID, userID, false)
+
+	require.NoError(t, err)
+	assert.Nil(t, artpieceRepo.artpieces[artpieceID], "artpiece should be deleted")
+	assert.NotNil(t, fileRepo.files[fileID], "file should remain")
+	assert.Nil(t, spy.lastArgs, "no job should be enqueued")
+}
+
+func TestDeleteArtpiece_DeleteFilesTrue_WithFiles(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	thumbPath := "thumb/path"
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{
+		ID: fileID, UserID: userID, ArtpieceID: &artpieceID,
+		FileR2Path: "file/path", ThumbnailR2Path: &thumbPath,
+	}
+
+	spy := &spyJobInserter{}
+	uc := newArtpieceUsecaseWithJobInserter(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo, spy)
+
+	err := uc.Delete(context.Background(), artpieceID, userID, true)
+
+	require.NoError(t, err)
+	assert.Nil(t, artpieceRepo.artpieces[artpieceID], "artpiece should be deleted")
+	assert.Nil(t, fileRepo.files[fileID], "file should be deleted")
+	require.NotNil(t, spy.lastArgs)
+	purgeArgs, ok := spy.lastArgs.(worker.PurgeR2ObjectsArgs)
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"file/path", "thumb/path"}, purgeArgs.R2Keys)
+}
+
+func TestDeleteArtpiece_DeleteFilesTrue_NoFiles(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+
+	spy := &spyJobInserter{}
+	uc := newArtpieceUsecaseWithJobInserter(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), spy)
+
+	err := uc.Delete(context.Background(), artpieceID, userID, true)
+
+	require.NoError(t, err)
+	assert.Nil(t, artpieceRepo.artpieces[artpieceID], "artpiece should be deleted")
+	assert.Nil(t, spy.lastArgs, "no job should be enqueued when there are no files")
+}
+
+func TestDeleteArtpiece_DeleteFilesTrue_ArtpieceNotFound(t *testing.T) {
+	userID := uuid.New()
+
+	uc := newArtpieceUsecaseWithJobInserter(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), &spyJobInserter{})
+
+	err := uc.Delete(context.Background(), uuid.New(), userID, true)
+
+	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestDeleteArtpiece_DeleteFilesTrue_JobEnqueueFails_ReturnsNil(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{
+		ID: fileID, UserID: userID, ArtpieceID: &artpieceID, FileR2Path: "file/path",
+	}
+
+	spy := &spyJobInserter{returnErr: errors.New("river down")}
+	uc := newArtpieceUsecaseWithJobInserter(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo, spy)
+
+	err := uc.Delete(context.Background(), artpieceID, userID, true)
+
+	require.NoError(t, err, "enqueue failure should not surface as an error")
+	assert.Nil(t, artpieceRepo.artpieces[artpieceID], "artpiece should still be deleted")
+	assert.Nil(t, fileRepo.files[fileID], "file DB row should still be deleted")
 }

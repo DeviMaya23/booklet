@@ -36,6 +36,7 @@ type ArtpieceFileRepository interface {
 	UpdateArtpieceID(ctx context.Context, fileID uuid.UUID, artpieceID *uuid.UUID) error
 	BulkUpdateArtpieceID(ctx context.Context, fileIDs []uuid.UUID, artpieceID *uuid.UUID) error
 	GetFilesForArtpiece(ctx context.Context, artpieceID uuid.UUID) ([]*domain.File, error)
+	BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 }
 
 type ListArtpieceFilters struct {
