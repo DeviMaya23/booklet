@@ -9,11 +9,12 @@ import {
 interface ResourceCardProps {
   imageUrl?: string | null
   label: string
+  sublabel?: string
   onDeleteClick: () => void
   onClick?: () => void
 }
 
-export default function ResourceCard({ imageUrl, label, onDeleteClick, onClick }: ResourceCardProps) {
+export default function ResourceCard({ imageUrl, label, sublabel, onDeleteClick, onClick }: ResourceCardProps) {
   return (
     <div
       className={`relative aspect-square overflow-hidden rounded-lg bg-muted${onClick ? ' cursor-pointer' : ''}`}
@@ -32,7 +33,10 @@ export default function ResourceCard({ imageUrl, label, onDeleteClick, onClick }
       )}
 
       <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-2 pt-6">
-        <span className="truncate text-xs font-medium text-white">{label}</span>
+        <span className="block truncate text-xs font-medium text-white">{label}</span>
+        {sublabel && (
+          <span className="block truncate text-[10px] text-white/70">{sublabel}</span>
+        )}
       </div>
 
       <div className="absolute right-1 top-1" onClick={(e) => e.stopPropagation()}>

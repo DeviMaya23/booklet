@@ -34,11 +34,15 @@ The app shell SHALL display a persistent top bar at all times. The top bar SHALL
 - **THEN** the app SHALL log the user out and redirect to the home page
 
 ### Requirement: Sidebar navigation
-The app shell SHALL display a collapsible sidebar with navigation links to Characters, Images, and Artists. The active section SHALL be visually indicated. The sidebar SHALL be collapsible and its state SHALL persist across navigation within the session.
+The app shell SHALL display a collapsible sidebar with navigation links to Inbox, Artpieces, Characters, Images, and Artists, in that order. The active section SHALL be visually indicated. The sidebar SHALL be collapsible and its state SHALL persist across navigation within the session.
 
-#### Scenario: Sidebar shows all three nav items
+#### Scenario: Sidebar shows all nav items
 - **WHEN** an authenticated user views the app shell
-- **THEN** the sidebar SHALL display links for Characters, Images, and Artists
+- **THEN** the sidebar SHALL display links for Inbox, Artpieces, Characters, Images, and Artists in that order
+
+#### Scenario: Artpieces nav item links to gallery
+- **WHEN** an authenticated user clicks the Artpieces nav item
+- **THEN** the app SHALL navigate to `/app/artpieces`
 
 #### Scenario: Active nav item is highlighted
 - **WHEN** an authenticated user is on `/app/characters`
