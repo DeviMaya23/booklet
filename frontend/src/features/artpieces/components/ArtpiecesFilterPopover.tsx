@@ -1,18 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronDown, Filter, X } from 'lucide-react'
+import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import {
-  Combobox,
-  ComboboxInput,
-  ComboboxInputGroup,
-  ComboboxTrigger,
-  ComboboxPopup,
-  ComboboxItem,
-  ComboboxEmpty,
-  useComboboxFilter,
-} from '@/components/ui/combobox'
 import TokenInput from '@/components/TokenInput'
-import { useArtists, type Artist } from '@/features/artists/api/useArtists'
+import { type Artist } from '@/features/artists/api/useArtists'
+import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
 
 interface ArtpiecesFilterPopoverProps {
@@ -47,17 +38,11 @@ export default function ArtpiecesFilterPopover({
   onCharacterMatchChange,
 }: ArtpiecesFilterPopoverProps) {
   const [open, setOpen] = useState(false)
-  const [artistSearch, setArtistSearch] = useState('')
   const containerRef = useRef<HTMLDivElement>(null)
 
-  const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
 
-  const artists = artistsQuery.data ?? []
   const allCharacters = charactersQuery.data ?? []
-
-  const artistFilter = useComboboxFilter()
-  const filteredArtists = artists.filter((a) => artistFilter.contains(a, artistSearch, (a) => a.name))
 
   const availableCharacters = allCharacters
     .map((c) => ({ id: c.id, name: c.name }))
@@ -95,42 +80,7 @@ export default function ArtpiecesFilterPopover({
           <div className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
               <span className="text-sm font-medium">Artist</span>
-              {artistsQuery.isError ? (
-                <p className="text-sm text-destructive">Failed to load artists.</p>
-              ) : (
-                <Combobox
-                  value={selectedArtist}
-                  onValueChange={(v) => onArtistChange(v as Artist | null)}
-                  itemToStringLabel={(a) => (a as Artist).name}
-                  onInputValueChange={(v) => setArtistSearch(v)}
-                >
-                  <ComboboxInputGroup>
-                    <ComboboxInput placeholder="Search artists…" />
-                    {selectedArtist ? (
-                      <button
-                        type="button"
-                        className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                        onClick={() => { onArtistChange(null); setArtistSearch('') }}
-                        aria-label="Clear artist"
-                      >
-                        <X className="size-4" />
-                      </button>
-                    ) : (
-                      <ComboboxTrigger>
-                        <ChevronDown className="size-4" />
-                      </ComboboxTrigger>
-                    )}
-                  </ComboboxInputGroup>
-                  <ComboboxPopup>
-                    {filteredArtists.length === 0 && <ComboboxEmpty>No artists found</ComboboxEmpty>}
-                    {filteredArtists.map((artist) => (
-                      <ComboboxItem key={artist.id} value={artist}>
-                        {artist.name}
-                      </ComboboxItem>
-                    ))}
-                  </ComboboxPopup>
-                </Combobox>
-              )}
+              <ArtistCombobox value={selectedArtist} onChange={onArtistChange} />
             </div>
 
             <div className="flex flex-col gap-1.5">

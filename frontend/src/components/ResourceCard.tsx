@@ -12,13 +12,15 @@ interface ResourceCardProps {
   sublabel?: string
   onDeleteClick: () => void
   onClick?: () => void
+  onDoubleClick?: () => void
 }
 
-export default function ResourceCard({ imageUrl, label, sublabel, onDeleteClick, onClick }: ResourceCardProps) {
+export default function ResourceCard({ imageUrl, label, sublabel, onDeleteClick, onClick, onDoubleClick }: ResourceCardProps) {
   return (
     <div
-      className={`relative aspect-square overflow-hidden rounded-lg bg-muted${onClick ? ' cursor-pointer' : ''}`}
+      className={`relative aspect-square overflow-hidden rounded-lg bg-muted${onClick || onDoubleClick ? ' cursor-pointer' : ''}`}
       onClick={onClick}
+      onDoubleClick={onDoubleClick}
     >
       {imageUrl ? (
         <img

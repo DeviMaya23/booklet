@@ -8,8 +8,9 @@ export function useDeleteArtpiece() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (id: string) => {
-      const res = await apiFetch(`/artpieces/${id}`, getToken, { method: 'DELETE' })
+    mutationFn: async ({ id, deleteFiles }: { id: string; deleteFiles: boolean }) => {
+      const url = deleteFiles ? `/artpieces/${id}?delete_files=true` : `/artpieces/${id}`
+      const res = await apiFetch(url, getToken, { method: 'DELETE' })
       if (!res.ok) throw new Error('Failed to delete artpiece')
     },
     onSuccess: () => {

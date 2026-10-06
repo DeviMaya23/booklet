@@ -13,6 +13,7 @@ import { useArtpieces, ARTPIECES_QUERY_KEY } from '@/features/artpieces/api/useA
 import ArtpiecesGrid from '@/features/artpieces/components/ArtpiecesGrid'
 import ArtpiecesFilterPopover from '@/features/artpieces/components/ArtpiecesFilterPopover'
 import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
+import ArtpieceDetailView from '@/features/artpieces/components/ArtpieceDetailView'
 import { useArtpiecesFilter, type SortMode } from '@/features/artpieces/hooks/useArtpiecesFilter'
 
 const SORT_LABELS: Record<SortMode, string> = {
@@ -22,6 +23,7 @@ const SORT_LABELS: Record<SortMode, string> = {
 
 export default function ArtpiecesPage() {
   const [modalOpen, setModalOpen] = useState(false)
+  const [selectedArtpieceId, setSelectedArtpieceId] = useState<string | null>(null)
   const { data: artpieces, isLoading, isError } = useArtpieces()
   const queryClient = useQueryClient()
 
@@ -36,6 +38,20 @@ export default function ArtpiecesPage() {
 
   function handleSuccess() {
     queryClient.invalidateQueries({ queryKey: ARTPIECES_QUERY_KEY })
+  }
+
+  function handleDeleted() {
+    setSelectedArtpieceId(null)
+  }
+
+  if (selectedArtpieceId) {
+    return (
+      <ArtpieceDetailView
+        artpieceId={selectedArtpieceId}
+        onClose={() => setSelectedArtpieceId(null)}
+        onDeleted={handleDeleted}
+      />
+    )
   }
 
   return (
@@ -80,7 +96,12 @@ export default function ArtpiecesPage() {
         <p className="text-sm text-destructive">Failed to load artpieces.</p>
       )}
 
-      {!isLoading && !isError && <ArtpiecesGrid artpieces={filtered} />}
+      {!isLoading && !isError && (
+        <ArtpiecesGrid
+          artpieces={filtered}
+          onArtpieceOpen={setSelectedArtpieceId}
+        />
+      )}
 
       <ArtpieceFormModal
         open={modalOpen}

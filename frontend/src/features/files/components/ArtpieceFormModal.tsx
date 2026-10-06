@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
-import { ChevronDown, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -11,19 +11,10 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Combobox,
-  ComboboxInput,
-  ComboboxInputGroup,
-  ComboboxTrigger,
-  ComboboxPopup,
-  ComboboxItem,
-  ComboboxEmpty,
-  useComboboxFilter,
-} from '@/components/ui/combobox'
 import TokenInput from '@/components/TokenInput'
-import { useArtists, type Artist } from '@/features/artists/api/useArtists'
+import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
+import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useFiles, FILES_QUERY_KEY } from '../api/useFiles'
 import { useCreateArtpiece } from '@/features/artpieces/api/useCreateArtpiece'
@@ -45,24 +36,18 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   const [title, setTitle] = useState('')
   const [notes, setNotes] = useState('')
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
-  const [artistSearch, setArtistSearch] = useState('')
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
   const [fileIds, setFileIds] = useState<string[]>([])
   const [hasUploading, setHasUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [artistModalOpen, setArtistModalOpen] = useState(false)
 
-  const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
   const { data: inboxFiles = [] } = useFiles()
   const createArtpiece = useCreateArtpiece()
   const queryClient = useQueryClient()
 
-  const artists = artistsQuery.data ?? []
   const allCharacters = charactersQuery.data ?? []
-
-  const artistFilter = useComboboxFilter()
-  const filteredArtists = artists.filter((a) => artistFilter.contains(a, artistSearch, (a) => a.name))
 
   const availableCharacters = allCharacters
     .map((c) => ({ id: c.id, name: c.name }))
@@ -77,7 +62,6 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
     setTitle('')
     setNotes('')
     setSelectedArtist(null)
-    setArtistSearch('')
     setSelectedCharacters([])
     setFileIds([])
     setHasUploading(false)
@@ -165,28 +149,11 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
               <label className="text-sm font-medium">Artist</label>
               <div className="flex gap-2">
                 <div className="flex-1">
-                  <Combobox
+                  <ArtistCombobox
                     value={selectedArtist}
-                    onValueChange={(v) => setSelectedArtist(v as Artist | null)}
-                    itemToStringLabel={(a) => (a as Artist).name}
-                    onInputValueChange={(v) => setArtistSearch(v)}
+                    onChange={setSelectedArtist}
                     disabled={isSubmitting}
-                  >
-                    <ComboboxInputGroup>
-                      <ComboboxInput placeholder="Search artists…" />
-                      <ComboboxTrigger>
-                        <ChevronDown className="size-4" />
-                      </ComboboxTrigger>
-                    </ComboboxInputGroup>
-                    <ComboboxPopup>
-                      {filteredArtists.length === 0 && <ComboboxEmpty>No artists found</ComboboxEmpty>}
-                      {filteredArtists.map((artist) => (
-                        <ComboboxItem key={artist.id} value={artist}>
-                          {artist.name}
-                        </ComboboxItem>
-                      ))}
-                    </ComboboxPopup>
-                  </Combobox>
+                  />
                 </div>
                 <Button
                   type="button"

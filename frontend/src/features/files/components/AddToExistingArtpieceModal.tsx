@@ -11,18 +11,9 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import {
-  Combobox,
-  ComboboxInput,
-  ComboboxInputGroup,
-  ComboboxTrigger,
-  ComboboxPopup,
-  ComboboxItem,
-  ComboboxEmpty,
-  useComboboxFilter,
-} from '@/components/ui/combobox'
 import TokenInput from '@/components/TokenInput'
-import { useArtists, type Artist } from '@/features/artists/api/useArtists'
+import { type Artist } from '@/features/artists/api/useArtists'
+import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useFiles, FILES_QUERY_KEY } from '../api/useFiles'
 import { useArtpieces } from '@/features/artpieces/api/useArtpieces'
@@ -50,23 +41,17 @@ export default function AddToExistingArtpieceModal({
   const [titleSearch, setTitleSearch] = useState('')
   const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
-  const [artistSearch, setArtistSearch] = useState('')
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
   const [pickedArtpieceId, setPickedArtpieceId] = useState<string | null>(null)
 
   const { data: inboxFiles = [] } = useFiles()
   const { data: allArtpieces = [], isLoading: artpiecesLoading } = useArtpieces()
   const { data: pickedArtpiece } = useArtpiece(pickedArtpieceId)
-  const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
   const attachFiles = useAttachFilesToArtpiece()
   const queryClient = useQueryClient()
 
-  const artists = artistsQuery.data ?? []
   const allCharacters = charactersQuery.data ?? []
-
-  const artistFilter = useComboboxFilter()
-  const filteredArtists = artists.filter((a) => artistFilter.contains(a, artistSearch, (a) => a.name))
 
   const availableCharacters = allCharacters
     .map((c) => ({ id: c.id, name: c.name }))
@@ -91,7 +76,6 @@ export default function AddToExistingArtpieceModal({
     setTitleSearch('')
     setFiltersOpen(false)
     setSelectedArtist(null)
-    setArtistSearch('')
     setSelectedCharacters([])
     setPickedArtpieceId(null)
   }
@@ -227,38 +211,11 @@ export default function AddToExistingArtpieceModal({
               <div className={filtersOpen ? 'flex flex-col gap-3' : 'hidden sm:flex sm:flex-col sm:gap-3'}>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-xs text-muted-foreground">Artist</label>
-                  <Combobox
+                  <ArtistCombobox
                     value={selectedArtist}
-                    onValueChange={(v) => setSelectedArtist(v as Artist | null)}
-                    itemToStringLabel={(a) => (a as Artist).name}
-                    onInputValueChange={(v) => setArtistSearch(v)}
-                  >
-                    <ComboboxInputGroup>
-                      <ComboboxInput placeholder="Filter by artist…" />
-                      {selectedArtist ? (
-                        <button
-                          type="button"
-                          className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                          onClick={() => { setSelectedArtist(null); setArtistSearch('') }}
-                          aria-label="Clear artist filter"
-                        >
-                          <X className="size-4" />
-                        </button>
-                      ) : (
-                        <ComboboxTrigger>
-                          <ChevronDown className="size-4" />
-                        </ComboboxTrigger>
-                      )}
-                    </ComboboxInputGroup>
-                    <ComboboxPopup>
-                      {filteredArtists.length === 0 && <ComboboxEmpty>No artists found</ComboboxEmpty>}
-                      {filteredArtists.map((artist) => (
-                        <ComboboxItem key={artist.id} value={artist}>
-                          {artist.name}
-                        </ComboboxItem>
-                      ))}
-                    </ComboboxPopup>
-                  </Combobox>
+                    onChange={setSelectedArtist}
+                    placeholder="Filter by artist…"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1.5">
