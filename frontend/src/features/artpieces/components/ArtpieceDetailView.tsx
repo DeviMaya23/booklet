@@ -18,6 +18,7 @@ import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useInitFileUpload } from '@/features/files/api/useInitFileUpload'
 import { useCompleteFileUpload } from '@/features/files/api/useCompleteFileUpload'
 import { apiFetch } from '@/lib/api'
+import { stripFileExtension } from '@/features/files/lib/files'
 import ArtpieceDetailFileGrid from './ArtpieceDetailFileGrid'
 import DeleteArtpieceDialog from './DeleteArtpieceDialog'
 
@@ -123,7 +124,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         try {
           const result = await initUpload.mutateAsync({
             mimeType: file.type || 'application/octet-stream',
-            name: file.name,
+            name: stripFileExtension(file.name),
           })
           await fetch(result.upload_url, { method: 'PUT', body: file })
           await completeUpload.mutateAsync(result.id)

@@ -6,12 +6,13 @@ import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
 import { useFiles } from '../api/useFiles'
+import { stripFileExtension, validateFileName } from '../lib/files'
 
 type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
 
 type DraftFile =
   | { status: 'uploading'; clientId: string; fileName: string }
-  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState }
+  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState; nameError: string | null }
 
 interface ArtpieceFilesInputProps {
   initialFiles?: { id: string; name: string | null; notes: string | null }[]
@@ -35,6 +36,7 @@ export default function ArtpieceFilesInput({
       notes: f.notes ?? '',
       thumbnailUrl: null,
       thumbnailGenState: 'pending' as ThumbnailGenState,
+      nameError: null,
     })),
   )
   const [dragOver, setDragOver] = useState(false)
@@ -83,9 +85,10 @@ export default function ArtpieceFilesInput({
         list.map(async (file, i) => {
           const clientId = clientIds[i]
           try {
+            const strippedName = stripFileExtension(file.name)
             const result = await initUpload.mutateAsync({
               mimeType: file.type || 'application/octet-stream',
-              name: file.name,
+              name: strippedName,
             })
             await fetch(result.upload_url, { method: 'PUT', body: file })
             await completeUpload.mutateAsync(result.id)
@@ -96,10 +99,11 @@ export default function ArtpieceFilesInput({
                       status: 'uploaded' as const,
                       clientId,
                       id: result.id,
-                      name: file.name,
+                      name: strippedName,
                       notes: '',
                       thumbnailUrl: null,
                       thumbnailGenState: 'pending' as ThumbnailGenState,
+                      nameError: null,
                     }
                   : f,
               ),
@@ -144,6 +148,20 @@ export default function ArtpieceFilesInput({
   }
 
   function handleNameBlur(file: Extract<DraftFile, { status: 'uploaded' }>) {
+    const validationError = validateFileName(file.name)
+    if (validationError) {
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.clientId === file.clientId && f.status === 'uploaded' ? { ...f, nameError: validationError } : f,
+        ),
+      )
+      return
+    }
+    setFiles((prev) =>
+      prev.map((f) =>
+        f.clientId === file.clientId && f.status === 'uploaded' ? { ...f, nameError: null } : f,
+      ),
+    )
     updateFile.mutate({ id: file.id, name: file.name, notes: file.notes })
   }
 
@@ -205,14 +223,19 @@ export default function ArtpieceFilesInput({
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
                   <div className="flex gap-1.5">
-                    <Input
-                      value={file.name}
-                      placeholder="Name"
-                      disabled={disabled || thumbnailPending}
-                      onChange={(e) => updateLocalName(file.clientId, e.target.value)}
-                      onBlur={() => handleNameBlur(file)}
-                      className="flex-1"
-                    />
+                    <div className="flex flex-1 flex-col gap-0.5">
+                      <Input
+                        value={file.name}
+                        placeholder="Name"
+                        disabled={disabled || thumbnailPending}
+                        onChange={(e) => updateLocalName(file.clientId, e.target.value)}
+                        onBlur={() => handleNameBlur(file)}
+                        className={file.nameError ? 'border-destructive focus-visible:border-destructive' : ''}
+                      />
+                      {file.nameError && (
+                        <p className="text-xs text-destructive">{file.nameError}</p>
+                      )}
+                    </div>
                     <button
                       type="button"
                       className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-input hover:bg-accent"

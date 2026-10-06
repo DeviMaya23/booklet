@@ -14,6 +14,7 @@ import { useFiles } from '../api/useFiles'
 import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
+import { stripFileExtension, validateFileName } from '../lib/files'
 
 type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
 
@@ -81,9 +82,10 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
+          const strippedName = stripFileExtension(file.name)
           const result = await initUpload.mutateAsync({
             mimeType: file.type || 'application/octet-stream',
-            name: file.name,
+            name: strippedName,
           })
           await fetch(result.upload_url, { method: 'PUT', body: file })
           await completeUpload.mutateAsync(result.id)
@@ -94,7 +96,7 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
                     status: 'uploaded' as const,
                     clientId,
                     id: result.id,
-                    name: file.name,
+                    name: strippedName,
                     notes: '',
                     thumbnailUrl: null,
                     thumbnailGenState: 'pending' as ThumbnailGenState,
@@ -143,6 +145,24 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
 
   function handleFieldBlur(file: Extract<DraftFile, { status: 'uploaded' }>, field: 'name' | 'notes') {
     const errorKey = field === 'name' ? 'nameError' : 'notesError'
+
+    if (field === 'name') {
+      const validationError = validateFileName(file.name)
+      if (validationError) {
+        setFiles((prev) =>
+          prev.map((f) =>
+            f.clientId === file.clientId && f.status === 'uploaded' ? { ...f, nameError: validationError } : f,
+          ),
+        )
+        return
+      }
+      setFiles((prev) =>
+        prev.map((f) =>
+          f.clientId === file.clientId && f.status === 'uploaded' ? { ...f, nameError: null } : f,
+        ),
+      )
+    }
+
     updateFile.mutate(
       { id: file.id, name: file.name, notes: file.notes },
       {

@@ -77,7 +77,7 @@ The system SHALL render a persistent upload affordance pinned at the top of the 
 ---
 
 ### Requirement: Files sub-component — upload lifecycle
-The system SHALL manage the per-file upload flow within the modal, including thumbnail readiness and error handling.
+The system SHALL manage the per-file upload flow within the modal, including thumbnail readiness and error handling. The file extension SHALL be stripped from `File.name` before it is sent as `name` in the initiate-upload request and before the name input is pre-filled.
 
 #### Scenario: Upload completes — thumbnail pending
 - **WHEN** the complete-upload call succeeds and `thumbnail_gen_state === "pending"`
@@ -85,11 +85,11 @@ The system SHALL manage the per-file upload flow within the modal, including thu
 
 #### Scenario: Upload completes — thumbnail done
 - **WHEN** `thumbnail_gen_state` becomes `"done"` for a file
-- **THEN** the spinner is replaced with the thumbnail image and the name/notes fields become editable
+- **THEN** the spinner is replaced with the thumbnail image and the name/notes fields become editable; the name input is pre-filled with the file's name with extension stripped (e.g. `pic.jpg` → `pic`)
 
 #### Scenario: Upload completes — thumbnail failed or not applicable
 - **WHEN** `thumbnail_gen_state` becomes `"failed"` or `"not_applicable"` for a file
-- **THEN** the spinner is replaced with a fallback icon and the name/notes fields become editable
+- **THEN** the spinner is replaced with a fallback icon and the name/notes fields become editable; the name input is pre-filled with the file's name with extension stripped
 
 #### Scenario: Upload fails
 - **WHEN** any step of the upload flow (init, PUT, or complete) throws an error
@@ -115,11 +115,15 @@ The system SHALL allow the user to remove a file from the draft list without a b
 ---
 
 ### Requirement: Files sub-component — file name and notes editing
-The system SHALL allow the user to edit a file's name and notes inline, saving each change on blur.
+The system SHALL allow the user to edit a file's name and notes inline, saving each change on blur. Name inputs SHALL be validated against the shared file name validation rules before the save call is made.
 
-#### Scenario: Edit file name and blur
-- **WHEN** the user edits the name field of a file row and moves focus away
+#### Scenario: Edit file name and blur — valid value
+- **WHEN** the user edits the name field of a file row with a valid value and moves focus away
 - **THEN** `PUT /files/:id` is called with the updated name; the field shows the saved value
+
+#### Scenario: Edit file name and blur — invalid value
+- **WHEN** the user edits the name field of a file row with a forbidden character or blank value and moves focus away
+- **THEN** the name input shows a red border and an inline error message; `PUT /files/:id` is not called
 
 #### Scenario: Edit file notes and blur
 - **WHEN** the user edits the notes field of a file row and moves focus away

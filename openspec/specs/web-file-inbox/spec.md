@@ -145,11 +145,11 @@ The system SHALL open the file edit overlay when the user double-clicks a tile. 
 ---
 
 ### Requirement: Drag-and-drop upload
-The system SHALL allow the user to drop multiple files onto the grid to upload them in parallel, with immediate placeholder feedback. Each dropped file's original filename SHALL be sent as the `name` field in the initiate-upload request.
+The system SHALL allow the user to drop multiple files onto the grid to upload them in parallel, with immediate placeholder feedback. The file extension SHALL be stripped from `File.name` before it is sent as the `name` field in the initiate-upload request.
 
 #### Scenario: Dropping files onto the grid
 - **WHEN** a user drops one or more files anywhere onto the grid area
-- **THEN** each file immediately gets a shimmer placeholder tile inserted into the grid, and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel, with the browser `File.name` sent as `name` in the initiate request
+- **THEN** each file immediately gets a shimmer placeholder tile inserted into the grid, and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel, with the file's name sent as `name` in the initiate request after stripping the extension (e.g. `pic.jpg` → `pic`)
 
 #### Scenario: Upload completes — thumbnail pending
 - **WHEN** a file's complete-upload call succeeds and `thumbnail_gen_state === "pending"`

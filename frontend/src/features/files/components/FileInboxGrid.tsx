@@ -10,6 +10,7 @@ import FileDeleteDialog from './FileDeleteDialog'
 import FileTileEditOverlay from './FileTileEditOverlay'
 import { useDeleteFile } from '../api/useDeleteFile'
 import { useBulkDeleteFiles } from '../api/useBulkDeleteFiles'
+import { stripFileExtension } from '../lib/files'
 
 interface PlaceholderTile {
   clientId: string
@@ -80,7 +81,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
-          const result = await initUpload.mutateAsync({ mimeType: file.type || 'application/octet-stream', name: file.name })
+          const result = await initUpload.mutateAsync({ mimeType: file.type || 'application/octet-stream', name: stripFileExtension(file.name) })
           await fetch(result.upload_url, { method: 'PUT', body: file })
           await completeUpload.mutateAsync(result.id)
         } catch {
