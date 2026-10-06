@@ -7,6 +7,7 @@ export interface ArtpieceFile {
   id: string
   file_url: string
   thumbnail_url: string | null
+  mime_type: string
 }
 
 export interface ArtpieceDetail {

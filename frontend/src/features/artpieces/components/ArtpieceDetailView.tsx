@@ -1,17 +1,11 @@
 import { useRef, useState } from 'react'
 import { useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
-import { ChevronLeft, MoreHorizontal, X } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import TokenInput from '@/components/TokenInput'
 import { useArtpiece, artpieceQueryKey } from '../api/useArtpiece'
 import { useUpdateArtpiece } from '../api/useUpdateArtpiece'
@@ -158,11 +152,32 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     }
   }
 
+  function unsavedChangesSummary(): string | null {
+    if (!artpiece) return null
+    const parts: string[] = []
+    if (locallyRemovedIds.size > 0)
+      parts.push(`${locallyRemovedIds.size} file${locallyRemovedIds.size > 1 ? 's' : ''} will be removed`)
+    if (pendingCoverFileId && pendingCoverFileId !== artpiece.cover_file_id)
+      parts.push('cover changed')
+    const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
+    const originalArtist = cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null
+    if ((editArtist?.id ?? null) !== (originalArtist?.id ?? null)) parts.push('artist changed')
+    const originalCharIds = new Set(artpiece.characters.map((c) => c.id))
+    const editCharIds = new Set(editCharacters.map((c) => c.id))
+    const charsChanged =
+      originalCharIds.size !== editCharIds.size ||
+      [...originalCharIds].some((id) => !editCharIds.has(id))
+    if (charsChanged) parts.push('characters changed')
+    if ((editTitle.trim() || null) !== artpiece.title) parts.push('title changed')
+    if ((editNotes.trim() || null) !== artpiece.notes) parts.push('notes changed')
+    return parts.length > 0 ? `Unsaved changes: ${parts.join(', ')}` : null
+  }
+
   if (isLoading) {
     return (
       <div className="flex flex-col gap-4">
         <button onClick={onClose} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> Artpieces
         </button>
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
@@ -173,163 +188,257 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     return (
       <div className="flex flex-col gap-4">
         <button onClick={onClose} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ChevronLeft className="size-4" /> Back
+          <ArrowLeft className="size-4" /> Artpieces
         </button>
         <p className="text-sm text-destructive">Failed to load artpiece.</p>
       </div>
     )
   }
 
-  const characterNames = artpiece.characters.map((c) => c.name).join(', ')
+  const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
+  const viewArtist = cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null
+
+  const previewThumbnail =
+    mode === 'edit' && pendingCoverFileId
+      ? (artpiece.files.find((f) => f.id === pendingCoverFileId)?.thumbnail_url ?? artpiece.thumbnail_url)
+      : artpiece.thumbnail_url
+
+  const changesSummary = mode === 'edit' ? unsavedChangesSummary() : null
 
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      {mode === 'view' ? (
-        <div className="flex items-center gap-2">
-          <button
-            onClick={onClose}
-            className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-          >
-            <ChevronLeft className="size-4" />
-          </button>
-          <span className="text-lg font-semibold">{artpiece.title ?? 'Untitled'}</span>
-          <DropdownMenu>
-            <DropdownMenuTrigger className="inline-flex size-7 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none">
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent>
-              <DropdownMenuItem onClick={handleEnterEdit}>Edit</DropdownMenuItem>
-              <DropdownMenuItem variant="destructive" onClick={() => setDeleteDialogOpen(true)}>
-                Delete
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      ) : (
-        <div className="flex items-center gap-2">
-          <Input
-            value={editTitle}
-            onChange={(e) => setEditTitle(e.target.value)}
-            placeholder="Artpiece title"
-            className="w-1/2"
-            disabled={isSaving}
-          />
-          <Button onClick={handleSave} disabled={isSaving || uploadingCount > 0}>
-            Save
-          </Button>
-          <button
-            onClick={handleCancel}
-            disabled={isSaving}
-            className="inline-flex size-8 items-center justify-center rounded-md hover:bg-accent focus-visible:outline-none disabled:opacity-50"
-            aria-label="Cancel"
-          >
-            <X className="size-4" />
-          </button>
-        </div>
-      )}
+      {/* Back link */}
+      <button
+        onClick={onClose}
+        className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+      >
+        <ArrowLeft className="size-4" /> Artpieces
+      </button>
 
-      {/* Fields */}
-      {mode === 'view' ? (
-        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <div>
-              <p className="text-sm font-medium mb-1">Notes</p>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{artpiece.notes ?? '—'}</p>
+      {/* Two-column layout: details | cover */}
+      <div className="grid grid-cols-1 gap-6 sm:grid-cols-[1fr_360px]">
+        {/* Left column */}
+        <div className="flex flex-col gap-4">
+          {mode === 'view' ? (
+            /* View mode header */
+            <div className="flex items-center gap-2">
+              <span className="text-2xl font-bold">{artpiece.title ?? 'Untitled'}</span>
+              <Button variant="outline" size="sm" onClick={handleEnterEdit}>
+                Edit
+              </Button>
             </div>
-            <div>
-              <p className="text-sm font-medium mb-1">Characters</p>
-              <p className="text-sm text-muted-foreground">{characterNames || '—'}</p>
+          ) : (
+            /* Edit mode header */
+            <div className="flex flex-col gap-1">
+              <div className="flex items-center gap-2">
+                <Input
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Artpiece title"
+                  className="text-xl font-bold"
+                  disabled={isSaving}
+                />
+                <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
+                  Cancel
+                </Button>
+                <Button onClick={handleSave} disabled={isSaving || uploadingCount > 0}>
+                  Save
+                </Button>
+              </div>
+              {changesSummary && (
+                <p className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  <span className="size-2 shrink-0 rounded-full bg-amber-500" />
+                  {changesSummary}
+                </p>
+              )}
             </div>
-          </div>
-          <div>
-            <p className="text-sm font-medium mb-1">Artist</p>
-            <p className="text-sm text-muted-foreground">{artpiece.artist_name ?? '—'}</p>
-          </div>
+          )}
+
+          {mode === 'view' ? (
+            /* View mode fields */
+            <div className="flex flex-col gap-4">
+              <div className="flex flex-wrap gap-x-8 gap-y-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Artist</p>
+                  {artpiece.artist_name ? (
+                    <div className="mt-1 flex items-center gap-1">
+                      <span className="text-sm">{artpiece.artist_name}</span>
+                      {viewArtist?.artist_link && (
+                        <a
+                          href={viewArtist.artist_link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-muted-foreground hover:text-foreground"
+                        >
+                          <ExternalLink className="size-3.5" />
+                        </a>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">—</p>
+                  )}
+                </div>
+
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Characters</p>
+                  {artpiece.characters.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {artpiece.characters.map((c) => (
+                        <span
+                          key={c.id}
+                          className="rounded-md bg-muted px-2 py-0.5 text-sm"
+                        >
+                          {c.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">—</p>
+                  )}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p>
+                <p className="mt-1 text-sm whitespace-pre-wrap">{artpiece.notes ?? '—'}</p>
+              </div>
+            </div>
+          ) : (
+            /* Edit mode fields */
+            <div className="flex flex-col gap-4">
+              <div className="grid grid-cols-2 gap-3">
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Artist</label>
+                  <ArtistCombobox value={editArtist} onChange={setEditArtist} disabled={isSaving} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium">Characters</label>
+                  <TokenInput
+                    items={editCharacters}
+                    onChange={setEditCharacters}
+                    suggestions={availableCharacters}
+                    placeholder="Search characters…"
+                    disabled={isSaving}
+                  />
+                </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Notes</label>
+                <Textarea
+                  value={editNotes}
+                  onChange={(e) => setEditNotes(e.target.value)}
+                  placeholder="Notes about this artpiece…"
+                  rows={4}
+                  disabled={isSaving}
+                />
+              </div>
+            </div>
+          )}
         </div>
-      ) : (
-        <div className="grid gap-x-6 gap-y-4 sm:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            {/* Notes */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Notes</label>
-              <Textarea
-                value={editNotes}
-                onChange={(e) => setEditNotes(e.target.value)}
-                placeholder="Notes about this artpiece…"
-                rows={3}
-                disabled={isSaving}
-              />
-            </div>
-            {/* Characters */}
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium">Characters</label>
-              <TokenInput
-                items={editCharacters}
-                onChange={setEditCharacters}
-                suggestions={availableCharacters}
-                placeholder="Search characters…"
-                disabled={isSaving}
-              />
-            </div>
+
+        {/* Right column — cover tile */}
+        <div className="flex flex-col gap-2">
+          <div className="aspect-square w-full overflow-hidden rounded-xl bg-muted">
+            {previewThumbnail ? (
+              <img src={previewThumbnail} alt="" className="h-full w-full object-contain" />
+            ) : (
+              <div className="flex h-full w-full items-center justify-center text-muted-foreground text-sm">
+                No cover
+              </div>
+            )}
           </div>
-          {/* Artist */}
-          <div className="flex flex-col gap-1.5">
-            <label className="text-sm font-medium">Artist</label>
-            <ArtistCombobox value={editArtist} onChange={setEditArtist} disabled={isSaving} />
-          </div>
-        </div>
-      )}
-
-      {/* Files section */}
-      <div className="flex flex-col gap-3">
-        <p className="text-sm font-medium">Files</p>
-
-        <div className="flex flex-col gap-3 rounded-lg border border-border p-4">
-        {mode === 'edit' && (
-          <>
-            <button
-              type="button"
-              className={`flex w-full cursor-pointer items-center justify-center rounded-lg border border-dashed border-border py-3 text-sm text-muted-foreground transition-colors hover:bg-muted/50 ${dragOver ? 'ring-2 ring-ring bg-muted/50' : ''}`}
-              onClick={() => fileInputRef.current?.click()}
-              onDragOver={(e) => { e.preventDefault(); setDragOver(true) }}
-              onDragLeave={() => setDragOver(false)}
-              onDrop={handleDrop}
-              disabled={isSaving}
-            >
-              {dragOver ? 'Drop to add' : uploadingCount > 0 ? `Uploading ${uploadingCount} file${uploadingCount > 1 ? 's' : ''}…` : 'Drag files or pick'}
-            </button>
-            <input
-              ref={fileInputRef}
-              type="file"
-              multiple
-              className="hidden"
-              onChange={handleFileInputChange}
-            />
-          </>
-        )}
-
-        {mode === 'view' ? (
-          <ArtpieceDetailFileGrid
-            files={artpiece.files}
-            coverFileId={artpiece.cover_file_id}
-            mode="view"
-          />
-        ) : (
-          <ArtpieceDetailFileGrid
-            files={artpiece.files}
-            coverFileId={artpiece.cover_file_id}
-            mode="edit"
-            locallyRemovedIds={locallyRemovedIds}
-            pendingCoverFileId={pendingCoverFileId}
-            onSetCover={(fileId) => setPendingCoverFileId(fileId)}
-            onRemove={(fileId) =>
-              setLocallyRemovedIds((prev) => new Set([...prev, fileId]))
-            }
-          />
-        )}
+          {mode === 'edit' && (
+            <p className="text-center text-xs text-muted-foreground">
+              Cover preview. Change it with the ☆ on a file below.
+            </p>
+          )}
         </div>
       </div>
+
+      {/* Files section — full width */}
+      <div className="flex flex-col gap-3">
+        <div className="flex items-center justify-between">
+          <p className="text-sm font-medium">
+            Files{' '}
+            <span className="ml-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
+              {artpiece.files.length}
+            </span>
+          </p>
+          {mode === 'view' ? (
+            <Button variant="outline" size="sm" disabled className="gap-1.5">
+              <Download className="size-3.5" />
+              Download all
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isSaving}
+            >
+              + Add files
+            </Button>
+          )}
+        </div>
+
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileInputChange}
+        />
+
+        <div className="rounded-lg border border-border p-4">
+          {mode === 'view' ? (
+            <ArtpieceDetailFileGrid
+              files={artpiece.files}
+              coverFileId={artpiece.cover_file_id}
+              mode="view"
+            />
+          ) : (
+            <ArtpieceDetailFileGrid
+              files={artpiece.files}
+              coverFileId={artpiece.cover_file_id}
+              mode="edit"
+              locallyRemovedIds={locallyRemovedIds}
+              pendingCoverFileId={pendingCoverFileId}
+              onSetCover={(fileId) => setPendingCoverFileId(fileId)}
+              onRemove={(fileId) =>
+                setLocallyRemovedIds((prev) => new Set([...prev, fileId]))
+              }
+              onUndoRemove={(fileId) =>
+                setLocallyRemovedIds((prev) => {
+                  const next = new Set(prev)
+                  next.delete(fileId)
+                  return next
+                })
+              }
+              onAddFiles={() => fileInputRef.current?.click()}
+              dragHandlers={{
+                dragOver,
+                onDragOver: (e) => { e.preventDefault(); setDragOver(true) },
+                onDragLeave: () => setDragOver(false),
+                onDrop: handleDrop,
+              }}
+              uploadingCount={uploadingCount}
+            />
+          )}
+        </div>
+      </div>
+
+      {/* Delete link — edit mode only */}
+      {mode === 'edit' && (
+        <button
+          type="button"
+          className="flex w-fit items-center gap-1.5 text-sm text-destructive hover:text-destructive/80 focus-visible:outline-none"
+          onClick={() => setDeleteDialogOpen(true)}
+          disabled={isSaving}
+        >
+          Delete artpiece
+        </button>
+      )}
 
       <DeleteArtpieceDialog
         artpieceId={artpieceId}

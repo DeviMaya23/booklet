@@ -1,21 +1,4 @@
-## Purpose
-
-Defines the artpiece detail view — an inline panel rendered within the Artpieces page when an artpiece is selected, providing view and edit modes for metadata and file management.
-
-## Requirements
-
-### Requirement: Open artpiece detail view
-The system SHALL render an inline artpiece detail view within the Artpieces page when an artpiece is selected. No route change occurs.
-
-#### Scenario: Open via double-click
-- **WHEN** an authenticated user double-clicks an artpiece card in the gallery
-- **THEN** the detail view SHALL replace the gallery grid display, showing the selected artpiece's details in view mode
-
-#### Scenario: Close via back chevron
-- **WHEN** the user clicks the back chevron in the detail view
-- **THEN** the detail view SHALL close and the gallery grid SHALL be shown again
-
----
+## MODIFIED Requirements
 
 ### Requirement: View mode layout
 The detail view in view mode SHALL display the artpiece's metadata and file thumbnails in a two-column layout: details on the left, cover preview on the right.
@@ -152,24 +135,3 @@ The detail view SHALL provide a "Delete artpiece" text link at the bottom of the
 #### Scenario: Cancelled deletion does nothing
 - **WHEN** the user dismisses the delete dialog
 - **THEN** no API call is made and the detail view remains in edit mode
-
----
-
-### Requirement: Delete artpiece dialog
-A shared `DeleteArtpieceDialog` component SHALL be used for all artpiece delete confirmations. It includes a checkbox for optionally deleting attached files, which maps to the `?delete_files=true` query parameter.
-
-#### Scenario: Dialog with file count
-- **WHEN** the dialog is opened with a known file count greater than zero
-- **THEN** the checkbox label SHALL read "Also delete X attached files"
-
-#### Scenario: Dialog without file count
-- **WHEN** the dialog is opened without a file count (e.g., from the gallery card where count is unavailable)
-- **THEN** the checkbox label SHALL read "Also delete attached files"
-
-#### Scenario: Checkbox unchecked — files detached only
-- **WHEN** the user confirms deletion with the checkbox unchecked
-- **THEN** `DELETE /artpieces/:id` SHALL be called (no `delete_files` param); files remain as unattached inbox files
-
-#### Scenario: Checkbox checked — files also deleted
-- **WHEN** the user confirms deletion with the checkbox checked
-- **THEN** `DELETE /artpieces/:id?delete_files=true` SHALL be called; files are permanently deleted along with the artpiece

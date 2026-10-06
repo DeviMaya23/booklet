@@ -68,6 +68,7 @@ type fileRef struct {
 	ID           string  `json:"id"`
 	FileURL      string  `json:"file_url"`
 	ThumbnailURL *string `json:"thumbnail_url"`
+	MimeType     string  `json:"mime_type"`
 }
 
 type artpieceResponse struct {
@@ -166,6 +167,7 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 			ID:           f.ID.String(),
 			FileURL:      fileURL,
 			ThumbnailURL: thumbURL,
+			MimeType:     f.MimeType,
 		})
 	}
 	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, fileRefs))
