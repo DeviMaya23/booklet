@@ -31,21 +31,25 @@ The system SHALL provide a modal that lets the user attach a set of already-sele
 - **WHEN** the search term matches no artpiece titles
 - **THEN** the results area shows an empty state and no artpiece preview is shown
 
-#### Scenario: Filters section collapsed by default
-- **WHEN** the modal opens
-- **THEN** the Filters section is collapsed and shows only the "Filters ▽" toggle
+#### Scenario: Filter button opens panel
+- **WHEN** the user clicks the Filter button beside the search input
+- **THEN** the filter panel SHALL open showing the Artist combobox and Characters token input
 
-#### Scenario: Filters section expanded
-- **WHEN** the user clicks the "Filters ▽" toggle
-- **THEN** the filters section expands to show an Artist dropdown and a Characters chip multi-select
+#### Scenario: Filter button closes panel
+- **WHEN** the filter panel is open and the user clicks outside it or presses Escape
+- **THEN** the panel SHALL close without resetting filter values
+
+#### Scenario: Filter button shows active filter summary
+- **WHEN** at least one filter is active
+- **THEN** the Filter button SHALL display a summary label instead of "Filter"
 
 #### Scenario: Artist filter
 - **WHEN** the user selects an artist in the Artist filter
 - **THEN** the artpiece list is filtered client-side to include only artpieces by that artist
 
-#### Scenario: Characters filter
+#### Scenario: Characters filter — ANY match
 - **WHEN** the user selects one or more characters in the Characters filter
-- **THEN** the artpiece list is filtered client-side to include only artpieces that include all selected characters
+- **THEN** the artpiece list is filtered client-side to include only artpieces featuring at least one of the selected characters (ANY logic)
 
 #### Scenario: Combined filters
 - **WHEN** the user has both a title search and one or more filters active simultaneously

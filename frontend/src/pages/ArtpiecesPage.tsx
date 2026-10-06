@@ -11,7 +11,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { useArtpieces, ARTPIECES_QUERY_KEY } from '@/features/artpieces/api/useArtpieces'
 import ArtpiecesGrid from '@/features/artpieces/components/ArtpiecesGrid'
-import ArtpiecesFilterPopover from '@/features/artpieces/components/ArtpiecesFilterPopover'
+import ArtistCharacterFilter from '@/components/ArtistCharacterFilter'
 import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
 import ArtpieceDetailView from '@/features/artpieces/components/ArtpieceDetailView'
 import { useArtpiecesFilter, type SortMode } from '@/features/artpieces/hooks/useArtpiecesFilter'
@@ -64,10 +64,10 @@ export default function ArtpiecesPage() {
           className="max-w-sm"
         />
 
-        <ArtpiecesFilterPopover
-          selectedArtist={selectedArtist}
+        <ArtistCharacterFilter
+          artist={selectedArtist}
           onArtistChange={setSelectedArtist}
-          selectedCharacters={selectedCharacters}
+          characters={selectedCharacters}
           onCharactersChange={setSelectedCharacters}
           characterMatch={characterMatch}
           onCharacterMatchChange={setCharacterMatch}

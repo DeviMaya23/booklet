@@ -17,9 +17,8 @@ import { Calendar } from '@/components/ui/calendar'
 import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
-import TokenInput from '@/components/TokenInput'
+import ArtistCharacterFilter from '@/components/ArtistCharacterFilter'
 import { useArtpieces } from '@/features/artpieces/api/useArtpieces'
-import { useCharacters } from '@/features/characters/api/useCharacters'
 import { type Commission } from '../api/useCommissions'
 import { useCommission, type CommissionArtpieceSummary } from '../api/useCommission'
 import { useCreateCommission } from '../api/useCreateCommission'
@@ -60,7 +59,6 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
   const [finishDate, setFinishDate] = useState<Date | undefined>()
 
   const [artpiecesOpen, setArtpiecesOpen] = useState(false)
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [stripItems, setStripItems] = useState<CommissionArtpieceSummary[]>([])
   const [search, setSearch] = useState('')
   const [filterArtist, setFilterArtist] = useState<Artist | null>(null)
@@ -71,8 +69,6 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
   const initialArtpieceIds = useRef<string[]>([])
 
   const artpiecesQuery = useArtpieces()
-  const charactersQuery = useCharacters()
-  const allCharacters = charactersQuery.isError ? [] : (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
   const createCommission = useCreateCommission()
   const updateCommission = useUpdateCommission()
   const replaceArtpieces = useReplaceArtpieces()
@@ -102,7 +98,6 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
     setPaidDate(undefined)
     setFinishDate(undefined)
     setArtpiecesOpen(false)
-    setFiltersOpen(false)
     setStripItems([])
     setSearch('')
     setFilterArtist(null)
@@ -419,12 +414,20 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
                     </div>
                   )}
 
-                  {/* Search */}
-                  <Input
-                    placeholder="Search by title…"
-                    value={search}
-                    onChange={(e) => setSearch(e.target.value)}
-                  />
+                  {/* Search + Filter */}
+                  <div className="flex gap-2">
+                    <Input
+                      placeholder="Search by title…"
+                      value={search}
+                      onChange={(e) => setSearch(e.target.value)}
+                    />
+                    <ArtistCharacterFilter
+                      artist={filterArtist}
+                      onArtistChange={setFilterArtist}
+                      characters={filterCharacters}
+                      onCharactersChange={setFilterCharacters}
+                    />
+                  </div>
 
                   {/* Search results */}
                   <div className="flex flex-col gap-1 max-h-40 overflow-y-auto">
@@ -453,40 +456,6 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
                           </button>
                         ))
                       )}
-                  </div>
-
-                  {/* Inline filter disclosure */}
-                  <div className="flex flex-col gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setFiltersOpen((v) => !v)}
-                      className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
-                    >
-                      Filters
-                      {filtersOpen ? <ChevronDown className="size-3.5" /> : <ChevronRight className="size-3.5" />}
-                    </button>
-
-                    {filtersOpen && (
-                      <div className="flex flex-col gap-3">
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs font-medium text-muted-foreground">Artist</span>
-                          <ArtistCombobox value={filterArtist} onChange={setFilterArtist} placeholder="Filter by artist…" />
-                        </div>
-                        <div className="flex flex-col gap-1">
-                          <span className="text-xs font-medium text-muted-foreground">Characters</span>
-                          {charactersQuery.isError ? (
-                            <p className="text-xs text-destructive">Failed to load characters.</p>
-                          ) : (
-                            <TokenInput
-                              items={filterCharacters}
-                              onChange={setFilterCharacters}
-                              suggestions={allCharacters.filter((c) => !filterCharacters.some((fc) => fc.id === c.id))}
-                              placeholder="Filter by character…"
-                            />
-                          )}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               )}

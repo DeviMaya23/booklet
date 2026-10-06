@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronUp, FileIcon, ImageIcon, X } from 'lucide-react'
+import { FileIcon, ImageIcon, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
@@ -11,19 +11,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import TokenInput from '@/components/TokenInput'
 import { type Artist } from '@/features/artists/api/useArtists'
-import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
-import { useCharacters } from '@/features/characters/api/useCharacters'
+import ArtistCharacterFilter from '@/components/ArtistCharacterFilter'
 import { useFiles, FILES_QUERY_KEY } from '../api/useFiles'
 import { useArtpieces } from '@/features/artpieces/api/useArtpieces'
 import { useArtpiece, type ArtpieceDetail } from '@/features/artpieces/api/useArtpiece'
 import { useAttachFilesToArtpiece } from '@/features/artpieces/api/useAttachFilesToArtpiece'
-
-interface CharacterToken {
-  id: string
-  name: string
-}
 
 interface AddToExistingArtpieceModalProps {
   open: boolean
@@ -39,23 +32,15 @@ export default function AddToExistingArtpieceModal({
   onSuccess,
 }: AddToExistingArtpieceModalProps) {
   const [titleSearch, setTitleSearch] = useState('')
-  const [filtersOpen, setFiltersOpen] = useState(false)
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
-  const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
+  const [selectedCharacters, setSelectedCharacters] = useState<{ id: string; name: string }[]>([])
   const [pickedArtpieceId, setPickedArtpieceId] = useState<string | null>(null)
 
   const { data: inboxFiles = [] } = useFiles()
   const { data: allArtpieces = [], isLoading: artpiecesLoading } = useArtpieces()
   const { data: pickedArtpiece } = useArtpiece(pickedArtpieceId)
-  const charactersQuery = useCharacters()
   const attachFiles = useAttachFilesToArtpiece()
   const queryClient = useQueryClient()
-
-  const allCharacters = charactersQuery.data ?? []
-
-  const availableCharacters = allCharacters
-    .map((c) => ({ id: c.id, name: c.name }))
-    .filter((c) => !selectedCharacters.some((sc) => sc.id === c.id))
 
   const filteredArtpieces = allArtpieces.filter((a) => {
     if (titleSearch.trim()) {
@@ -65,7 +50,7 @@ export default function AddToExistingArtpieceModal({
     if (selectedArtist && a.artist_id !== selectedArtist.id) return false
     if (selectedCharacters.length > 0) {
       const artpieceCharIds = a.characters.map((c) => c.id)
-      if (!selectedCharacters.every((sc) => artpieceCharIds.includes(sc.id))) return false
+      if (!selectedCharacters.some((sc) => artpieceCharIds.includes(sc.id))) return false
     }
     return true
   })
@@ -74,7 +59,6 @@ export default function AddToExistingArtpieceModal({
 
   function resetState() {
     setTitleSearch('')
-    setFiltersOpen(false)
     setSelectedArtist(null)
     setSelectedCharacters([])
     setPickedArtpieceId(null)
@@ -152,11 +136,19 @@ export default function AddToExistingArtpieceModal({
           <div className="flex min-h-0 flex-col gap-3 sm:pl-6">
             <div className="flex flex-col gap-2 sm:min-h-0 sm:flex-1">
               <label className="text-sm font-medium">Artpiece</label>
-              <Input
-                placeholder="Search by title"
-                value={titleSearch}
-                onChange={(e) => setTitleSearch(e.target.value)}
-              />
+              <div className="flex gap-2">
+                <Input
+                  placeholder="Search by title"
+                  value={titleSearch}
+                  onChange={(e) => setTitleSearch(e.target.value)}
+                />
+                <ArtistCharacterFilter
+                  artist={selectedArtist}
+                  onArtistChange={setSelectedArtist}
+                  characters={selectedCharacters}
+                  onCharactersChange={setSelectedCharacters}
+                />
+              </div>
 
               {/* Results — mobile: only when typing; desktop: always visible, fills height */}
               <div className={`${titleSearch.trim() ? 'flex' : 'hidden'} max-h-48 flex-col overflow-y-auto rounded-md border sm:flex sm:max-h-none sm:flex-1`}>
@@ -191,44 +183,6 @@ export default function AddToExistingArtpieceModal({
               )}
             </div>
 
-            {/* Filters */}
-            <div className="flex flex-col gap-2">
-              <hr className="border-border" />
-
-              {/* Toggle button — mobile only */}
-              <button
-                type="button"
-                className="flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground sm:hidden"
-                onClick={() => setFiltersOpen((v) => !v)}
-              >
-                Filters
-                {filtersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-              </button>
-
-              {/* Static label — desktop only */}
-              <p className="hidden text-sm font-medium sm:block">Filters</p>
-
-              <div className={filtersOpen ? 'flex flex-col gap-3' : 'hidden sm:flex sm:flex-col sm:gap-3'}>
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-muted-foreground">Artist</label>
-                  <ArtistCombobox
-                    value={selectedArtist}
-                    onChange={setSelectedArtist}
-                    placeholder="Filter by artist…"
-                  />
-                </div>
-
-                <div className="flex flex-col gap-1.5">
-                  <label className="text-xs text-muted-foreground">Characters</label>
-                  <TokenInput
-                    items={selectedCharacters}
-                    onChange={setSelectedCharacters}
-                    suggestions={availableCharacters}
-                    placeholder="Filter by character…"
-                  />
-                </div>
-              </div>
-            </div>
 
           </div>
         </div>
