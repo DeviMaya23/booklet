@@ -8,6 +8,7 @@ import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import TokenInput from '@/components/TokenInput'
 import { useArtpiece, artpieceQueryKey } from '../api/useArtpiece'
+import { useDownloadArtpiece } from '../api/useDownloadArtpiece'
 import { useUpdateArtpiece } from '../api/useUpdateArtpiece'
 import { useSetCover } from '../api/useSetCover'
 import { useAttachFilesToArtpiece } from '../api/useAttachFilesToArtpiece'
@@ -54,6 +55,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const updateArtpiece = useUpdateArtpiece()
   const setCoverMutation = useSetCover()
   const replaceFiles = useAttachFilesToArtpiece()
+  const downloadArtpiece = useDownloadArtpiece()
   const initUpload = useInitFileUpload()
   const completeUpload = useCompleteFileUpload()
 
@@ -365,7 +367,18 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
             </span>
           </p>
           {mode === 'view' ? (
-            <Button variant="outline" size="sm" disabled className="gap-1.5">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              disabled={downloadArtpiece.isPending}
+              onClick={() =>
+                downloadArtpiece.mutate(
+                  { id: artpiece.id, title: artpiece.title },
+                  { onError: () => toast.error('Failed to download files') },
+                )
+              }
+            >
               <Download className="size-3.5" />
               Download all
             </Button>

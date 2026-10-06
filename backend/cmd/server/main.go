@@ -256,7 +256,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	fileRepository := repository.NewFileRepository(db)
 	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
 	artpieceRepository := repository.NewArtpieceRepository(db)
-	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, transactor, enqueuer, tel)
+	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, r2Storage, transactor, enqueuer, tel)
 	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, enqueuer, tel)
 	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
 	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, enqueuer, tel)
@@ -343,6 +343,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/artpieces/:id/files/:file_id", artpieceHandler.DetachFile)
 	protected.PUT("/artpieces/:id/cover", artpieceHandler.SetCover)
 	protected.PUT("/artpieces/:id/files", artpieceHandler.ReplaceFiles)
+	protected.GET("/artpieces/:id/download", artpieceHandler.DownloadFiles)
 
 	protected.POST("/commissions", commissionHandler.CreateCommission)
 	protected.GET("/commissions", commissionHandler.ListCommissions)

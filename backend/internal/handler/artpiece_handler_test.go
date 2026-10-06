@@ -3,6 +3,7 @@ package handler_test
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -70,6 +71,9 @@ func (s *spyArtpieceUsecase) SetCover(_ context.Context, _ uuid.UUID, _ uuid.UUI
 }
 func (s *spyArtpieceUsecase) ReplaceFiles(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ []uuid.UUID) (*domain.Artpiece, error) {
 	return nil, nil
+}
+func (s *spyArtpieceUsecase) DownloadFiles(_ context.Context, _ *domain.Artpiece, _ io.Writer) error {
+	return nil
 }
 
 func makeArtpiece() *domain.Artpiece {

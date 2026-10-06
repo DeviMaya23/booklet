@@ -1,0 +1,11 @@
+meta {
+  name: Download All Artpiece Files
+  type: http
+  seq: 11
+}
+
+get {
+  url: {{baseUrl}}/artpieces/{{artpieceId}}/download
+  body: none
+  auth: inherit
+}

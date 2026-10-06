@@ -3,14 +3,18 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
+	"io"
 	"net/http"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/handler/middleware"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
+	bookmime "github.com/devi/booklet/pkg/mime"
 	"github.com/google/uuid"
 	"github.com/labstack/echo/v4"
+	"go.uber.org/zap"
 	"gorm.io/gorm"
 )
 
@@ -24,6 +28,7 @@ type ArtpieceUsecase interface {
 	DetachFile(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	SetCover(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
 	ReplaceFiles(ctx context.Context, artpieceID uuid.UUID, userID uuid.UUID, fileIDs []uuid.UUID) (*domain.Artpiece, error)
+	DownloadFiles(ctx context.Context, artpiece *domain.Artpiece, w io.Writer) error
 }
 
 type ArtpieceHandler struct {
@@ -409,6 +414,46 @@ func (h *ArtpieceHandler) SetCover(c echo.Context) error {
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
 	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+}
+
+func (h *ArtpieceHandler) DownloadFiles(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.DownloadFiles")
+	defer span.End()
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid artpiece id")
+	}
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	artpiece, err := h.artpieceUsecase.GetByID(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "artpiece not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get artpiece")
+	}
+
+	zipName := "artpiece.zip"
+	if artpiece.Title != nil && *artpiece.Title != "" {
+		zipName = bookmime.SanitizeFilename(*artpiece.Title) + ".zip"
+	}
+
+	c.Response().Header().Set("Content-Type", "application/zip")
+	c.Response().Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="%s"`, zipName))
+	c.Response().WriteHeader(http.StatusOK)
+
+	if err := h.artpieceUsecase.DownloadFiles(ctx, artpiece, c.Response()); err != nil {
+		observability.LoggerFromContext(ctx, h.tel.Logger).Error("error streaming artpiece zip",
+			zap.String("artpiece_id", id.String()),
+			zap.Error(err),
+		)
+	}
+	return nil
 }
 
 func (h *ArtpieceHandler) presignCoverThumbnail(ctx context.Context, a *domain.Artpiece) (*string, error) {

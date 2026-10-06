@@ -1,7 +1,10 @@
 package usecase
 
 import (
+	"archive/zip"
 	"context"
+	"fmt"
+	"io"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
@@ -17,6 +20,7 @@ type ArtpieceUsecase struct {
 	artistRepo    ArtpieceArtistRepository
 	characterRepo ArtpieceCharacterRepository
 	fileRepo      ArtpieceFileRepository
+	objectStorage ArtpieceObjectGetter
 	transactor    Transactor
 	jobInserter   JobInserter
 	tel           *observability.Telemetry
@@ -27,6 +31,7 @@ func NewArtpieceUsecase(
 	artistRepo ArtpieceArtistRepository,
 	characterRepo ArtpieceCharacterRepository,
 	fileRepo ArtpieceFileRepository,
+	objectStorage ArtpieceObjectGetter,
 	transactor Transactor,
 	jobInserter JobInserter,
 	tel *observability.Telemetry,
@@ -36,6 +41,7 @@ func NewArtpieceUsecase(
 		artistRepo:    artistRepo,
 		characterRepo: characterRepo,
 		fileRepo:      fileRepo,
+		objectStorage: objectStorage,
 		transactor:    transactor,
 		jobInserter:   jobInserter,
 		tel:           tel,
@@ -502,4 +508,60 @@ func (u *ArtpieceUsecase) setCoverFromFileSet(ctx context.Context, artpieceID uu
 	}
 	coverID := files[0].ID
 	return u.artpieceRepo.UpdateCover(ctx, artpieceID, &coverID)
+}
+
+func (u *ArtpieceUsecase) DownloadFiles(ctx context.Context, artpiece *domain.Artpiece, w io.Writer) error {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DownloadFiles")
+	defer span.End()
+
+	base := "artpiece"
+	if artpiece.Title != nil && *artpiece.Title != "" {
+		base = bookmime.SanitizeFilename(*artpiece.Title)
+	}
+
+	logger := observability.LoggerFromContext(ctx, u.tel.Logger)
+	zw := zip.NewWriter(w)
+
+	for i := range artpiece.Files {
+		f := &artpiece.Files[i]
+		entryName := fmt.Sprintf("%s-%d%s", base, i+1, bookmime.MimeTypeToExt(f.MimeType))
+
+		rc, err := u.objectStorage.GetObject(ctx, f.FileR2Path)
+		if err != nil {
+			logger.Error("failed to get object for zip entry",
+				zap.String("artpiece_id", artpiece.ID.String()),
+				zap.String("file_id", f.ID.String()),
+				zap.Int("index", i+1),
+				zap.Error(err),
+			)
+			_ = zw.Close()
+			return err
+		}
+
+		entry, err := zw.Create(entryName)
+		if err != nil {
+			_ = rc.Close()
+			logger.Error("failed to create zip entry",
+				zap.String("artpiece_id", artpiece.ID.String()),
+				zap.String("entry_name", entryName),
+				zap.Error(err),
+			)
+			_ = zw.Close()
+			return err
+		}
+
+		if _, err := io.Copy(entry, rc); err != nil {
+			_ = rc.Close()
+			logger.Error("failed to copy file to zip entry",
+				zap.String("artpiece_id", artpiece.ID.String()),
+				zap.String("entry_name", entryName),
+				zap.Error(err),
+			)
+			_ = zw.Close()
+			return err
+		}
+		_ = rc.Close()
+	}
+
+	return zw.Close()
 }

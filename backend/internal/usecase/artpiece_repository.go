@@ -3,10 +3,15 @@ package usecase
 import (
 	"context"
 	"errors"
+	"io"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/google/uuid"
 )
+
+type ArtpieceObjectGetter interface {
+	GetObject(ctx context.Context, key string) (io.ReadCloser, error)
+}
 
 type ArtpieceRepository interface {
 	Create(ctx context.Context, a *domain.Artpiece) (*domain.Artpiece, error)

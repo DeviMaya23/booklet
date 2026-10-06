@@ -42,7 +42,7 @@ The detail view in view mode SHALL display the artpiece's metadata and file thum
 
 #### Scenario: Files section header
 - **WHEN** the detail view is open in view mode
-- **THEN** the files section header SHALL show the file count and a "Download all" button; the button SHALL be present but non-functional (no-op) until download support is implemented
+- **THEN** the files section header SHALL show the file count and a functional "Download all" button; clicking the button SHALL trigger a zip download of all attached files via the `GET /artpieces/:id/download` endpoint
 
 #### Scenario: Open edit mode from Edit button
 - **WHEN** the user clicks the "Edit" button in view mode

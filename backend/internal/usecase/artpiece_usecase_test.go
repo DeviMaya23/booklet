@@ -1,8 +1,11 @@
 package usecase_test
 
 import (
+	"archive/zip"
+	"bytes"
 	"context"
 	"errors"
+	"io"
 	"testing"
 
 	"github.com/devi/booklet/internal/domain"
@@ -219,6 +222,23 @@ func (f *fakeArtpieceFileRepository) BulkDelete(_ context.Context, ids []uuid.UU
 	return nil
 }
 
+type fakeArtpieceObjectGetter struct {
+	objects  map[string][]byte
+	returnErr error
+}
+
+func newFakeArtpieceObjectGetter() *fakeArtpieceObjectGetter {
+	return &fakeArtpieceObjectGetter{objects: make(map[string][]byte)}
+}
+
+func (f *fakeArtpieceObjectGetter) GetObject(_ context.Context, key string) (io.ReadCloser, error) {
+	if f.returnErr != nil {
+		return nil, f.returnErr
+	}
+	data := f.objects[key]
+	return io.NopCloser(bytes.NewReader(data)), nil
+}
+
 func newArtpieceUsecase(
 	artpieceRepo *fakeArtpieceRepository,
 	artistRepo *fakeArtpieceArtistRepository,
@@ -235,7 +255,18 @@ func newArtpieceUsecaseWithJobInserter(
 	fileRepo *fakeArtpieceFileRepository,
 	jobInserter *spyJobInserter,
 ) *usecase.ArtpieceUsecase {
-	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, &fakeTransactor{}, jobInserter, observability.NewTelemetry(nil, nil, nil))
+	return newArtpieceUsecaseWithStorage(artpieceRepo, artistRepo, charRepo, fileRepo, newFakeArtpieceObjectGetter(), jobInserter)
+}
+
+func newArtpieceUsecaseWithStorage(
+	artpieceRepo *fakeArtpieceRepository,
+	artistRepo *fakeArtpieceArtistRepository,
+	charRepo *fakeArtpieceCharacterRepository,
+	fileRepo *fakeArtpieceFileRepository,
+	objectStorage *fakeArtpieceObjectGetter,
+	jobInserter *spyJobInserter,
+) *usecase.ArtpieceUsecase {
+	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, objectStorage, &fakeTransactor{}, jobInserter, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- create tests ---
@@ -627,4 +658,108 @@ func TestDeleteArtpiece_DeleteFilesTrue_JobEnqueueFails_ReturnsNil(t *testing.T)
 	require.NoError(t, err, "enqueue failure should not surface as an error")
 	assert.Nil(t, artpieceRepo.artpieces[artpieceID], "artpiece should still be deleted")
 	assert.Nil(t, fileRepo.files[fileID], "file DB row should still be deleted")
+}
+
+// --- download files tests ---
+
+func TestDownloadFiles_WithFiles(t *testing.T) {
+	artpieceID := uuid.New()
+	title := "My Artpiece"
+
+	storage := newFakeArtpieceObjectGetter()
+	file1ID := uuid.New()
+	file2ID := uuid.New()
+	file1Contents := []byte("image data")
+	file2Contents := []byte("pdf data")
+	storage.objects["r2/file1"] = file1Contents
+	storage.objects["r2/file2"] = file2Contents
+
+	artpiece := &domain.Artpiece{
+		ID:    artpieceID,
+		Title: &title,
+		Files: []domain.File{
+			{ID: file1ID, ArtpieceID: &artpieceID, MimeType: "image/jpeg", FileR2Path: "r2/file1"},
+			{ID: file2ID, ArtpieceID: &artpieceID, MimeType: "application/pdf", FileR2Path: "r2/file2"},
+		},
+	}
+
+	uc := newArtpieceUsecaseWithStorage(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), storage, &spyJobInserter{})
+
+	var buf bytes.Buffer
+	err := uc.DownloadFiles(context.Background(), artpiece, &buf)
+	require.NoError(t, err)
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	require.NoError(t, err)
+	require.Len(t, zr.File, 2)
+	assert.Equal(t, "My Artpiece-1.jpg", zr.File[0].Name)
+	assert.Equal(t, "My Artpiece-2.pdf", zr.File[1].Name)
+
+	rc, _ := zr.File[0].Open()
+	got, _ := io.ReadAll(rc)
+	_ = rc.Close()
+	assert.Equal(t, file1Contents, got)
+}
+
+func TestDownloadFiles_NoFiles_EmptyZip(t *testing.T) {
+	artpiece := &domain.Artpiece{ID: uuid.New(), Files: []domain.File{}}
+
+	uc := newArtpieceUsecaseWithStorage(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), newFakeArtpieceObjectGetter(), &spyJobInserter{})
+
+	var buf bytes.Buffer
+	err := uc.DownloadFiles(context.Background(), artpiece, &buf)
+	require.NoError(t, err)
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	require.NoError(t, err)
+	assert.Len(t, zr.File, 0)
+}
+
+func TestDownloadFiles_NilTitle_FallbackFilenames(t *testing.T) {
+	artpieceID := uuid.New()
+	fileID := uuid.New()
+	storage := newFakeArtpieceObjectGetter()
+	storage.objects["r2/file1"] = []byte("data")
+
+	artpiece := &domain.Artpiece{
+		ID:    artpieceID,
+		Title: nil,
+		Files: []domain.File{
+			{ID: fileID, ArtpieceID: &artpieceID, MimeType: "image/png", FileR2Path: "r2/file1"},
+		},
+	}
+
+	uc := newArtpieceUsecaseWithStorage(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), storage, &spyJobInserter{})
+
+	var buf bytes.Buffer
+	err := uc.DownloadFiles(context.Background(), artpiece, &buf)
+	require.NoError(t, err)
+
+	zr, err := zip.NewReader(bytes.NewReader(buf.Bytes()), int64(buf.Len()))
+	require.NoError(t, err)
+	require.Len(t, zr.File, 1)
+	assert.Equal(t, "artpiece-1.png", zr.File[0].Name)
+}
+
+func TestDownloadFiles_R2Error(t *testing.T) {
+	artpieceID := uuid.New()
+	fileID := uuid.New()
+	title := "My Artpiece"
+
+	storage := newFakeArtpieceObjectGetter()
+	storage.returnErr = errors.New("r2 unavailable")
+
+	artpiece := &domain.Artpiece{
+		ID:    artpieceID,
+		Title: &title,
+		Files: []domain.File{
+			{ID: fileID, ArtpieceID: &artpieceID, MimeType: "image/png", FileR2Path: "r2/file1"},
+		},
+	}
+
+	uc := newArtpieceUsecaseWithStorage(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository(), storage, &spyJobInserter{})
+
+	var buf bytes.Buffer
+	err := uc.DownloadFiles(context.Background(), artpiece, &buf)
+	require.EqualError(t, err, "r2 unavailable")
 }
