@@ -14,6 +14,7 @@ function makeArtpiece(overrides: Partial<ArtpieceSummary>): ArtpieceSummary {
     artist_id: null,
     artist_name: null,
     cover_file_id: null,
+    commission_id: null,
     thumbnail_url: null,
     notes: null,
     characters: [],

@@ -13,6 +13,7 @@ export interface ArtpieceSummary {
   artist_id: string | null
   artist_name: string | null
   cover_file_id: string | null
+  commission_id: string | null
   thumbnail_url: string | null
   notes: string | null
   characters: ArtpieceCharacter[]

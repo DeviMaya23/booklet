@@ -5,6 +5,7 @@ import { ChevronLeft, MoreHorizontal, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -252,13 +253,12 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
             {/* Notes */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium">Notes</label>
-              <textarea
+              <Textarea
                 value={editNotes}
                 onChange={(e) => setEditNotes(e.target.value)}
                 placeholder="Notes about this artpiece…"
                 rows={3}
                 disabled={isSaving}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
             {/* Characters */}

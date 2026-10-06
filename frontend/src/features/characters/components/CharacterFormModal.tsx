@@ -6,6 +6,7 @@ import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -345,14 +346,13 @@ export default function CharacterFormModal({
               <label className="text-sm font-medium" htmlFor="character-notes">
                 Notes
               </label>
-              <textarea
+              <Textarea
                 id="character-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Notes about this character..."
                 rows={4}
                 disabled={isPending}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 

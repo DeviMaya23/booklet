@@ -1,14 +1,34 @@
 import { useState } from 'react'
-import { ArrowLeftRight } from 'lucide-react'
+import { ArrowLeftRight, Plus } from 'lucide-react'
+import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
-import { useCommissions } from '@/features/commissions/api/useCommissions'
+import { useCommissions, type Commission } from '@/features/commissions/api/useCommissions'
+import { useDeleteCommission } from '@/features/commissions/api/useDeleteCommission'
 import CommissionsTable from '@/features/commissions/components/CommissionsTable'
+import CommissionFormModal from '@/features/commissions/components/CommissionFormModal'
+import DeleteCommissionDialog from '@/features/commissions/components/DeleteCommissionDialog'
 
 type View = 'active' | 'done'
 
 export default function CommissionsPage() {
   const [view, setView] = useState<View>('active')
   const { data: commissions, isLoading, isError } = useCommissions()
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [editTarget, setEditTarget] = useState<Commission | null>(null)
+  const [deleteTarget, setDeleteTarget] = useState<Commission | null>(null)
+
+  const deleteCommission = useDeleteCommission()
+
+  async function handleDeleteConfirm() {
+    if (!deleteTarget) return
+    try {
+      await deleteCommission.mutateAsync(deleteTarget.id)
+      setDeleteTarget(null)
+    } catch {
+      toast.error('Failed to delete commission')
+    }
+  }
 
   const filtered = (commissions ?? []).filter(c =>
     view === 'active'
@@ -29,8 +49,9 @@ export default function CommissionsPage() {
           </span>
           <ArrowLeftRight className="size-4 text-muted-foreground" />
         </button>
-        <Button variant="outline" disabled>
-          + New Commission
+        <Button onClick={() => setCreateOpen(true)}>
+          <Plus className="size-4" />
+          New Commission
         </Button>
       </div>
 
@@ -42,7 +63,34 @@ export default function CommissionsPage() {
       )}
 
       {!isLoading && !isError && filtered.length > 0 && (
-        <CommissionsTable commissions={filtered} view={view} />
+        <CommissionsTable
+          commissions={filtered}
+          view={view}
+          onEdit={(c) => setEditTarget(c)}
+          onDelete={(c) => setDeleteTarget(c)}
+        />
+      )}
+
+      <CommissionFormModal
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        mode="create"
+      />
+
+      <CommissionFormModal
+        open={editTarget !== null}
+        onOpenChange={(open) => { if (!open) setEditTarget(null) }}
+        mode="edit"
+        commission={editTarget ?? undefined}
+      />
+
+      {deleteTarget && (
+        <DeleteCommissionDialog
+          open={deleteTarget !== null}
+          onOpenChange={(open) => { if (!open) setDeleteTarget(null) }}
+          onConfirm={handleDeleteConfirm}
+          isPending={deleteCommission.isPending}
+        />
       )}
     </div>
   )

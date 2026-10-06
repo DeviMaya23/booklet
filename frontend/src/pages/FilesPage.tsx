@@ -50,21 +50,23 @@ export default function FilesPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        {selection.size > 0 && (
-          <DropdownMenu>
-            <DropdownMenuTrigger className="ml-auto inline-flex items-center gap-1 rounded-md border px-3 py-2 text-sm font-medium hover:bg-accent">
-              Add to artpiece <ChevronDown className="h-4 w-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onClick={() => openNewArtpieceModal(Array.from(selection))}>
-                New Artpiece
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => openAddToArtpieceModal(Array.from(selection))}>
-                Add to Existing Artpiece
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        )}
+        <div className="flex-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={selection.size === 0}
+            className="inline-flex h-9 items-center gap-1.5 rounded-md border border-input bg-background px-3 text-sm shadow-xs hover:bg-accent hover:text-accent-foreground focus-visible:outline-none disabled:pointer-events-none disabled:opacity-50"
+          >
+            Add to artpiece <ChevronDown className="size-4" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem onClick={() => openNewArtpieceModal(Array.from(selection))}>
+              New Artpiece
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => openAddToArtpieceModal(Array.from(selection))}>
+              Add to Existing Artpiece
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
 
       {!isLoading && (

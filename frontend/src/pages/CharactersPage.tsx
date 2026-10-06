@@ -71,9 +71,10 @@ export default function CharactersPage() {
           onChange={(e) => setSearch(e.target.value)}
           className="max-w-sm"
         />
-        <Button variant="outline" className="ml-auto" onClick={handleNewClick}>
-          <Plus />
-          New
+        <div className="flex-1" />
+        <Button onClick={handleNewClick}>
+          <Plus className="size-4" />
+          New Character
         </Button>
       </div>
 

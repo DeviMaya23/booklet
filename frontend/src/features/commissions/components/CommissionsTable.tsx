@@ -1,10 +1,8 @@
-import { ExternalLink, RefreshCw, ChevronUp, ChevronDown, AlertCircle, CalendarIcon } from 'lucide-react'
+import { ExternalLink, RefreshCw, ChevronUp, ChevronDown, AlertCircle, CalendarIcon, Pencil, Trash2 } from 'lucide-react'
+import StatusChip from './StatusChip'
 import {
   Table, TableHeader, TableBody, TableHead, TableRow, TableCell,
 } from '@/components/ui/table'
-import {
-  DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem,
-} from '@/components/ui/dropdown-menu'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import { Calendar } from '@/components/ui/calendar'
@@ -17,12 +15,12 @@ import { useCommissionsSort, type SortKey, type SortDir } from '../hooks/useComm
 import { useCellErrors } from '../hooks/useCellErrors'
 import { useCommissionActions } from '../hooks/useCommissionActions'
 
-const STATUS_OPTIONS = ['waitlist', 'wip', 'done'] as const
-const STATUS_LABELS: Record<string, string> = { waitlist: 'Waitlist', wip: 'WIP', done: 'Done' }
 
 interface CommissionsTableProps {
   commissions: Commission[]
   view: 'active' | 'done'
+  onEdit: (commission: Commission) => void
+  onDelete: (commission: Commission) => void
 }
 
 function SortIcon({ column, sortKey, sortDir }: { column: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -57,7 +55,7 @@ function CellError({ show }: CellErrorProps) {
   return <AlertCircle className="size-3.5 text-destructive shrink-0" aria-label="Save failed" />
 }
 
-export default function CommissionsTable({ commissions, view }: CommissionsTableProps) {
+export default function CommissionsTable({ commissions, view, onEdit, onDelete }: CommissionsTableProps) {
   const { sorted, sortKey, sortDir, toggleSort } = useCommissionsSort(commissions)
   const { setCellError, hasCellError } = useCellErrors()
   const patchCommission = usePatchCommission()
@@ -79,6 +77,7 @@ export default function CommissionsTable({ commissions, view }: CommissionsTable
             ? <SortableHead label="Last Contact" column="last_contacted_at" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
             : <SortableHead label="Time Taken" column="time_taken" sortKey={sortKey} sortDir={sortDir} onToggle={toggleSort} />
           }
+          <TableHead><span className="sr-only">Actions</span></TableHead>
         </TableRow>
       </TableHeader>
       <TableBody className="text-xs">
@@ -112,23 +111,11 @@ export default function CommissionsTable({ commissions, view }: CommissionsTable
               {/* Status */}
               <TableCell>
                 <span className="inline-flex items-center gap-1">
-                  <DropdownMenu>
-                    <DropdownMenuTrigger className={[
-                      'inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium transition-colors',
-                      'border hover:bg-muted',
-                      hasCellError(commission.id, 'status') ? 'border-destructive' : 'border-border',
-                    ].join(' ')}>
-                      {STATUS_LABELS[commission.status] ?? commission.status}
-                      <ChevronDown className="size-3 opacity-60" />
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent>
-                      {STATUS_OPTIONS.map(s => (
-                        <DropdownMenuItem key={s} onClick={() => patchStatus(commission.id, s)}>
-                          {STATUS_LABELS[s]}
-                        </DropdownMenuItem>
-                      ))}
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <StatusChip
+                    value={commission.status}
+                    onChange={(s) => patchStatus(commission.id, s)}
+                    hasError={hasCellError(commission.id, 'status')}
+                  />
                   <CellError show={hasCellError(commission.id, 'status')} />
                 </span>
               </TableCell>
@@ -207,6 +194,31 @@ export default function CommissionsTable({ commissions, view }: CommissionsTable
                   </span>
                 </TableCell>
               )}
+
+              {/* Actions */}
+              <TableCell>
+                <span className="inline-flex items-center gap-1">
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    type="button"
+                    onClick={() => onEdit(commission)}
+                    aria-label="Edit commission"
+                  >
+                    <Pencil className="size-3.5" />
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    type="button"
+                    onClick={() => onDelete(commission)}
+                    aria-label="Delete commission"
+                    className="text-muted-foreground hover:text-destructive"
+                  >
+                    <Trash2 className="size-3.5" />
+                  </Button>
+                </span>
+              </TableCell>
             </TableRow>
           )
         })}

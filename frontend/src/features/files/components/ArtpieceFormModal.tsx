@@ -4,6 +4,7 @@ import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import { Textarea } from '@/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -133,14 +134,13 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
               <label className="text-sm font-medium" htmlFor="artpiece-notes">
                 Notes
               </label>
-              <textarea
+              <Textarea
                 id="artpiece-notes"
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 placeholder="Notes about this artpiece..."
                 rows={3}
                 disabled={isSubmitting}
-                className="flex w-full rounded-md border border-input bg-transparent px-3 py-2 text-sm shadow-xs outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px] disabled:cursor-not-allowed disabled:opacity-50"
               />
             </div>
 
