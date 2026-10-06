@@ -177,6 +177,23 @@ func (u *CommissionUsecase) Update(ctx context.Context, id uuid.UUID, userID uui
 	return res, nil
 }
 
+func (u *CommissionUsecase) Patch(ctx context.Context, id uuid.UUID, userID uuid.UUID, params PatchCommissionParams) (*domain.Commission, error) {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.PatchCommission")
+	defer span.End()
+
+	if params.Status != nil && !isValidCommissionStatus(*params.Status) {
+		return nil, ErrInvalidCommissionStatus
+	}
+
+	res, err := u.commissionRepo.Patch(ctx, id, userID, params)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return res, nil
+}
+
 func (u *CommissionUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.DeleteCommission")
 	defer span.End()

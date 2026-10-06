@@ -1,0 +1,20 @@
+meta {
+  name: Patch Commission
+  type: http
+  seq: 5
+}
+
+patch {
+  url: {{baseUrl}}/commissions/{{commissionId}}
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "status": "wip",
+    "paid": true,
+    "paid_date": "2024-10-06",
+    "last_contacted_at": "2024-10-06T12:00:00Z"
+  }
+}

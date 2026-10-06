@@ -20,6 +20,7 @@ type Commission struct {
 	Artist     *Artist     `gorm:"foreignKey:ArtistID"`
 	Characters []Character `gorm:"many2many:commission_characters;"`
 	Artpieces  []Artpiece  `gorm:"foreignKey:CommissionID"`
-	CreatedAt  time.Time   `gorm:"column:created_at"`
-	UpdatedAt  time.Time   `gorm:"column:updated_at"`
+	LastContactedAt *time.Time  `gorm:"column:last_contacted_at"`
+	CreatedAt       time.Time   `gorm:"column:created_at"`
+	UpdatedAt       time.Time   `gorm:"column:updated_at"`
 }

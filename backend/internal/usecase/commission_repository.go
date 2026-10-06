@@ -23,6 +23,7 @@ type CommissionRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Commission, error)
 	List(ctx context.Context, userID uuid.UUID) ([]*domain.Commission, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateCommissionParams) (*domain.Commission, error)
+	Patch(ctx context.Context, id uuid.UUID, userID uuid.UUID, params PatchCommissionParams) (*domain.Commission, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }
 
@@ -64,6 +65,13 @@ type UpdateCommissionParams struct {
 	FinishDate   *string
 	Notes        *string
 	CharacterIDs []uuid.UUID
+}
+
+type PatchCommissionParams struct {
+	Status          *string
+	Paid            *bool
+	PaidDate        *string
+	LastContactedAt *string
 }
 
 var (

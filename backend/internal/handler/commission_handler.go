@@ -20,6 +20,7 @@ type CommissionUsecase interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Commission, error)
 	List(ctx context.Context, userID uuid.UUID) ([]*domain.Commission, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateCommissionParams) (*domain.Commission, error)
+	Patch(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.PatchCommissionParams) (*domain.Commission, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 	AttachArtpieces(ctx context.Context, commissionID uuid.UUID, userID uuid.UUID, artpieceIDs []uuid.UUID) (*domain.Commission, error)
 	DetachArtpieces(ctx context.Context, commissionID uuid.UUID, userID uuid.UUID, artpieceIDs []uuid.UUID) (*domain.Commission, error)
@@ -80,18 +81,20 @@ type commissionCharacterRef struct {
 }
 
 type commissionResponse struct {
-	ID           string                   `json:"id"`
-	Title        *string                  `json:"title"`
-	ArtistID     *string                  `json:"artist_id"`
-	ArtistName   *string                  `json:"artist_name"`
-	Status       string                   `json:"status"`
-	Price        *float64                 `json:"price"`
-	Paid         bool                     `json:"paid"`
-	PaidDate     *string                  `json:"paid_date"`
-	FinishDate   *string                  `json:"finish_date"`
-	Notes        *string                  `json:"notes"`
-	Characters   []commissionCharacterRef `json:"characters"`
-	Artpieces    []artpieceSummary        `json:"artpieces,omitempty"`
+	ID              string                   `json:"id"`
+	Title           *string                  `json:"title"`
+	ArtistID        *string                  `json:"artist_id"`
+	ArtistName      *string                  `json:"artist_name"`
+	ArtistLink      *string                  `json:"artist_link"`
+	Status          string                   `json:"status"`
+	Price           *float64                 `json:"price"`
+	Paid            bool                     `json:"paid"`
+	PaidDate        *string                  `json:"paid_date"`
+	FinishDate      *string                  `json:"finish_date"`
+	LastContactedAt *string                  `json:"last_contacted_at"`
+	Notes           *string                  `json:"notes"`
+	Characters      []commissionCharacterRef `json:"characters"`
+	Artpieces       []artpieceSummary        `json:"artpieces,omitempty"`
 	CreatedAt    string                   `json:"created_at"`
 	UpdatedAt    string                   `json:"updated_at"`
 }
@@ -153,6 +156,52 @@ func (h *CommissionHandler) GetCommissionByID(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusNotFound, "commission not found")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get commission")
+	}
+
+	resp, err := h.toCommissionResponse(ctx, commission)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to build response")
+	}
+	return c.JSON(http.StatusOK, resp)
+}
+
+type patchCommissionRequest struct {
+	Status          *string `json:"status"          validate:"omitempty,oneof=waitlist wip done"`
+	Paid            *bool   `json:"paid"`
+	PaidDate        *string `json:"paid_date"        validate:"omitempty,datetime=2006-01-02"`
+	LastContactedAt *string `json:"last_contacted_at" validate:"omitempty,datetime=2006-01-02T15:04:05Z07:00"`
+}
+
+func (h *CommissionHandler) PatchCommission(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.PatchCommission")
+	defer span.End()
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid commission id")
+	}
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	var req patchCommissionRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if err := c.Validate(&req); err != nil {
+		return echo.NewHTTPError(http.StatusUnprocessableEntity, validationErrResponse(err))
+	}
+
+	commission, err := h.commissionUsecase.Patch(ctx, id, userID, usecase.PatchCommissionParams{
+		Status:          req.Status,
+		Paid:            req.Paid,
+		PaidDate:        req.PaidDate,
+		LastContactedAt: req.LastContactedAt,
+	})
+	if err != nil {
+		return h.mapCommissionError(err)
 	}
 
 	resp, err := h.toCommissionResponse(ctx, commission)
@@ -366,30 +415,39 @@ func (h *CommissionHandler) toCommissionResponse(ctx context.Context, c *domain.
 		artpieces = append(artpieces, summary)
 	}
 
-	var artistID, artistName *string
+	var artistID, artistName, artistLink *string
 	if c.ArtistID != nil {
 		s := c.ArtistID.String()
 		artistID = &s
 	}
 	if c.Artist != nil {
 		artistName = &c.Artist.Name
+		artistLink = c.Artist.ArtistLink
+	}
+
+	var lastContactedAt *string
+	if c.LastContactedAt != nil {
+		s := c.LastContactedAt.Format("2006-01-02T15:04:05Z07:00")
+		lastContactedAt = &s
 	}
 
 	return commissionResponse{
-		ID:         c.ID.String(),
-		Title:      c.Title,
-		ArtistID:   artistID,
-		ArtistName: artistName,
-		Status:     c.Status,
-		Price:      c.Price,
-		Paid:       c.Paid,
-		PaidDate:   formatDate(c.PaidDate),
-		FinishDate: formatDate(c.FinishDate),
-		Notes:      c.Notes,
-		Characters: chars,
-		Artpieces:  artpieces,
-		CreatedAt:  c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:  c.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:              c.ID.String(),
+		Title:           c.Title,
+		ArtistID:        artistID,
+		ArtistName:      artistName,
+		ArtistLink:      artistLink,
+		Status:          c.Status,
+		Price:           c.Price,
+		Paid:            c.Paid,
+		PaidDate:        formatDate(c.PaidDate),
+		FinishDate:      formatDate(c.FinishDate),
+		LastContactedAt: lastContactedAt,
+		Notes:           c.Notes,
+		Characters:      chars,
+		Artpieces:       artpieces,
+		CreatedAt:       c.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:       c.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}, nil
 }
 

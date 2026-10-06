@@ -59,6 +59,20 @@ func (f *fakeCommissionRepository) Update(_ context.Context, id uuid.UUID, userI
 	return c, nil
 }
 
+func (f *fakeCommissionRepository) Patch(_ context.Context, id uuid.UUID, userID uuid.UUID, params usecase.PatchCommissionParams) (*domain.Commission, error) {
+	c, ok := f.commissions[id]
+	if !ok || c.UserID != userID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	if params.Status != nil {
+		c.Status = *params.Status
+	}
+	if params.Paid != nil {
+		c.Paid = *params.Paid
+	}
+	return c, nil
+}
+
 func (f *fakeCommissionRepository) Delete(_ context.Context, id uuid.UUID, userID uuid.UUID) error {
 	c, ok := f.commissions[id]
 	if !ok || c.UserID != userID {
@@ -492,4 +506,85 @@ func TestReplaceArtpieces_ArtpieceBelongingToOtherCommissionRejects(t *testing.T
 
 	require.ErrorIs(t, err, usecase.ErrArtpieceAlreadyAttached)
 	assert.Equal(t, &otherCommissionID, conflictingArtpiece.CommissionID)
+}
+
+// --- Patch tests ---
+
+func TestPatchCommission_InvalidStatus(t *testing.T) {
+	userID := uuid.New()
+	commissionRepo := newFakeCommissionRepository()
+	commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWaitlist}
+	commissionRepo.commissions[commission.ID] = commission
+
+	uc := newCommissionUsecase(commissionRepo, newFakeCommissionArtistRepository(), newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+	status := "invalid"
+
+	_, err := uc.Patch(context.Background(), commission.ID, userID, usecase.PatchCommissionParams{
+		Status: &status,
+	})
+
+	require.ErrorIs(t, err, usecase.ErrInvalidCommissionStatus)
+}
+
+func TestPatchCommission_NotFound(t *testing.T) {
+	userID := uuid.New()
+	uc := newCommissionUsecase(newFakeCommissionRepository(), newFakeCommissionArtistRepository(), newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+	status := usecase.CommissionStatusWIP
+
+	_, err := uc.Patch(context.Background(), uuid.New(), userID, usecase.PatchCommissionParams{
+		Status: &status,
+	})
+
+	require.Error(t, err)
+}
+
+func TestPatchCommission_PatchStatus(t *testing.T) {
+	userID := uuid.New()
+	commissionRepo := newFakeCommissionRepository()
+	commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWaitlist}
+	commissionRepo.commissions[commission.ID] = commission
+
+	uc := newCommissionUsecase(commissionRepo, newFakeCommissionArtistRepository(), newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+	status := usecase.CommissionStatusWIP
+
+	updated, err := uc.Patch(context.Background(), commission.ID, userID, usecase.PatchCommissionParams{
+		Status: &status,
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, usecase.CommissionStatusWIP, updated.Status)
+}
+
+func TestPatchCommission_PatchPaidTrue(t *testing.T) {
+	userID := uuid.New()
+	commissionRepo := newFakeCommissionRepository()
+	commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWIP, Paid: false}
+	commissionRepo.commissions[commission.ID] = commission
+
+	uc := newCommissionUsecase(commissionRepo, newFakeCommissionArtistRepository(), newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+	paid := true
+
+	updated, err := uc.Patch(context.Background(), commission.ID, userID, usecase.PatchCommissionParams{
+		Paid: &paid,
+	})
+
+	require.NoError(t, err)
+	assert.True(t, updated.Paid)
+}
+
+func TestPatchCommission_PatchPaidFalse(t *testing.T) {
+	userID := uuid.New()
+	commissionRepo := newFakeCommissionRepository()
+	commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWIP, Paid: true}
+	commissionRepo.commissions[commission.ID] = commission
+
+	uc := newCommissionUsecase(commissionRepo, newFakeCommissionArtistRepository(), newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+	paid := false
+
+	updated, err := uc.Patch(context.Background(), commission.ID, userID, usecase.PatchCommissionParams{
+		Paid: &paid,
+	})
+
+	require.NoError(t, err)
+	assert.False(t, updated.Paid)
 }

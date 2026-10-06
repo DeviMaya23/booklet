@@ -13,6 +13,7 @@ import {
 const navItems = [
   { label: 'Inbox', to: '/app/files' },
   { label: 'Artpieces', to: '/app/artpieces' },
+  { label: 'Commissions', to: '/app/commissions' },
   { label: 'Characters', to: '/app/characters' },
   { label: 'Artists', to: '/app/artists' },
 ]

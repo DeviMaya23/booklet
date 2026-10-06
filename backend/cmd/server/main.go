@@ -348,6 +348,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/commissions", commissionHandler.ListCommissions)
 	protected.GET("/commissions/:id", commissionHandler.GetCommissionByID)
 	protected.PUT("/commissions/:id", commissionHandler.UpdateCommission)
+	protected.PATCH("/commissions/:id", commissionHandler.PatchCommission)
 	protected.DELETE("/commissions/:id", commissionHandler.DeleteCommission)
 	protected.POST("/commissions/:id/artpieces", commissionHandler.AttachArtpieces)
 	protected.DELETE("/commissions/:id/artpieces", commissionHandler.DetachArtpieces)

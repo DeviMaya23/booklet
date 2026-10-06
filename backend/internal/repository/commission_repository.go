@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/usecase"
@@ -84,6 +85,42 @@ func (r *commissionRepository) Update(ctx context.Context, id uuid.UUID, userID 
 	}
 	if err := dbFromContext(ctx, r.db).Model(&c).Association("Characters").Replace(characters); err != nil {
 		return nil, fmt.Errorf("replace characters: %w", err)
+	}
+
+	return r.GetByID(ctx, id, userID)
+}
+
+func (r *commissionRepository) Patch(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.PatchCommissionParams) (*domain.Commission, error) {
+	var c domain.Commission
+	err := dbFromContext(ctx, r.db).
+		Where("id = ? AND user_id = ?", id, userID).
+		First(&c).Error
+	if err != nil {
+		return nil, fmt.Errorf("get commission: %w", err)
+	}
+
+	updates := make(map[string]interface{})
+	if params.Status != nil {
+		updates["status"] = *params.Status
+	}
+	if params.Paid != nil {
+		updates["paid"] = *params.Paid
+	}
+	if params.PaidDate != nil {
+		updates["paid_date"] = timeutil.ParseDate(params.PaidDate)
+	}
+	if params.LastContactedAt != nil {
+		t, err := time.Parse(time.RFC3339, *params.LastContactedAt)
+		if err != nil {
+			return nil, fmt.Errorf("invalid last_contacted_at: %w", err)
+		}
+		updates["last_contacted_at"] = t
+	}
+
+	if len(updates) > 0 {
+		if err := dbFromContext(ctx, r.db).Model(&c).Updates(updates).Error; err != nil {
+			return nil, fmt.Errorf("patch commission: %w", err)
+		}
 	}
 
 	return r.GetByID(ctx, id, userID)

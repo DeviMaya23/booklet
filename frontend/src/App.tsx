@@ -9,6 +9,7 @@ import CharactersPage from './pages/CharactersPage'
 import ArtistsPage from './pages/ArtistsPage'
 import FilesPage from './pages/FilesPage'
 import ArtpiecesPage from './pages/ArtpiecesPage'
+import CommissionsPage from './pages/CommissionsPage'
 
 export default function App() {
   return (
@@ -25,6 +26,7 @@ export default function App() {
             <Route path="/app/artists" element={<ArtistsPage />} />
             <Route path="/app/files" element={<FilesPage />} />
             <Route path="/app/artpieces" element={<ArtpiecesPage />} />
+            <Route path="/app/commissions" element={<CommissionsPage />} />
           </Route>
         </Route>
       </Route>
