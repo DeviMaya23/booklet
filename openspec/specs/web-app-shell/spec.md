@@ -34,20 +34,16 @@ The app shell SHALL display a persistent top bar at all times. The top bar SHALL
 - **THEN** the app SHALL log the user out and redirect to the home page
 
 ### Requirement: Sidebar navigation
-The app shell SHALL display a collapsible sidebar with navigation links to Inbox, Artpieces, Characters, Images, and Artists, in that order. The active section SHALL be visually indicated. The sidebar SHALL be collapsible and its state SHALL persist across navigation within the session.
+The app shell SHALL display a fixed (non-collapsible) sidebar. The sidebar SHALL contain an Inbox count card and two grouped sets of navigation links as defined in the `web-nav-sidebar` spec. The active section SHALL be visually indicated per the active row style defined in `web-nav-sidebar`.
 
-#### Scenario: Sidebar shows all nav items
+#### Scenario: Sidebar shows inbox card and grouped nav items
 - **WHEN** an authenticated user views the app shell
-- **THEN** the sidebar SHALL display links for Inbox, Artpieces, Characters, Images, and Artists in that order
-
-#### Scenario: Artpieces nav item links to gallery
-- **WHEN** an authenticated user clicks the Artpieces nav item
-- **THEN** the app SHALL navigate to `/app/artpieces`
+- **THEN** the sidebar SHALL display the Inbox card above two labeled groups (LIBRARY and MANAGE), each containing their respective nav items
 
 #### Scenario: Active nav item is highlighted
-- **WHEN** an authenticated user is on `/app/characters`
-- **THEN** the Characters nav item SHALL be visually active
+- **WHEN** an authenticated user is on a section route (e.g. `/app/artpieces`)
+- **THEN** the corresponding nav row SHALL be visually active and all others SHALL not
 
-#### Scenario: Sidebar can be collapsed
-- **WHEN** an authenticated user toggles the sidebar collapse control
-- **THEN** the sidebar SHALL collapse and the main content area SHALL expand to fill the available space
+#### Scenario: Sidebar is always visible and not collapsible
+- **WHEN** an authenticated user views any `/app/*` route
+- **THEN** the sidebar SHALL be fully visible with no collapse control or rail

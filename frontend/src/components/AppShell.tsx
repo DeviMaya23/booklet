@@ -1,3 +1,4 @@
+import React from 'react'
 import { Outlet } from 'react-router-dom'
 import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -7,7 +8,7 @@ import AppSidebar from './AppSidebar'
 export default function AppShell() {
   return (
     <TooltipProvider>
-      <SidebarProvider className="flex-col">
+      <SidebarProvider className="h-svh flex-col" style={{ '--sidebar-width': '220px' } as React.CSSProperties}>
         <AppTopBar />
         <div className="flex min-h-0 flex-1">
           <AppSidebar />
