@@ -5,15 +5,23 @@ Defines the artpiece detail view — an inline panel rendered within the Artpiec
 ## Requirements
 
 ### Requirement: Open artpiece detail view
-The system SHALL render an inline artpiece detail view within the Artpieces page when an artpiece is selected. No route change occurs.
+The system SHALL render the artpiece detail view at the route `/app/artpieces/:id`. Navigating to this route displays the detail view for the given artpiece. The artpieces gallery is shown at `/app/artpieces` (no `:id`).
 
 #### Scenario: Open via double-click
 - **WHEN** an authenticated user double-clicks an artpiece card in the gallery
-- **THEN** the detail view SHALL replace the gallery grid display, showing the selected artpiece's details in view mode
+- **THEN** the browser SHALL navigate to `/app/artpieces/:id` for that artpiece, displaying the detail view
 
 #### Scenario: Close via back chevron
 - **WHEN** the user clicks the back chevron in the detail view
-- **THEN** the detail view SHALL close and the gallery grid SHALL be shown again
+- **THEN** the browser SHALL navigate back one step in history (`navigate(-1)`), returning the user to the previous page
+
+#### Scenario: Back chevron label
+- **WHEN** the detail view is open
+- **THEN** the back chevron SHALL display the label "← Back" (not "← Artpieces")
+
+#### Scenario: Deletion closes detail and returns to gallery
+- **WHEN** the user confirms artpiece deletion from the detail view
+- **THEN** the artpiece is deleted and the browser SHALL navigate to `/app/artpieces`
 
 ---
 

@@ -26,6 +26,7 @@ export default function App() {
             <Route path="/app/artists" element={<ArtistsPage />} />
             <Route path="/app/files" element={<FilesPage />} />
             <Route path="/app/artpieces" element={<ArtpiecesPage />} />
+            <Route path="/app/artpieces/:id" element={<ArtpiecesPage />} />
             <Route path="/app/commissions" element={<CommissionsPage />} />
           </Route>
         </Route>

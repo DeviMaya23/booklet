@@ -1,8 +1,4 @@
-## Purpose
-
-This capability covers the commissions list page — the primary UI for scanning and managing commission status, payment state, and artist contact history.
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Commissions list page
 The system SHALL provide a page at `/app/commissions` accessible from the sidebar. The page displays two tab buttons — "Active" and "Finished" — each showing a live count of commissions in that state. The active tab is persisted in the URL as `?tab=active` or `?tab=finished`; the default (no param) is Active. A "+ New Commission" button is displayed to the right of the tabs.
@@ -65,27 +61,6 @@ Finished tab columns: Title, Artist, Status, Paid, Paid Date, Artpieces, Actions
 
 ---
 
-### Requirement: Inline autosave
-The Status, Paid, and Paid Date cells SHALL be inline-editable and autosave on change with no per-row Save button. A failed save SHALL show a visible inline error state on the affected cell; success is silent.
-
-#### Scenario: Status dropdown change
-- **WHEN** a user selects a new status from the inline dropdown
-- **THEN** the system sends a PATCH for that commission and updates the cell on success; shows an inline error on failure
-
-#### Scenario: Paid checkbox toggle to true
-- **WHEN** a user checks the Paid checkbox
-- **THEN** the system sends a PATCH with `paid: true` and `last_contacted_at: now()` in a single call; updates the cell on success; shows an inline error on failure
-
-#### Scenario: Paid checkbox toggle to false
-- **WHEN** a user unchecks the Paid checkbox
-- **THEN** the system sends a PATCH with `paid: false` (last_contacted_at is not modified); updates the cell on success; shows an inline error on failure
-
-#### Scenario: Paid Date change
-- **WHEN** a user picks a date in the Paid Date datepicker
-- **THEN** the system sends a PATCH with the selected date; updates the cell on success; shows an inline error on failure
-
----
-
 ### Requirement: Last Contact stamp
 In the Active tab, each row SHALL display `last_contacted_at` as a relative time string and a one-click stamp button that sets `last_contacted_at` to now. Entries where `last_contacted_at` is more than 14 days ago (or null) SHALL render in amber to signal they need a chase. The Last Contact column header SHALL show a small info icon; hovering it SHALL display a tooltip explaining the mechanic. The stamp button SHALL show a tooltip "Mark as contacted today" on hover.
 
@@ -115,31 +90,7 @@ In the Active tab, each row SHALL display `last_contacted_at` as a relative time
 
 ---
 
-### Requirement: New Commission button
-The page SHALL display a "+ New Commission" button in the header. Clicking the button opens the `CommissionFormModal` in create mode.
-
-#### Scenario: Button present
-- **WHEN** a user views the commissions page
-- **THEN** a "+ New Commission" button is visible in the page header
-
-#### Scenario: Button opens create modal
-- **WHEN** a user clicks the "+ New Commission" button
-- **THEN** the `CommissionFormModal` opens in create mode with all fields empty
-
----
-
-### Requirement: Row action controls
-Each commission row SHALL display a brush icon and a trash icon at the end of the row (after the Last Contact / Time Taken column). The brush icon opens the `CommissionFormModal` in edit mode for that commission. The trash icon opens the `DeleteCommissionDialog` for that commission.
-
-#### Scenario: Brush icon opens edit modal
-- **WHEN** a user clicks the brush icon on a commission row
-- **THEN** the `CommissionFormModal` opens in edit mode pre-filled with that commission's data
-
-#### Scenario: Trash icon opens delete dialog
-- **WHEN** a user clicks the trash icon on a commission row
-- **THEN** the `DeleteCommissionDialog` opens for that commission
-
----
+## ADDED Requirements
 
 ### Requirement: Undo toast on move to Finished
 When a commission's status is changed to `done` from the Active tab, the system SHALL immediately perform the PATCH, remove the row from the Active view, and show a Sonner toast with an Undo action. Clicking Undo SHALL send a compensating PATCH to restore the previous status.

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { Plus, ChevronDown } from 'lucide-react'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -22,8 +23,9 @@ const SORT_LABELS: Record<SortMode, string> = {
 }
 
 export default function ArtpiecesPage() {
+  const { id: selectedArtpieceId } = useParams<{ id: string }>()
+  const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
-  const [selectedArtpieceId, setSelectedArtpieceId] = useState<string | null>(null)
   const { data: artpieces, isLoading, isError } = useArtpieces()
   const queryClient = useQueryClient()
 
@@ -40,16 +42,12 @@ export default function ArtpiecesPage() {
     queryClient.invalidateQueries({ queryKey: ARTPIECES_QUERY_KEY })
   }
 
-  function handleDeleted() {
-    setSelectedArtpieceId(null)
-  }
-
   if (selectedArtpieceId) {
     return (
       <ArtpieceDetailView
         artpieceId={selectedArtpieceId}
-        onClose={() => setSelectedArtpieceId(null)}
-        onDeleted={handleDeleted}
+        onClose={() => window.history.length > 1 ? navigate(-1) : navigate('/app/artpieces')}
+        onDeleted={() => navigate('/app/artpieces')}
       />
     )
   }
@@ -99,7 +97,7 @@ export default function ArtpiecesPage() {
       {!isLoading && !isError && (
         <ArtpiecesGrid
           artpieces={filtered}
-          onArtpieceOpen={setSelectedArtpieceId}
+          onArtpieceOpen={(id) => navigate('/app/artpieces/' + id)}
         />
       )}
 

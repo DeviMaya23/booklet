@@ -15,6 +15,7 @@ export interface Commission {
   finish_date: string | null
   last_contacted_at: string | null
   notes: string | null
+  artpieces: { id: string; thumbnail_url: string | null }[]
   created_at: string
   updated_at: string
 }
@@ -29,7 +30,8 @@ export function useCommissions() {
     queryFn: async () => {
       const res = await apiFetch('/commissions', getToken)
       if (!res.ok) throw new Error('Failed to fetch commissions')
-      return res.json() as Promise<Commission[]>
+      const data = await res.json() as Commission[]
+      return data.map(c => ({ ...c, artpieces: c.artpieces ?? [] }))
     },
   })
 }

@@ -29,12 +29,11 @@ Launch both at once so they run in parallel. Each starts with a fresh context.
 
 ## Step 3: report one merged summary
 
-When both finish, write a single report:
+Prefix IDs by source so they don't collide: `V-` for verify (`V-W1`, `V-S1`) and `FE-` for the FE review (`FE-B1`, `FE-D2`). Every finding appears exactly once in the whole report.
 
-1. **Scope**: which OpenSpec change was verified (and whether the subagent had to guess), and whether the FE review ran or was skipped.
-2. **Look at these first**: the top three findings across both reports, whatever their source.
-3. **OpenSpec verify**: the findings, condensed, keeping severities and file references.
-4. **FE review**: the findings, condensed, keeping tiers, `file:line`, and the new/pre-existing tags.
-5. **Overlaps**: anything both reports flagged, or where the two disagree.
+1. **Scope**: one line each. Which OpenSpec change was verified (and whether the subagent had to guess), and whether the FE review ran or was skipped.
+2. **Must fix**: every verify Critical or Warning, every FE Bug, and any finding that both reports flagged independently (list it once with both IDs, e.g. `V-S1 + FE-U1`). Each entry keeps its ID, `file:line`, tags, and consequence.
+3. **Your call**: every other finding, in the order the reports gave them, with the same detail. Do not add your own ranking or opinions.
+4. **Clean checks**: one line for each check that found nothing (e.g. "OpenSpec verify: no issues"). If verify found only suggestions, say so in this line and put the suggestions under Your call.
 
-Do not paraphrase away file references or severities. Do not fix anything. If a subagent fails or returns nothing useful, say so plainly instead of filling the gap.
+Do not write a separate overlaps section. Do not paraphrase away file references, IDs, or severities. Do not fix anything. If a subagent fails or returns nothing useful, say so plainly instead of filling the gap.

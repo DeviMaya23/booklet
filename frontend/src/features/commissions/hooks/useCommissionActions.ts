@@ -3,13 +3,24 @@ import { type PatchCommissionParams } from '../api/usePatchCommission'
 interface Deps {
   mutateAsync: (params: PatchCommissionParams) => Promise<unknown>
   setCellError: (id: string, field: string, error: boolean) => void
+  onStatusDone?: (id: string, prevStatus: string, title: string | null) => void
 }
 
-export function useCommissionActions({ mutateAsync, setCellError }: Deps) {
-  async function patchStatus(id: string, status: string) {
+export function useCommissionActions({ mutateAsync, setCellError, onStatusDone }: Deps) {
+  async function patchStatus(id: string, newStatus: string, prevStatus: string, title: string | null, currentPaidDate: string | null) {
     try {
-      await mutateAsync({ id, status })
+      const params: PatchCommissionParams = { id, status: newStatus }
+      if (newStatus === 'done' && !currentPaidDate) {
+        const today = new Date()
+        params.paidDate = [
+          today.getFullYear(),
+          String(today.getMonth() + 1).padStart(2, '0'),
+          String(today.getDate()).padStart(2, '0'),
+        ].join('-')
+      }
+      await mutateAsync(params)
       setCellError(id, 'status', false)
+      if (newStatus === 'done') onStatusDone?.(id, prevStatus, title)
     } catch {
       setCellError(id, 'status', true)
     }

@@ -46,6 +46,7 @@ func (r *commissionRepository) List(ctx context.Context, userID uuid.UUID) ([]*d
 	err := dbFromContext(ctx, r.db).
 		Preload("Artist").
 		Preload("Characters").
+		Preload("Artpieces.CoverFile").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
 		Find(&commissions).Error

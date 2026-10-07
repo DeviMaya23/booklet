@@ -182,7 +182,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     return (
       <div className="flex flex-col gap-4">
         <button onClick={onClose} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" /> Artpieces
+          <ArrowLeft className="size-4" /> Back
         </button>
         <p className="text-sm text-muted-foreground">Loading…</p>
       </div>
@@ -193,7 +193,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     return (
       <div className="flex flex-col gap-4">
         <button onClick={onClose} className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground">
-          <ArrowLeft className="size-4" /> Artpieces
+          <ArrowLeft className="size-4" /> Back
         </button>
         <p className="text-sm text-destructive">Failed to load artpiece.</p>
       </div>
@@ -217,7 +217,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         onClick={onClose}
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
-        <ArrowLeft className="size-4" /> Artpieces
+        <ArrowLeft className="size-4" /> Back
       </button>
 
       {/* Two-column layout: details | cover */}
