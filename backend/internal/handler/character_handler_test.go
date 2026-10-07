@@ -61,6 +61,18 @@ func (s *spyPresigner) GeneratePresignedGetURL(_ context.Context, key string, _ 
 	return url, nil
 }
 
+func (s *spyPresigner) GeneratePresignedDownloadURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
+	s.calls = append(s.calls, key)
+	if s.presignErr != nil {
+		return "", s.presignErr
+	}
+	url := s.presignedURL
+	if url == "" {
+		url = "https://cdn.example.com/download?sig=abc"
+	}
+	return url, nil
+}
+
 // spyCharacterUsecase is a value-return spy for CharacterUsecase.
 type spyCharacterUsecase struct {
 	createResult *domain.Character

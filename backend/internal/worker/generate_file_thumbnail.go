@@ -17,6 +17,7 @@ type fileThumbnailFileRepository interface {
 	GetByIDForWorker(ctx context.Context, id uuid.UUID) (*domain.File, error)
 	UpdateThumbnailPath(ctx context.Context, id uuid.UUID, r2Path string) error
 	UpdateThumbnailGenState(ctx context.Context, id uuid.UUID, state string) error
+	UpdateImageMetadataDimensions(ctx context.Context, fileID uuid.UUID, width, height int) error
 }
 
 type fileThumbnailStorageService interface {
@@ -76,6 +77,14 @@ func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[G
 			return setFailed()
 		}
 		return fmt.Errorf("decode image: %w", err)
+	}
+
+	bounds := decoded.Bounds()
+	if err := w.fileRepo.UpdateImageMetadataDimensions(ctx, fileID, bounds.Dx(), bounds.Dy()); err != nil {
+		w.logger.Error("failed to update image_metadata dimensions",
+			zap.String("file_id", fileID.String()),
+			zap.Error(err),
+		)
 	}
 
 	thumbnail := imaging.Fit(decoded, 600, 600, imaging.Lanczos)

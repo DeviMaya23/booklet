@@ -34,7 +34,7 @@ The detail view in view mode SHALL display the artpiece's metadata and file thum
 
 #### Scenario: Display file thumbnail grid
 - **WHEN** the detail view is open in view mode and the artpiece has attached files
-- **THEN** the system SHALL display a thumbnail grid of all attached files; the cover tile SHALL show a `★ Cover` chip; each tile SHALL show a type label (e.g. PNG, JPG, PSD) derived from the file's `mime_type`
+- **THEN** the system SHALL display a thumbnail grid of all attached files; the cover tile SHALL show a `★ Cover` chip; each tile SHALL show a type label (e.g. PNG, JPG, PSD) derived from the file's `mime_type`; each tile SHALL be clickable and open the `FileViewer` modal at that file's index
 
 #### Scenario: Display empty file grid
 - **WHEN** the detail view is open in view mode and the artpiece has no attached files

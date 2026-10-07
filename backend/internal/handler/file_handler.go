@@ -195,6 +195,45 @@ func (h *FileHandler) BulkDeleteFiles(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+type downloadURLResponse struct {
+	DownloadURL string `json:"download_url"`
+}
+
+func (h *FileHandler) GetDownloadURL(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.GetFileDownloadURL")
+	defer span.End()
+
+	id, err := uuid.Parse(c.Param("id"))
+	if err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid file id")
+	}
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	file, err := h.fileUsecase.GetByID(ctx, id, userID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return echo.NewHTTPError(http.StatusNotFound, "file not found")
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to get file")
+	}
+
+	filename := file.ID.String()
+	if file.Name != nil {
+		filename = *file.Name
+	}
+
+	downloadURL, err := h.presigner.GeneratePresignedDownloadURL(ctx, file.FileR2Path, filename, usecase.PresignDownloadTTL)
+	if err != nil {
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to generate download url")
+	}
+
+	return c.JSON(http.StatusOK, downloadURLResponse{DownloadURL: downloadURL})
+}
+
 func (h *FileHandler) presignFileURL(ctx context.Context, r2Path string) (*string, error) {
 	u, err := h.presigner.GeneratePresignedGetURL(ctx, r2Path, usecase.PresignGetTTL)
 	if err != nil {

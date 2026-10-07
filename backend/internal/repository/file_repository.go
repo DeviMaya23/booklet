@@ -180,3 +180,14 @@ func (r *fileRepository) CreateImageMetadata(ctx context.Context, m *domain.Imag
 	}
 	return nil
 }
+
+func (r *fileRepository) UpdateImageMetadataDimensions(ctx context.Context, fileID uuid.UUID, width, height int) error {
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.ImageMetadata{}).
+		Where("file_id = ?", fileID).
+		Updates(map[string]any{"width": width, "height": height})
+	if result.Error != nil {
+		return fmt.Errorf("update image_metadata dimensions: %w", result.Error)
+	}
+	return nil
+}

@@ -358,6 +358,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.POST("/files", fileUploadHandler.InitiateUpload)
 	protected.POST("/files/:id/complete", fileUploadHandler.CompleteUpload)
 	protected.GET("/files/:id", fileHandler.GetFile)
+	protected.GET("/files/:id/download", fileHandler.GetDownloadURL)
 	protected.GET("/files", fileHandler.ListFiles)
 	protected.PUT("/files/:id", fileHandler.UpdateFile)
 	protected.DELETE("/files/:id", fileHandler.DeleteFile)

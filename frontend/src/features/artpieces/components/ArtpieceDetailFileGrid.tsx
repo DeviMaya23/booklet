@@ -1,20 +1,6 @@
 import { FileIcon, Plus, Star, X } from 'lucide-react'
 import { type ArtpieceFile } from '../api/useArtpiece'
-
-function mimeTypeLabel(mimeType: string): string {
-  const known: Record<string, string> = {
-    'image/jpeg': 'JPG',
-    'image/png': 'PNG',
-    'image/gif': 'GIF',
-    'image/webp': 'WEBP',
-    'image/tiff': 'TIFF',
-    'image/svg+xml': 'SVG',
-    'image/vnd.adobe.photoshop': 'PSD',
-    'application/x-photoshop': 'PSD',
-    'application/pdf': 'PDF',
-  }
-  return known[mimeType] ?? ''
-}
+import { mimeTypeLabel } from '../lib/mimeTypeLabel'
 
 interface ViewModeProps {
   mode: 'view'
@@ -40,10 +26,11 @@ interface EditModeProps {
 type ArtpieceDetailFileGridProps = {
   files: ArtpieceFile[]
   coverFileId: string | null
+  onOpen?: (index: number) => void
 } & (ViewModeProps | EditModeProps)
 
 export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProps) {
-  const { files, coverFileId, mode } = props
+  const { files, coverFileId, mode, onOpen } = props
 
   const effectiveCoverId =
     mode === 'edit' ? (props.pendingCoverFileId ?? coverFileId) : coverFileId
@@ -54,7 +41,7 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
 
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
-      {files.map((file) => {
+      {files.map((file, fileIndex) => {
         const isCover = file.id === effectiveCoverId
         const isRemoved = mode === 'edit' && props.locallyRemovedIds.has(file.id)
         const label = mimeTypeLabel(file.mime_type)
@@ -62,7 +49,8 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
         return (
           <div key={file.id} className="relative aspect-square">
             <div
-              className={`relative h-full w-full overflow-hidden rounded-md bg-muted transition-opacity ${isRemoved ? 'opacity-40' : ''}`}
+              className={`relative h-full w-full overflow-hidden rounded-md bg-muted transition-opacity ${isRemoved ? 'opacity-40' : ''} ${mode === 'view' && onOpen ? 'cursor-pointer' : ''}`}
+              onClick={mode === 'view' && onOpen ? () => onOpen(fileIndex) : undefined}
             >
               {file.thumbnail_url ? (
                 <img src={file.thumbnail_url} alt="" className="h-full w-full object-cover" />

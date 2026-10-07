@@ -74,6 +74,9 @@ type fileRef struct {
 	FileURL      string  `json:"file_url"`
 	ThumbnailURL *string `json:"thumbnail_url"`
 	MimeType     string  `json:"mime_type"`
+	Name         *string `json:"name"`
+	Width        *int    `json:"width"`
+	Height       *int    `json:"height"`
 }
 
 type artpieceResponse struct {
@@ -168,12 +171,18 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 				thumbURL = &u
 			}
 		}
-		fileRefs = append(fileRefs, fileRef{
+		ref := fileRef{
 			ID:           f.ID.String(),
 			FileURL:      fileURL,
 			ThumbnailURL: thumbURL,
 			MimeType:     f.MimeType,
-		})
+			Name:         f.Name,
+		}
+		if f.ImageMetadata != nil {
+			ref.Width = &f.ImageMetadata.Width
+			ref.Height = &f.ImageMetadata.Height
+		}
+		fileRefs = append(fileRefs, ref)
 	}
 	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, fileRefs))
 }

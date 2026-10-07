@@ -25,6 +25,8 @@ type spyFileThumbnailRepo struct {
 	fileToReturn         *domain.File
 	updatedThumbnailPath string
 	updatedGenState      string
+	updatedWidth         int
+	updatedHeight        int
 }
 
 func (s *spyFileThumbnailRepo) GetByIDForWorker(_ context.Context, _ uuid.UUID) (*domain.File, error) {
@@ -38,6 +40,12 @@ func (s *spyFileThumbnailRepo) UpdateThumbnailPath(_ context.Context, _ uuid.UUI
 
 func (s *spyFileThumbnailRepo) UpdateThumbnailGenState(_ context.Context, _ uuid.UUID, state string) error {
 	s.updatedGenState = state
+	return nil
+}
+
+func (s *spyFileThumbnailRepo) UpdateImageMetadataDimensions(_ context.Context, _ uuid.UUID, width, height int) error {
+	s.updatedWidth = width
+	s.updatedHeight = height
 	return nil
 }
 
@@ -101,6 +109,27 @@ func TestGenerateFileThumbnailWorker_SuccessSetsStateAndPath(t *testing.T) {
 	expectedKey := "users/" + userID.String() + "/thumbnails/" + fileID.String() + ".jpg"
 	require.Equal(t, expectedKey, repoSpy.updatedThumbnailPath)
 	require.Equal(t, "done", repoSpy.updatedGenState)
+}
+
+func TestGenerateFileThumbnailWorker_WritesImageDimensions(t *testing.T) {
+	fileID := uuid.New()
+	userID := uuid.New()
+
+	src := image.NewRGBA(image.Rect(0, 0, 800, 600))
+	repoSpy := &spyFileThumbnailRepo{
+		fileToReturn: &domain.File{
+			ID:         fileID,
+			FileR2Path: "users/" + userID.String() + "/files/" + fileID.String() + ".jpg",
+		},
+	}
+	storageSpy := &spyFileThumbnailStorage{getImage: src}
+
+	w := worker.NewGenerateFileThumbnailWorker(repoSpy, storageSpy, zap.NewNop())
+	err := w.Work(context.Background(), makeFileJob(fileID, userID, 1, 25))
+
+	require.NoError(t, err)
+	require.Equal(t, 800, repoSpy.updatedWidth)
+	require.Equal(t, 600, repoSpy.updatedHeight)
 }
 
 func TestGenerateFileThumbnailWorker_FinalAttemptFailureSetsFailedAndReturnsNil(t *testing.T) {

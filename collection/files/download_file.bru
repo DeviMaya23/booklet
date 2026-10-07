@@ -1,0 +1,23 @@
+meta {
+  name: Download File
+  type: http
+  seq: 4
+}
+
+get {
+  url: {{baseUrl}}/files/{{fileId}}/download
+  body: none
+  auth: inherit
+}
+
+docs {
+  Returns a short-lived presigned download URL for the file.
+
+  ## Response
+
+  ```json
+  {
+    "download_url": "https://..."
+  }
+  ```
+}

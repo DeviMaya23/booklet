@@ -12,8 +12,9 @@ import (
 var ErrCharacterNotOwned = errors.New("one or more character IDs do not belong to the user")
 
 const (
-	PresignTTL    = 15 * time.Minute
-	PresignGetTTL = 1 * time.Hour
+	PresignTTL         = 15 * time.Minute
+	PresignGetTTL      = 1 * time.Hour
+	PresignDownloadTTL = 5 * time.Minute
 )
 
 type StorageService interface {

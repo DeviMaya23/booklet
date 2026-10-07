@@ -1,4 +1,5 @@
 import { useRef, useState } from 'react'
+import FileViewer, { type ViewerFile } from '@/features/files/components/FileViewer'
 import { useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react'
@@ -50,6 +51,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [isSaving, setIsSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const charactersQuery = useCharacters()
@@ -341,7 +343,14 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
 
         {/* Right column — cover tile */}
         <div className="flex flex-col gap-2">
-          <div className="aspect-square w-full overflow-hidden rounded-xl bg-muted">
+          <div
+            className={`aspect-square w-full overflow-hidden rounded-xl bg-muted ${mode === 'view' && previewThumbnail ? 'cursor-pointer' : ''}`}
+            onClick={() => {
+              if (mode !== 'view' || !previewThumbnail) return
+              const coverIndex = artpiece.files.findIndex((f) => f.id === artpiece.cover_file_id)
+              if (coverIndex !== -1) setViewerIndex(coverIndex)
+            }}
+          >
             {previewThumbnail ? (
               <img src={previewThumbnail} alt="" className="h-full w-full object-contain" />
             ) : (
@@ -410,6 +419,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               files={artpiece.files}
               coverFileId={artpiece.cover_file_id}
               mode="view"
+              onOpen={(i) => setViewerIndex(i)}
             />
           ) : (
             <ArtpieceDetailFileGrid
@@ -461,6 +471,22 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         fileCount={artpiece.files.length}
         onSuccess={onDeleted}
       />
+
+      {viewerIndex !== null && (
+        <FileViewer
+          files={artpiece.files.map<ViewerFile>((f) => ({
+            id: f.id,
+            name: f.name,
+            mimeType: f.mime_type,
+            thumbnailUrl: f.thumbnail_url,
+            previewUrl: f.file_url,
+            width: f.width,
+            height: f.height,
+          }))}
+          initialIndex={viewerIndex}
+          onClose={() => setViewerIndex(null)}
+        />
+      )}
     </div>
   )
 }

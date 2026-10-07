@@ -30,6 +30,7 @@ func (r *artpieceRepository) GetByID(ctx context.Context, id uuid.UUID, userID u
 		Preload("Artist").
 		Preload("CoverFile").
 		Preload("Files").
+		Preload("Files.ImageMetadata").
 		Preload("Characters").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&a).Error
