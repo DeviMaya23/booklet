@@ -50,9 +50,10 @@ func (s *spyFileThumbnailRepo) UpdateImageMetadataDimensions(_ context.Context, 
 }
 
 type spyFileThumbnailStorage struct {
-	getErr   error
-	getImage image.Image
-	putKey   string
+	getErr          error
+	getImage        image.Image
+	putKey          string
+	putCacheControl string
 }
 
 func (s *spyFileThumbnailStorage) GetObject(_ context.Context, _ string) (io.ReadCloser, error) {
@@ -73,8 +74,9 @@ func (s *spyFileThumbnailStorage) GetObject(_ context.Context, _ string) (io.Rea
 	return io.NopCloser(&buf), nil
 }
 
-func (s *spyFileThumbnailStorage) PutObject(_ context.Context, key string, _ io.Reader, _ string) error {
+func (s *spyFileThumbnailStorage) PutObject(_ context.Context, key string, _ io.Reader, _, cacheControl string) error {
 	s.putKey = key
+	s.putCacheControl = cacheControl
 	return nil
 }
 
@@ -96,8 +98,8 @@ func TestGenerateFileThumbnailWorker_SuccessSetsStateAndPath(t *testing.T) {
 
 	repoSpy := &spyFileThumbnailRepo{
 		fileToReturn: &domain.File{
-			ID:          fileID,
-			FileR2Path:  "users/" + userID.String() + "/files/" + fileID.String() + ".jpg",
+			ID:         fileID,
+			FileR2Path: "users/" + userID.String() + "/files/" + fileID.String() + ".jpg",
 		},
 	}
 	storageSpy := &spyFileThumbnailStorage{}
@@ -169,4 +171,22 @@ func TestGenerateFileThumbnailWorker_NonFinalAttemptFailureReturnsError(t *testi
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "get original from r2")
 	require.Empty(t, repoSpy.updatedGenState)
+}
+
+func TestGenerateFileThumbnailWorker_UploadsThumbnailWithCacheControl(t *testing.T) {
+	fileID := uuid.New()
+	userID := uuid.New()
+
+	repoSpy := &spyFileThumbnailRepo{
+		fileToReturn: &domain.File{
+			ID:         fileID,
+			FileR2Path: "users/" + userID.String() + "/files/" + fileID.String() + ".jpg",
+		},
+	}
+	storageSpy := &spyFileThumbnailStorage{}
+
+	w := worker.NewGenerateFileThumbnailWorker(repoSpy, storageSpy, zap.NewNop())
+	require.NoError(t, w.Work(context.Background(), makeFileJob(fileID, userID, 1, 25)))
+
+	require.Equal(t, "private, max-age=172800", storageSpy.putCacheControl)
 }

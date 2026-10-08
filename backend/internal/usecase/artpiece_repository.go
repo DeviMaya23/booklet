@@ -65,7 +65,7 @@ type UpdateArtpieceParams struct {
 }
 
 var (
-	ErrFileNotInArtpiece  = errors.New("file is not attached to this artpiece")
-	ErrFileNotOwned       = errors.New("file does not exist or does not belong to the user")
+	ErrFileNotInArtpiece   = errors.New("file is not attached to this artpiece")
+	ErrFileNotOwned        = errors.New("file does not exist or does not belong to the user")
 	ErrFileAlreadyAttached = errors.New("file is already attached to another artpiece")
 )

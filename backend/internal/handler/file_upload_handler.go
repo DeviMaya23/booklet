@@ -133,7 +133,7 @@ func (h *FileUploadHandler) presignThumbnailURL(ctx context.Context, r2Path *str
 	if r2Path == nil {
 		return nil, nil
 	}
-	u, err := h.presigner.GeneratePresignedGetURL(ctx, *r2Path, usecase.PresignGetTTL)
+	u, err := h.presigner.GenerateDeterministicPresignedGetURL(ctx, *r2Path)
 	if err != nil {
 		return nil, err
 	}

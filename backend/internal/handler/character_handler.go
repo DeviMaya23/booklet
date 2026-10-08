@@ -342,7 +342,6 @@ func (h *CharacterHandler) presignAvatarURL(ctx context.Context, r2Path *string)
 	return &u, nil
 }
 
-
 func toCharacterResponse(character *domain.Character, avatarURL *string) characterResponse {
 	folders := make([]folderResponse, len(character.Folders))
 	for i, f := range character.Folders {

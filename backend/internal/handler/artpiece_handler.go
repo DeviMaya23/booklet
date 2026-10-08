@@ -166,7 +166,7 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 		}
 		var thumbURL *string
 		if f.ThumbnailR2Path != nil {
-			u, err := h.presigner.GeneratePresignedGetURL(ctx, *f.ThumbnailR2Path, usecase.PresignGetTTL)
+			u, err := h.presigner.GenerateDeterministicPresignedGetURL(ctx, *f.ThumbnailR2Path)
 			if err == nil {
 				thumbURL = &u
 			}
@@ -469,7 +469,7 @@ func (h *ArtpieceHandler) presignCoverThumbnail(ctx context.Context, a *domain.A
 	if a.CoverFile == nil || a.CoverFile.ThumbnailR2Path == nil {
 		return nil, nil
 	}
-	u, err := h.presigner.GeneratePresignedGetURL(ctx, *a.CoverFile.ThumbnailR2Path, usecase.PresignGetTTL)
+	u, err := h.presigner.GenerateDeterministicPresignedGetURL(ctx, *a.CoverFile.ThumbnailR2Path)
 	if err != nil {
 		return nil, err
 	}

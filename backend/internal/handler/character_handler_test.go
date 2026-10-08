@@ -61,6 +61,14 @@ func (s *spyPresigner) GeneratePresignedGetURL(_ context.Context, key string, _ 
 	return url, nil
 }
 
+func (s *spyPresigner) GenerateDeterministicPresignedGetURL(_ context.Context, key string) (string, error) {
+	s.calls = append(s.calls, key)
+	if s.presignErr != nil {
+		return "", s.presignErr
+	}
+	return "https://fake-deterministic-url", nil
+}
+
 func (s *spyPresigner) GeneratePresignedDownloadURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
 	s.calls = append(s.calls, key)
 	if s.presignErr != nil {
@@ -431,6 +439,7 @@ func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, user
 func (s *captureCharacterListSpy) DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error {
 	return s.inner.DeleteAvatar(ctx, userID, characterID)
 }
+
 // --- UpdateCharacter ---
 
 func TestUpdateCharacter_HappyPath(t *testing.T) {

@@ -223,7 +223,7 @@ func (f *fakeArtpieceFileRepository) BulkDelete(_ context.Context, ids []uuid.UU
 }
 
 type fakeArtpieceObjectGetter struct {
-	objects  map[string][]byte
+	objects   map[string][]byte
 	returnErr error
 }
 

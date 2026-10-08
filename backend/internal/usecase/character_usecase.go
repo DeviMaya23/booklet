@@ -55,8 +55,8 @@ func (u *characterUsecase) validateAndEnrichFolders(ctx context.Context, charact
 }
 
 var (
-	ErrCharacterNotFound      = errors.New("character not found or does not belong to the user")
-	ErrPendingUploadNotFound  = errors.New("pending avatar upload not found or does not belong to the user")
+	ErrCharacterNotFound     = errors.New("character not found or does not belong to the user")
+	ErrPendingUploadNotFound = errors.New("pending avatar upload not found or does not belong to the user")
 )
 
 type CreateCharacterParams struct {

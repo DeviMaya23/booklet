@@ -1,8 +1,4 @@
-## Purpose
-
-Tracks the outcome of the automatic thumbnail generation pipeline for a file as a persisted enum on the file record, exposed in all file API responses. Allows clients to distinguish between "thumbnail is being generated", "generation succeeded", "generation failed", and "generation was never applicable".
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Thumbnail generation state persisted on file record
 The system SHALL store a `thumbnail_gen_state` value on every file record. The value SHALL be one of: `pending`, `done`, `failed`, `not_applicable`.

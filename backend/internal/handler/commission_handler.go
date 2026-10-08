@@ -95,8 +95,8 @@ type commissionResponse struct {
 	Notes           *string                  `json:"notes"`
 	Characters      []commissionCharacterRef `json:"characters"`
 	Artpieces       []artpieceSummary        `json:"artpieces,omitempty"`
-	CreatedAt    string                   `json:"created_at"`
-	UpdatedAt    string                   `json:"updated_at"`
+	CreatedAt       string                   `json:"created_at"`
+	UpdatedAt       string                   `json:"updated_at"`
 }
 
 func (h *CommissionHandler) CreateCommission(c echo.Context) error {
@@ -407,7 +407,7 @@ func (h *CommissionHandler) toCommissionResponse(ctx context.Context, c *domain.
 	for _, a := range c.Artpieces {
 		summary := artpieceSummary{ID: a.ID.String()}
 		if a.CoverFile != nil && a.CoverFile.ThumbnailR2Path != nil {
-			u, err := h.presigner.GeneratePresignedGetURL(ctx, *a.CoverFile.ThumbnailR2Path, usecase.PresignGetTTL)
+			u, err := h.presigner.GenerateDeterministicPresignedGetURL(ctx, *a.CoverFile.ThumbnailR2Path)
 			if err == nil {
 				summary.ThumbnailURL = &u
 			}

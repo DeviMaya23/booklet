@@ -148,11 +148,11 @@ func (f *fakeCharacterAvatarUploadRepository) ListStale(_ context.Context, _ tim
 }
 
 type fakeStorageService struct {
-	lastKey        string
-	deletedKeys    []string
-	presignURL     string
-	presignErr     error
-	deleteErr      error
+	lastKey     string
+	deletedKeys []string
+	presignURL  string
+	presignErr  error
+	deleteErr   error
 }
 
 func (f *fakeStorageService) GeneratePresignedPutURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
@@ -220,4 +220,3 @@ func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, _ string,
 func (s *spyStorageService) DeleteObject(_ context.Context, _ string) error {
 	return nil
 }
-

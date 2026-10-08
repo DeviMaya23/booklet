@@ -49,8 +49,8 @@ func (f *fakeFileUploadPendingRepository) ListStale(_ context.Context, _ time.Ti
 }
 
 type fakeFileUploadFileRepository struct {
-	files            map[uuid.UUID]*domain.File
-	lastArtpieceID   *uuid.UUID
+	files             map[uuid.UUID]*domain.File
+	lastArtpieceID    *uuid.UUID
 	lastUpdatedFileID uuid.UUID
 }
 

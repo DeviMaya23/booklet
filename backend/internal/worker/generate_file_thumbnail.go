@@ -6,12 +6,14 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/disintegration/imaging"
 	"github.com/devi/booklet/internal/domain"
+	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
 	"go.uber.org/zap"
 )
+
+const thumbnailCacheControl = "private, max-age=172800"
 
 type fileThumbnailFileRepository interface {
 	GetByIDForWorker(ctx context.Context, id uuid.UUID) (*domain.File, error)
@@ -22,7 +24,7 @@ type fileThumbnailFileRepository interface {
 
 type fileThumbnailStorageService interface {
 	GetObject(ctx context.Context, key string) (io.ReadCloser, error)
-	PutObject(ctx context.Context, key string, body io.Reader, contentType string) error
+	PutObject(ctx context.Context, key string, body io.Reader, contentType, cacheControl string) error
 }
 
 type GenerateFileThumbnailArgs struct {
@@ -98,7 +100,7 @@ func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[G
 	}
 
 	thumbnailKey := fmt.Sprintf("users/%s/thumbnails/%s.jpg", userID.String(), fileID.String())
-	if err := w.storage.PutObject(ctx, thumbnailKey, &buf, "image/jpeg"); err != nil {
+	if err := w.storage.PutObject(ctx, thumbnailKey, &buf, "image/jpeg", thumbnailCacheControl); err != nil {
 		if job.Attempt >= job.MaxAttempts {
 			return setFailed()
 		}
