@@ -2,12 +2,14 @@ import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { renderHook } from '@testing-library/react'
 import { apiFetch } from './api'
 import { useMaintenanceActive, setMaintenanceActive } from './maintenanceStore'
+import { useSessionExpired, setSessionExpired } from './sessionExpiredStore'
 
 describe('apiFetch', () => {
   beforeEach(() => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response()))
     localStorage.clear()
     setMaintenanceActive(false)
+    setSessionExpired(false)
   })
 
   it('attaches Authorization header with bearer token', async () => {
@@ -78,6 +80,26 @@ describe('apiFetch', () => {
     await apiFetch('/artpieces', getToken)
 
     const { result } = renderHook(() => useMaintenanceActive())
+    expect(result.current).toBe(false)
+  })
+
+  it('sets session expired to true when response status is 401', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 401 })))
+    const getToken = vi.fn().mockResolvedValue('test-token')
+
+    await apiFetch('/artpieces', getToken)
+
+    const { result } = renderHook(() => useSessionExpired())
+    expect(result.current).toBe(true)
+  })
+
+  it('does not set session expired for non-401 responses', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 403 })))
+    const getToken = vi.fn().mockResolvedValue('test-token')
+
+    await apiFetch('/artpieces', getToken)
+
+    const { result } = renderHook(() => useSessionExpired())
     expect(result.current).toBe(false)
   })
 })

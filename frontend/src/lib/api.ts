@@ -1,4 +1,5 @@
 import { setMaintenanceActive } from './maintenanceStore'
+import { setSessionExpired } from './sessionExpiredStore'
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? ''
 const MAINTENANCE_BYPASS_STORAGE_KEY = 'booklet-maintenance-bypass'
@@ -20,6 +21,7 @@ export async function apiFetch(
   })
 
   setMaintenanceActive(res.headers.get('X-Booklet-Maintenance') === 'true')
+  if (res.status === 401) setSessionExpired(true)
 
   return res
 }
