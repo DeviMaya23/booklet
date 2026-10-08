@@ -267,6 +267,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	commissionUsecase := usecase.NewCommissionUsecase(commissionRepository, artistRepository, characterRepository, artpieceRepository, transactor, tel)
 	commissionHandler := httphandler.NewCommissionHandler(commissionUsecase, r2Storage, tel)
 
+	savedFilterRepository := repository.NewSavedFilterRepository(db)
+	savedFilterUsecase := usecase.NewSavedFilterUsecase(savedFilterRepository, tel)
+	savedFilterHandler := httphandler.NewSavedFilterHandler(savedFilterUsecase, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
@@ -363,6 +367,12 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.PUT("/files/:id", fileHandler.UpdateFile)
 	protected.DELETE("/files/:id", fileHandler.DeleteFile)
 	protected.DELETE("/files", fileHandler.BulkDeleteFiles)
+
+	protected.POST("/saved_filters", savedFilterHandler.CreateSavedFilter)
+	protected.GET("/saved_filters", savedFilterHandler.ListSavedFilters)
+	protected.GET("/saved_filters/:id", savedFilterHandler.GetSavedFilter)
+	protected.PATCH("/saved_filters/:id", savedFilterHandler.PatchSavedFilter)
+	protected.DELETE("/saved_filters/:id", savedFilterHandler.DeleteSavedFilter)
 
 	protected.DELETE("/me", userHandler.DeleteMe)
 

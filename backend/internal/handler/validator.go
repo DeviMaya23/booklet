@@ -6,6 +6,7 @@ import (
 	"reflect"
 	"strings"
 
+	"github.com/devi/booklet/internal/usecase"
 	"github.com/go-playground/validator/v10"
 	"github.com/labstack/echo/v4"
 )
@@ -26,12 +27,12 @@ func NewEchoValidator() echo.Validator {
 		return name
 	})
 	v.RegisterCustomTypeFunc(func(field reflect.Value) interface{} {
-		p := field.Interface().(Patch[string])
+		p := field.Interface().(usecase.Patch[string])
 		if !p.Set || p.Value == nil {
 			return ""
 		}
 		return *p.Value
-	}, Patch[string]{})
+	}, usecase.Patch[string]{})
 	return &echoValidator{v: v}
 }
 

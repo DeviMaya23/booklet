@@ -1,0 +1,21 @@
+meta {
+  name: Patch Saved Filter
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/saved_filters/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{savedFilterId}}
+}
+
+body:json {
+  {
+    "name": "Updated Filter Name"
+  }
+}
