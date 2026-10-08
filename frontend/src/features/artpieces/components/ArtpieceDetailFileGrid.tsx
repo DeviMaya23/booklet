@@ -1,4 +1,4 @@
-import { FileIcon, Plus, Star, X } from 'lucide-react'
+import { FileIcon, Loader2, Plus, Star, X } from 'lucide-react'
 import { type ArtpieceFile } from '../api/useArtpiece'
 import { mimeTypeLabel } from '../lib/mimeTypeLabel'
 
@@ -20,7 +20,7 @@ interface EditModeProps {
     onDragLeave: () => void
     onDrop: (e: React.DragEvent) => void
   }
-  uploadingCount: number
+  uploadPlaceholders: { clientId: string }[]
 }
 
 type ArtpieceDetailFileGridProps = {
@@ -41,6 +41,11 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
 
   return (
     <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+      {mode === 'edit' && props.uploadPlaceholders.map((p) => (
+        <div key={p.clientId} className="aspect-square rounded-md bg-muted flex items-center justify-center">
+          <Loader2 className="size-6 text-muted-foreground animate-spin" />
+        </div>
+      ))}
       {files.map((file, fileIndex) => {
         const isCover = file.id === effectiveCoverId
         const isRemoved = mode === 'edit' && props.locallyRemovedIds.has(file.id)
@@ -128,18 +133,12 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
             onDragLeave={props.dragHandlers.onDragLeave}
             onDrop={props.dragHandlers.onDrop}
           >
-            {props.uploadingCount > 0 ? (
+            <>
+              <Plus className="size-4" />
               <span className="text-center text-[10px]">
-                Uploading {props.uploadingCount}…
+                Add files<br />or drop here
               </span>
-            ) : (
-              <>
-                <Plus className="size-4" />
-                <span className="text-center text-[10px]">
-                  Add files<br />or drop here
-                </span>
-              </>
-            )}
+            </>
           </button>
         </div>
       )}

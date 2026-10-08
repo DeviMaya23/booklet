@@ -47,7 +47,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [editCharacters, setEditCharacters] = useState<CharacterToken[]>([])
   const [locallyRemovedIds, setLocallyRemovedIds] = useState<Set<string>>(new Set())
   const [pendingCoverFileId, setPendingCoverFileId] = useState<string | null>(null)
-  const [uploadingCount, setUploadingCount] = useState(0)
+  const [uploadPlaceholders, setUploadPlaceholders] = useState<{ clientId: string }[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
@@ -120,9 +120,12 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
 
   async function uploadAndAttach(rawFiles: FileList | File[]) {
     const list = Array.from(rawFiles)
+    const clientIds = list.map(() => crypto.randomUUID())
+    setUploadPlaceholders((prev) => [...prev, ...clientIds.map((clientId) => ({ clientId }))])
+
     await Promise.all(
-      list.map(async (file) => {
-        setUploadingCount((c) => c + 1)
+      list.map(async (file, i) => {
+        const clientId = clientIds[i]
         try {
           const result = await initUpload.mutateAsync({
             mimeType: file.type || 'application/octet-stream',
@@ -134,14 +137,15 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
             method: 'POST',
           })
           if (!res.ok) throw new Error('Failed to attach file')
-          queryClient.invalidateQueries({ queryKey: artpieceQueryKey(artpieceId) })
         } catch {
           toast.error(`Failed to upload ${file.name}`)
         } finally {
-          setUploadingCount((c) => c - 1)
+          setUploadPlaceholders((prev) => prev.filter((p) => p.clientId !== clientId))
         }
       }),
     )
+
+    queryClient.invalidateQueries({ queryKey: artpieceQueryKey(artpieceId) })
   }
 
   function handleDrop(e: React.DragEvent) {
@@ -240,13 +244,13 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                   value={editTitle}
                   onChange={(e) => setEditTitle(e.target.value)}
                   placeholder="Artpiece title"
-                  className="text-xl font-bold"
+                  className="h-auto text-2xl font-bold"
                   disabled={isSaving}
                 />
                 <Button variant="outline" onClick={handleCancel} disabled={isSaving}>
                   Cancel
                 </Button>
-                <Button onClick={handleSave} disabled={isSaving || uploadingCount > 0}>
+                <Button onClick={handleSave} disabled={isSaving || uploadPlaceholders.length > 0}>
                   Save
                 </Button>
               </div>
@@ -264,7 +268,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
             <div className="flex flex-col gap-4">
               <div className="flex flex-wrap gap-x-8 gap-y-3">
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Artist</p>
+                  <p className="text-sm font-medium">Artist</p>
                   {artpiece.artist_name ? (
                     <div className="mt-1 flex items-center gap-1">
                       <span className="text-sm">{artpiece.artist_name}</span>
@@ -285,7 +289,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                 </div>
 
                 <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Characters</p>
+                  <p className="text-sm font-medium">Characters</p>
                   {artpiece.characters.length > 0 ? (
                     <div className="mt-1 flex flex-wrap gap-1">
                       {artpiece.characters.map((c) => (
@@ -304,7 +308,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               </div>
 
               <div>
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Notes</p>
+                <p className="text-sm font-medium">Notes</p>
                 <p className="mt-1 text-sm whitespace-pre-wrap">{artpiece.notes ?? '—'}</p>
               </div>
             </div>
@@ -446,7 +450,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                 onDragLeave: () => setDragOver(false),
                 onDrop: handleDrop,
               }}
-              uploadingCount={uploadingCount}
+              uploadPlaceholders={uploadPlaceholders}
             />
           )}
         </div>
