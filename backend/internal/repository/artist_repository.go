@@ -23,7 +23,7 @@ func NewArtistRepository(db *gorm.DB) *artistRepository {
 
 func (r *artistRepository) Create(ctx context.Context, artist *domain.Artist) (*domain.Artist, error) {
 	db := dbFromContext(ctx, r.db)
-	if err := db.Omit("Links.*").Create(artist).Error; err != nil {
+	if err := db.Omit("Links").Create(artist).Error; err != nil {
 		if isUniqueConstraintViolation(err) {
 			return nil, usecase.ErrArtistNameConflict
 		}
@@ -75,8 +75,10 @@ func (r *artistRepository) Update(ctx context.Context, id uuid.UUID, userID uuid
 		notes = *params.Notes
 	}
 	updates := map[string]interface{}{
-		"name":  params.Name,
 		"notes": notes,
+	}
+	if params.Name != "" {
+		updates["name"] = params.Name
 	}
 
 	result := db.

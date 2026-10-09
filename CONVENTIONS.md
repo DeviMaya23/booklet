@@ -228,6 +228,15 @@ When a library erases your own data's shape to `any` (e.g. dnd-kit's
 zero type signal, a small local type guard narrowing back to your own
 discriminated union is worth it — no new dependency required.
 
+## Frontend Testing
+
+- Every spec scenario of the form "WHEN data has X, THEN Y is shown" gets one component test: render with a fixture, assert Y is on screen. This is the floor. Add interaction tests (save, delete, attach) for flows where a break would be costly.
+- Test at the API boundary. Mock the API wrapper (or the network), and render inside a fresh `QueryClientProvider` per test with `retry: false`. Do not mock the query hooks, because that skips the cache and the response parsing, which is where these bugs live.
+- Query by what the user sees: role, label, or text. Do not assert on class names, markup structure, or snapshots. No styling or layout tests.
+- Icon-only controls need an accessible name (`aria-label`), both for screen readers and so tests can find them (`getByRole('link', { name: /artist link/i })`).
+- When a change adds or alters a field shown in the UI, the same change adds or updates the scenario and its test.
+- Shared test setup (provider wrapper, fixtures) lives in one helper, not copied into each test file.
+
 
 ## Backend Architecture
 

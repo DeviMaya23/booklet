@@ -224,11 +224,12 @@ func TestCharacterRepository_Update_ReplaceFolders(t *testing.T) {
 	c := seedCharacterWithFolders(t, tx, user.ID, []uuid.UUID{oldFolderA, oldFolderB})
 
 	newFolder := uuid.New()
-	newFolders := []uuid.UUID{newFolder}
 
 	got, err := repo.Update(context.Background(), c.ID, user.ID, usecase.UpdateCharacterParams{
-		Name:      "Updated Name",
-		FolderIDs: newFolders,
+		Name: "Updated Name",
+		Folders: []domain.CharacterFolder{
+			{CharacterID: c.ID, FolderID: newFolder, FolderName: "New Folder"},
+		},
 	})
 
 	require.NoError(t, err)

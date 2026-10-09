@@ -19,10 +19,11 @@ If, while implementing a task, you discover that something not covered by the de
 - Branch name format: `feat/<spec-name-here>`
 - Generate each artifact during proposal step by step. Confirm with me before moving on to the next one.
 
-### Unit Testing in proposals
+### Testing in proposals
 
 - Always plan for unit tests on the usecase and handler layers
-- Do not write unit tests for SQL repositories, only do integration tests
+- Always plan for integration tests on the repository layer — do not write unit tests for SQL repositories
+- This applies to every repository touched by the change, including ones not modified but whose output the feature depends on (e.g. a repository that must preload a newly added association)
 - Follow the unit testing rules in CONVENTIONS.md — they define what scenarios are worth writing and what test doubles to use
 - Do not default to one success + one failure per function; write only the scenarios that have a reason to exist per the conventions
 
@@ -37,6 +38,7 @@ If, while implementing a task, you discover that something not covered by the de
 - Before converting a field to a typed value (e.g. `uuid.UUID`), check whether the code actually needs that type. If nothing downstream requires the typed form, keep the field as `string` and validate with a govalidator tag instead — this preserves `c.Bind` compatibility and avoids unnecessary conversion
 
 ### Others to keep in mind during proposals
+- Every surface listed in the Impact section must have at least one corresponding spec scenario. The scenario must name the specific data path (e.g. "commission list returns Artist.Links preloaded and surfaces the primary link"), not just the surface. Each scenario must also name how it is verified — a test or an explicit manual step. Impact without a scenario is documentation; Impact with a scenario and a named check is a contract.
 - When a change modifies a shared contract (a function signature, API endpoint, hook, etc.), grep for every call site of that symbol across all layers (backend, frontend, extension) before finalizing Impact/Capabilities/tasks — do not rely on a named flow (e.g. "the upload flow") to be exhaustive, as parallel entry points (e.g. drag-and-drop vs. modal vs. batch upload) commonly funnel into the same shared function and are easy to miss.
 - When creating tasks for a new endpoint, always include a bruno file creation.
 - On any BE development, include a task to run golang-ci lint at the end, and fix whatever issue arises.

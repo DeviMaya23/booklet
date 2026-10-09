@@ -276,6 +276,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                           href={viewArtistPrimaryUrl}
                           target="_blank"
                           rel="noopener noreferrer"
+                          aria-label="Open artist link"
                           className="text-muted-foreground hover:text-foreground"
                         >
                           <ExternalLink className="size-3.5" />
