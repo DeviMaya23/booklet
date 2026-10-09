@@ -270,7 +270,7 @@ func TestGetCharacterByID_AvatarURLPresigned(t *testing.T) {
 	avatarKey := "users/123/files/avatar.jpg"
 	character := makeCharacter()
 	character.AvatarR2Path = &avatarKey
-	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/avatar?sig=xyz"}
+	presigner := &spyPresigner{}
 	spy := &spyCharacterUsecase{getByIDResult: character}
 	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
 
@@ -285,7 +285,7 @@ func TestGetCharacterByID_AvatarURLPresigned(t *testing.T) {
 	var got characterResponse
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.NotNil(t, got.AvatarURL)
-	require.Equal(t, "https://cdn.example.com/avatar?sig=xyz", *got.AvatarURL)
+	require.Equal(t, "https://fake-deterministic-url", *got.AvatarURL)
 	require.Contains(t, presigner.calls, avatarKey)
 
 	var raw map[string]interface{}
@@ -367,7 +367,7 @@ func TestListCharacters_AvatarURLsPresigned(t *testing.T) {
 	c1.AvatarR2Path = &key1
 	c2 := makeCharacter()
 	c2.AvatarR2Path = &key2
-	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/signed"}
+	presigner := &spyPresigner{}
 	spy := &spyCharacterUsecase{listResult: []*domain.Character{c1, c2}}
 	h := handler.NewCharacterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
 
@@ -383,7 +383,7 @@ func TestListCharacters_AvatarURLsPresigned(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Len(t, got, 2)
 	require.NotNil(t, got[0].AvatarURL)
-	require.Equal(t, "https://cdn.example.com/signed", *got[0].AvatarURL)
+	require.Equal(t, "https://fake-deterministic-url", *got[0].AvatarURL)
 	require.NotNil(t, got[1].AvatarURL)
 	require.Contains(t, presigner.calls, key1)
 	require.Contains(t, presigner.calls, key2)
