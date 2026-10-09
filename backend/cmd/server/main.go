@@ -271,6 +271,10 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	savedFilterUsecase := usecase.NewSavedFilterUsecase(savedFilterRepository, tel)
 	savedFilterHandler := httphandler.NewSavedFilterHandler(savedFilterUsecase, tel)
 
+	dashboardRepository := repository.NewDashboardRepository(db)
+	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepository, tel)
+	dashboardHandler := httphandler.NewDashboardHandler(dashboardUsecase, r2Storage, tel)
+
 	authMiddleware, err := authmiddleware.NewAuthMiddleware(cfg.Kinde.IssuerURL, cfg.Kinde.Audience, userUsecase, logger)
 	if err != nil {
 		logger.Fatal("initialise auth middleware", zap.Error(err))
@@ -321,6 +325,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected := e.Group("")
 	// protected.Use(authmiddleware.NewMaintenanceMiddleware(cfg.Maintenance))
 	protected.Use(authMiddleware)
+	protected.GET("/dashboard", dashboardHandler.GetDashboard)
+
 	protected.POST("/characters", characterHandler.CreateCharacter)
 	protected.GET("/characters", characterHandler.ListCharacters)
 	protected.GET("/characters/:id", characterHandler.GetCharacterByID)

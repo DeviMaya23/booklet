@@ -1,5 +1,5 @@
 import { NavLink, useMatch } from 'react-router-dom'
-import { type LucideIcon, Images, UsersRound, ReceiptText, Palette, Inbox } from 'lucide-react'
+import { type LucideIcon, Images, UsersRound, ReceiptText, Palette, Inbox, LayoutDashboard } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -36,7 +36,10 @@ export default function AppSidebar() {
   return (
     <Sidebar collapsible="none">
       <SidebarContent>
-        <div className="px-2 pt-2">
+        <div className="px-2 pt-2 flex flex-col gap-2">
+          <SidebarMenu>
+            <NavItem label="Dashboard" to="/app/dashboard" icon={LayoutDashboard} />
+          </SidebarMenu>
           <InboxCard count={count} isPending={isPending} />
         </div>
         {groups.map((group) => (

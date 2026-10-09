@@ -10,6 +10,7 @@ import ArtistsPage from './pages/ArtistsPage'
 import FilesPage from './pages/FilesPage'
 import ArtpiecesPage from './pages/ArtpiecesPage'
 import CommissionsPage from './pages/CommissionsPage'
+import DashboardPage from './pages/DashboardPage'
 
 export default function App() {
   return (
@@ -21,7 +22,8 @@ export default function App() {
       <Route element={<AuthGuard />}>
         <Route element={<AppLayout />}>
           <Route element={<AppShell />}>
-            <Route index path="/app" element={<Navigate to="/app/characters" replace />} />
+            <Route path="/app" element={<Navigate to="/app/dashboard" replace />} />
+            <Route path="/app/dashboard" element={<DashboardPage />} />
             <Route path="/app/characters" element={<CharactersPage />} />
             <Route path="/app/artists" element={<ArtistsPage />} />
             <Route path="/app/files" element={<FilesPage />} />
