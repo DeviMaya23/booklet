@@ -14,10 +14,21 @@ var (
 	ErrArtpieceNotOwned   = errors.New("artpiece does not exist or does not belong to the user")
 )
 
+type ArtistLinkInput struct {
+	URL       string
+	IsPrimary bool
+}
+
+type CreateArtistParams struct {
+	Name  string
+	Notes *string
+	Links []ArtistLinkInput
+}
+
 type UpdateArtistParams struct {
-	Name       string
-	Notes      *string
-	ArtistLink *string
+	Name  string
+	Notes *string
+	Links []ArtistLinkInput
 }
 
 type ListArtistFilters struct {
@@ -30,4 +41,5 @@ type ArtistRepository interface {
 	List(ctx context.Context, userID uuid.UUID, filters ListArtistFilters) ([]*domain.Artist, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateArtistParams) (*domain.Artist, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }

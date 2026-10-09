@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { filterAndSortArtpieces } from './useArtpiecesFilter'
 import { type ArtpieceSummary } from '../api/useArtpieces'
 
-const artist1 = { id: 'artist-1', name: 'Alice', notes: null, artist_link: null, created_at: '', updated_at: '' }
-const artist2 = { id: 'artist-2', name: 'Bob', notes: null, artist_link: null, created_at: '', updated_at: '' }
+const artist1 = { id: 'artist-1', name: 'Alice', notes: null, links: [], created_at: '', updated_at: '' }
+const artist2 = { id: 'artist-2', name: 'Bob', notes: null, links: [], created_at: '', updated_at: '' }
 const charA = { id: 'char-a', name: 'Alpha' }
 const charB = { id: 'char-b', name: 'Beta' }
 
@@ -13,6 +13,7 @@ function makeArtpiece(overrides: Partial<ArtpieceSummary>): ArtpieceSummary {
     title: 'Default',
     artist_id: null,
     artist_name: null,
+    artist_link: null,
     cover_file_id: null,
     commission_id: null,
     thumbnail_url: null,

@@ -76,6 +76,8 @@ func tagMessage(fe validator.FieldError) string {
 		return fmt.Sprintf("%s must be one of: %s", field, allowed)
 	case "uuid4", "uuid":
 		return fmt.Sprintf("%s must be a valid UUID", field)
+	case "url":
+		return fmt.Sprintf("%s must be a valid URL", field)
 	default:
 		return fmt.Sprintf("%s failed validation", field)
 	}

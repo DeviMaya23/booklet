@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { toast } from 'sonner'
+import { Link2, Star, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
@@ -24,6 +25,7 @@ import { type Artist } from '../api/useArtists'
 import { useCreateArtist } from '../api/useCreateArtist'
 import { useUpdateArtist } from '../api/useUpdateArtist'
 import { useDeleteArtist } from '../api/useDeleteArtist'
+import { useArtistLinkEditor } from '../hooks/useArtistLinkEditor'
 
 interface ArtistFormModalProps {
   open: boolean
@@ -41,9 +43,10 @@ export default function ArtistFormModal({
   const isEditMode = artist !== undefined
 
   const [name, setName] = useState(artist?.name ?? '')
-  const [artistLink, setArtistLink] = useState(artist?.artist_link ?? '')
   const [notes, setNotes] = useState(artist?.notes ?? '')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+
+  const linkEditor = useArtistLinkEditor(artist?.links ?? [])
 
   const createMutation = useCreateArtist()
   const updateMutation = useUpdateArtist()
@@ -54,8 +57,8 @@ export default function ArtistFormModal({
 
   function resetForm() {
     setName(artist?.name ?? '')
-    setArtistLink(artist?.artist_link ?? '')
     setNotes(artist?.notes ?? '')
+    linkEditor.reset()
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -66,15 +69,13 @@ export default function ArtistFormModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
+    if (linkEditor.hasErrors()) return
+
+    const filledLinks = linkEditor.buildLinks()
 
     if (isEditMode) {
       updateMutation.mutate(
-        {
-          id: artist.id,
-          name: name.trim(),
-          artist_link: artistLink.trim() || null,
-          notes: notes.trim() || null,
-        },
+        { id: artist.id, name: name.trim(), notes: notes.trim() || null, links: filledLinks },
         {
           onSuccess: () => {
             toast.success('Artist updated')
@@ -82,23 +83,13 @@ export default function ArtistFormModal({
           },
           onError: (err) => {
             const status = (err as Error & { status?: number }).status
-            if (status === 409) {
-              toast.error('An artist with this name already exists')
-            } else if (status === 422) {
-              toast.error('Link must be a valid URL')
-            } else {
-              toast.error('Failed to update artist')
-            }
+            toast.error(status === 409 ? 'An artist with this name already exists' : 'Failed to update artist')
           },
         },
       )
     } else {
       createMutation.mutate(
-        {
-          name: name.trim(),
-          ...(artistLink.trim() ? { artist_link: artistLink.trim() } : {}),
-          ...(notes.trim() ? { notes: notes.trim() } : {}),
-        },
+        { name: name.trim(), ...(notes.trim() ? { notes: notes.trim() } : {}), links: filledLinks },
         {
           onSuccess: (created) => {
             toast.success('Artist created')
@@ -107,13 +98,7 @@ export default function ArtistFormModal({
           },
           onError: (err) => {
             const status = (err as Error & { status?: number }).status
-            if (status === 409) {
-              toast.error('An artist with this name already exists')
-            } else if (status === 422) {
-              toast.error('Link must be a valid URL')
-            } else {
-              toast.error('Failed to create artist')
-            }
+            toast.error(status === 409 ? 'An artist with this name already exists' : 'Failed to create artist')
           },
         },
       )
@@ -157,17 +142,66 @@ export default function ArtistFormModal({
               />
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium" htmlFor="artist-link">
-                Link
-              </label>
-              <Input
-                id="artist-link"
-                value={artistLink}
-                onChange={(e) => setArtistLink(e.target.value)}
-                placeholder="https://..."
-              />
-            </div>
+            <fieldset className="flex flex-col gap-1.5 border-0 p-0 m-0">
+              <legend className="text-sm font-medium mb-2">Links</legend>
+              <div className="flex flex-col gap-2">
+                {linkEditor.links.map((link, i) => (
+                  <div key={link._key} className="flex flex-col gap-1">
+                    <div className="flex items-center gap-1.5">
+                      <Link2 className="size-4 text-muted-foreground shrink-0" />
+                      <Input
+                        value={link.url}
+                        onChange={(e) => linkEditor.updateUrl(i, e.target.value)}
+                        onBlur={() => linkEditor.handleBlur(i)}
+                        placeholder="https://..."
+                        className="flex-1"
+                      />
+                      {linkEditor.links.length > 1 && (
+                        <button
+                          type="button"
+                          onClick={() => linkEditor.setPrimary(i)}
+                          title={link.is_primary ? 'Main link' : 'Make main link'}
+                          className={[
+                            'flex size-8 shrink-0 items-center justify-center rounded border transition-colors',
+                            link.is_primary
+                              ? 'border-foreground bg-foreground text-background'
+                              : 'border-input bg-background text-muted-foreground hover:text-foreground',
+                          ].join(' ')}
+                        >
+                          <Star className="size-3.5" />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => linkEditor.removeLink(i)}
+                        className="flex size-8 shrink-0 items-center justify-center rounded text-muted-foreground hover:text-foreground"
+                        aria-label="Remove link"
+                      >
+                        <X className="size-4" />
+                      </button>
+                    </div>
+                    {linkEditor.linkErrors[i] && (
+                      <p className="text-xs text-destructive pl-6">{linkEditor.linkErrors[i]}</p>
+                    )}
+                  </div>
+                ))}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={linkEditor.addLink}
+                  className="w-fit"
+                >
+                  + Add link
+                </Button>
+                {linkEditor.links.length > 1 && (
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Star className="size-3 inline" />
+                    Main link: the one opened from lists and the dashboard.
+                  </p>
+                )}
+              </div>
+            </fieldset>
 
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium" htmlFor="artist-notes">

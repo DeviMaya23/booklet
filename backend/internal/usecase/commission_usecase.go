@@ -53,6 +53,11 @@ func (u *CommissionUsecase) Create(ctx context.Context, userID uuid.UUID, params
 		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, userID); err != nil {
 			return nil, ErrArtistNotOwned
 		}
+		if err := u.artistRepo.UpdateLastUsedAt(ctx, *params.ArtistID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
 	}
 
 	if len(params.CharacterIDs) > 0 {
@@ -153,6 +158,11 @@ func (u *CommissionUsecase) Update(ctx context.Context, id uuid.UUID, userID uui
 	if params.ArtistID != nil {
 		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, userID); err != nil {
 			return nil, ErrArtistNotOwned
+		}
+		if err := u.artistRepo.UpdateLastUsedAt(ctx, *params.ArtistID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
 		}
 	}
 

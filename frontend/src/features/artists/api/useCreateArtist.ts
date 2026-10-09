@@ -6,7 +6,7 @@ import { ARTISTS_QUERY_KEY, type Artist } from './useArtists'
 export interface CreateArtistInput {
   name: string
   notes?: string
-  artist_link?: string
+  links?: { url: string; is_primary: boolean }[]
 }
 
 export function useCreateArtist() {

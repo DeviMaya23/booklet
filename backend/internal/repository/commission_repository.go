@@ -30,7 +30,7 @@ func (r *commissionRepository) Create(ctx context.Context, c *domain.Commission)
 func (r *commissionRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Commission, error) {
 	var c domain.Commission
 	err := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Preload("Characters").
 		Preload("Artpieces.CoverFile").
 		Where("id = ? AND user_id = ?", id, userID).
@@ -44,7 +44,7 @@ func (r *commissionRepository) GetByID(ctx context.Context, id uuid.UUID, userID
 func (r *commissionRepository) List(ctx context.Context, userID uuid.UUID) ([]*domain.Commission, error) {
 	var commissions []*domain.Commission
 	err := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Preload("Characters").
 		Preload("Artpieces.CoverFile").
 		Where("user_id = ?", userID).

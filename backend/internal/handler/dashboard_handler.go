@@ -108,7 +108,13 @@ func (h *DashboardHandler) GetDashboard(c echo.Context) error {
 		}
 		if c.Artist != nil {
 			item.ArtistName = &c.Artist.Name
-			item.ArtistLink = c.Artist.ArtistLink
+			for _, l := range c.Artist.Links {
+				if l.IsPrimary {
+					u := l.URL
+					item.ArtistLink = &u
+					break
+				}
+			}
 		}
 		if c.LastContactedAt != nil {
 			s := c.LastContactedAt.Format("2006-01-02T15:04:05Z07:00")

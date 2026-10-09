@@ -24,7 +24,7 @@ const artist: Artist = {
   id: 'a1',
   name: 'Chevira',
   notes: null,
-  artist_link: null,
+  links: [],
   created_at: '',
   updated_at: '',
 }

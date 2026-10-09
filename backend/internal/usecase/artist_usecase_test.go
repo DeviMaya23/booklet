@@ -63,8 +63,11 @@ func (f *fakeArtistRepository) Update(_ context.Context, id uuid.UUID, _ uuid.UU
 	}
 	a.Name = params.Name
 	a.Notes = params.Notes
-	a.ArtistLink = params.ArtistLink
 	return a, nil
+}
+
+func (f *fakeArtistRepository) UpdateLastUsedAt(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+	return nil
 }
 
 func (f *fakeArtistRepository) Delete(_ context.Context, id uuid.UUID, _ uuid.UUID) error {
@@ -142,6 +145,16 @@ func TestDeleteArtist_RemovesArtist(t *testing.T) {
 
 	_, err = uc.GetByID(context.Background(), artist.ID, userID)
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestCreateArtist_SetsLastUsedAt(t *testing.T) {
+	repo := newFakeArtistRepository()
+	uc := usecase.NewArtistUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	got, err := uc.Create(context.Background(), uuid.New(), usecase.CreateArtistParams{Name: "Aria"})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.LastUsedAt)
 }
 
 func TestListArtists_PassesFiltersToRepo(t *testing.T) {

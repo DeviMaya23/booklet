@@ -22,18 +22,28 @@ func NewArtistRepository(db *gorm.DB) *artistRepository {
 }
 
 func (r *artistRepository) Create(ctx context.Context, artist *domain.Artist) (*domain.Artist, error) {
-	if err := dbFromContext(ctx, r.db).Create(artist).Error; err != nil {
+	db := dbFromContext(ctx, r.db)
+	if err := db.Omit("Links.*").Create(artist).Error; err != nil {
 		if isUniqueConstraintViolation(err) {
 			return nil, usecase.ErrArtistNameConflict
 		}
 		return nil, fmt.Errorf("insert artist: %w", err)
 	}
-	return artist, nil
+	if len(artist.Links) > 0 {
+		for i := range artist.Links {
+			artist.Links[i].ArtistID = artist.ID
+		}
+		if err := db.Model(artist).Association("Links").Replace(artist.Links); err != nil {
+			return nil, fmt.Errorf("insert artist links: %w", err)
+		}
+	}
+	return r.GetByID(ctx, artist.ID, artist.UserID)
 }
 
 func (r *artistRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error) {
 	var artist domain.Artist
 	err := dbFromContext(ctx, r.db).
+		Preload("Links").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&artist).Error
 	if err != nil {
@@ -45,11 +55,12 @@ func (r *artistRepository) GetByID(ctx context.Context, id uuid.UUID, userID uui
 func (r *artistRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtistFilters) ([]*domain.Artist, error) {
 	var artists []*domain.Artist
 	q := dbFromContext(ctx, r.db).
+		Preload("Links").
 		Where("user_id = ?", userID)
 	if filters.Q != nil {
 		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(*filters.Q)+"%")
 	}
-	err := q.Order("name ASC").Find(&artists).Error
+	err := q.Order("last_used_at DESC NULLS LAST, name ASC").Find(&artists).Error
 	if err != nil {
 		return nil, fmt.Errorf("list artists: %w", err)
 	}
@@ -57,20 +68,18 @@ func (r *artistRepository) List(ctx context.Context, userID uuid.UUID, filters u
 }
 
 func (r *artistRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateArtistParams) (*domain.Artist, error) {
-	var notes, artistLink interface{}
+	db := dbFromContext(ctx, r.db)
+
+	var notes interface{}
 	if params.Notes != nil {
 		notes = *params.Notes
 	}
-	if params.ArtistLink != nil {
-		artistLink = *params.ArtistLink
-	}
 	updates := map[string]interface{}{
-		"name":        params.Name,
-		"notes":       notes,
-		"artist_link": artistLink,
+		"name":  params.Name,
+		"notes": notes,
 	}
 
-	result := dbFromContext(ctx, r.db).
+	result := db.
 		Model(&domain.Artist{}).
 		Where("id = ? AND user_id = ?", id, userID).
 		Updates(updates)
@@ -84,7 +93,32 @@ func (r *artistRepository) Update(ctx context.Context, id uuid.UUID, userID uuid
 		return nil, gorm.ErrRecordNotFound
 	}
 
+	links := make([]domain.ArtistLink, len(params.Links))
+	for i, l := range params.Links {
+		links[i] = domain.ArtistLink{
+			ID:        uuid.New(),
+			ArtistID:  id,
+			URL:       l.URL,
+			IsPrimary: l.IsPrimary,
+		}
+	}
+	artist := domain.Artist{ID: id}
+	if err := db.Model(&artist).Association("Links").Replace(links); err != nil {
+		return nil, fmt.Errorf("replace artist links: %w", err)
+	}
+
 	return r.GetByID(ctx, id, userID)
+}
+
+func (r *artistRepository) UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.Artist{}).
+		Where("id = ? AND user_id = ?", id, userID).
+		Update("last_used_at", "NOW()")
+	if result.Error != nil {
+		return fmt.Errorf("update artist last_used_at: %w", result.Error)
+	}
+	return nil
 }
 
 func (r *artistRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {

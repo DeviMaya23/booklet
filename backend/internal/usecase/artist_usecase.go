@@ -2,18 +2,13 @@ package usecase
 
 import (
 	"context"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 )
-
-type CreateArtistParams struct {
-	Name       string
-	Notes      *string
-	ArtistLink *string
-}
 
 type artistUsecase struct {
 	artistRepo ArtistRepository
@@ -31,12 +26,22 @@ func (u *artistUsecase) Create(ctx context.Context, userID uuid.UUID, params Cre
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CreateArtist")
 	defer span.End()
 
+	now := time.Now()
+	links := make([]domain.ArtistLink, len(params.Links))
+	for i, l := range params.Links {
+		links[i] = domain.ArtistLink{
+			ID:        uuid.New(),
+			URL:       l.URL,
+			IsPrimary: l.IsPrimary,
+		}
+	}
 	artist := &domain.Artist{
 		ID:         uuid.New(),
 		UserID:     userID,
 		Name:       params.Name,
 		Notes:      params.Notes,
-		ArtistLink: params.ArtistLink,
+		LastUsedAt: &now,
+		Links:      links,
 	}
 	res, err := u.artistRepo.Create(ctx, artist)
 	if err != nil {

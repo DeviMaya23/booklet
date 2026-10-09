@@ -27,7 +27,7 @@ func (r *artpieceRepository) Create(ctx context.Context, a *domain.Artpiece) (*d
 func (r *artpieceRepository) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error) {
 	var a domain.Artpiece
 	err := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Preload("CoverFile").
 		Preload("Files").
 		Preload("Files.ImageMetadata").
@@ -43,7 +43,7 @@ func (r *artpieceRepository) GetByID(ctx context.Context, id uuid.UUID, userID u
 func (r *artpieceRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListArtpieceFilters) ([]*domain.Artpiece, error) {
 	var artpieces []*domain.Artpiece
 	q := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Preload("CoverFile").
 		Preload("Characters").
 		Where("artpieces.user_id = ?", userID)

@@ -31,25 +31,36 @@ func NewArtistHandler(artistUsecase ArtistUsecase, tel *observability.Telemetry)
 	return &ArtistHandler{artistUsecase: artistUsecase, tel: tel}
 }
 
+type artistLinkInput struct {
+	URL       string `json:"url" validate:"required,url"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
+type artistLinkResponse struct {
+	ID        string `json:"id"`
+	URL       string `json:"url"`
+	IsPrimary bool   `json:"is_primary"`
+}
+
 type createArtistRequest struct {
-	Name       string  `json:"name" validate:"required"`
-	Notes      *string `json:"notes"`
-	ArtistLink *string `json:"artist_link" validate:"omitempty,url"`
+	Name  string            `json:"name" validate:"required"`
+	Notes *string           `json:"notes"`
+	Links []artistLinkInput `json:"links" validate:"dive"`
 }
 
 type updateArtistRequest struct {
-	Name       string  `json:"name" validate:"required,min=1"`
-	Notes      *string `json:"notes"`
-	ArtistLink *string `json:"artist_link" validate:"omitempty,url"`
+	Name  string            `json:"name" validate:"required,min=1"`
+	Notes *string           `json:"notes"`
+	Links []artistLinkInput `json:"links" validate:"dive"`
 }
 
 type artistResponse struct {
-	ID         string  `json:"id"`
-	Name       string  `json:"name"`
-	Notes      *string `json:"notes"`
-	ArtistLink *string `json:"artist_link"`
-	CreatedAt  string  `json:"created_at"`
-	UpdatedAt  string  `json:"updated_at"`
+	ID        string               `json:"id"`
+	Name      string               `json:"name"`
+	Notes     *string              `json:"notes"`
+	Links     []artistLinkResponse `json:"links"`
+	CreatedAt string               `json:"created_at"`
+	UpdatedAt string               `json:"updated_at"`
 }
 
 func (h *ArtistHandler) CreateArtist(c echo.Context) error {
@@ -69,10 +80,14 @@ func (h *ArtistHandler) CreateArtist(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
+	links := make([]usecase.ArtistLinkInput, len(req.Links))
+	for i, l := range req.Links {
+		links[i] = usecase.ArtistLinkInput{URL: l.URL, IsPrimary: l.IsPrimary}
+	}
 	artist, err := h.artistUsecase.Create(ctx, userID, usecase.CreateArtistParams{
-		Name:       req.Name,
-		Notes:      req.Notes,
-		ArtistLink: req.ArtistLink,
+		Name:  req.Name,
+		Notes: req.Notes,
+		Links: links,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtistNameConflict) {
@@ -158,10 +173,14 @@ func (h *ArtistHandler) UpdateArtist(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
+	links := make([]usecase.ArtistLinkInput, len(req.Links))
+	for i, l := range req.Links {
+		links[i] = usecase.ArtistLinkInput{URL: l.URL, IsPrimary: l.IsPrimary}
+	}
 	artist, err := h.artistUsecase.Update(ctx, id, userID, usecase.UpdateArtistParams{
-		Name:       req.Name,
-		Notes:      req.Notes,
-		ArtistLink: req.ArtistLink,
+		Name:  req.Name,
+		Notes: req.Notes,
+		Links: links,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -202,12 +221,20 @@ func (h *ArtistHandler) DeleteArtist(c echo.Context) error {
 }
 
 func toArtistResponse(artist *domain.Artist) artistResponse {
+	links := make([]artistLinkResponse, len(artist.Links))
+	for i, l := range artist.Links {
+		links[i] = artistLinkResponse{
+			ID:        l.ID.String(),
+			URL:       l.URL,
+			IsPrimary: l.IsPrimary,
+		}
+	}
 	return artistResponse{
-		ID:         artist.ID.String(),
-		Name:       artist.Name,
-		Notes:      artist.Notes,
-		ArtistLink: artist.ArtistLink,
-		CreatedAt:  artist.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:  artist.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:        artist.ID.String(),
+		Name:      artist.Name,
+		Notes:     artist.Notes,
+		Links:     links,
+		CreatedAt: artist.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt: artist.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }

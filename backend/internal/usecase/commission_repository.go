@@ -29,6 +29,7 @@ type CommissionRepository interface {
 
 type CommissionArtistRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+	UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }
 
 type CommissionCharacterRepository interface {

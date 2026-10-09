@@ -7,7 +7,7 @@ export interface UpdateArtistInput {
   id: string
   name: string
   notes: string | null
-  artist_link: string | null
+  links: { url: string; is_primary: boolean }[]
 }
 
 export function useUpdateArtist() {

@@ -14,7 +14,10 @@ body:json {
   {
     "name": "Jane Doe",
     "notes": "A talented artist.",
-    "artist_link": "https://example.com/janedoe"
+    "links": [
+      { "url": "https://example.com/janedoe", "is_primary": true },
+      { "url": "https://twitter.com/janedoe", "is_primary": false }
+    ]
   }
 }
 

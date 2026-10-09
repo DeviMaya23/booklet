@@ -18,6 +18,7 @@ export interface ArtpieceDetail {
   title: string | null
   artist_id: string | null
   artist_name: string | null
+  artist_link: string | null
   cover_file_id: string | null
   thumbnail_url: string | null
   notes: string | null

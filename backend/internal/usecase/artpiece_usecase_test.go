@@ -129,7 +129,8 @@ func (f *fakeArtpieceRepository) GetArtpiecesForCommission(_ context.Context, co
 }
 
 type fakeArtpieceArtistRepository struct {
-	artists map[uuid.UUID]*domain.Artist
+	artists           map[uuid.UUID]*domain.Artist
+	lastUsedAtUpdated []uuid.UUID
 }
 
 func newFakeArtpieceArtistRepository() *fakeArtpieceArtistRepository {
@@ -142,6 +143,11 @@ func (f *fakeArtpieceArtistRepository) GetByID(_ context.Context, id uuid.UUID, 
 		return nil, gorm.ErrRecordNotFound
 	}
 	return a, nil
+}
+
+func (f *fakeArtpieceArtistRepository) UpdateLastUsedAt(_ context.Context, id uuid.UUID, _ uuid.UUID) error {
+	f.lastUsedAtUpdated = append(f.lastUsedAtUpdated, id)
+	return nil
 }
 
 type fakeArtpieceCharacterRepository struct {
@@ -739,6 +745,38 @@ func TestDownloadFiles_NilTitle_FallbackFilenames(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, zr.File, 1)
 	assert.Equal(t, "artpiece-1.png", zr.File[0].Name)
+}
+
+func TestCreateArtpiece_UpdatesArtistLastUsedAt(t *testing.T) {
+	userID := uuid.New()
+	artistRepo := newFakeArtpieceArtistRepository()
+	artistID := uuid.New()
+	artistRepo.artists[artistID] = &domain.Artist{ID: artistID, UserID: userID}
+
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), artistRepo, newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository())
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{ArtistID: &artistID})
+
+	require.NoError(t, err)
+	require.Contains(t, artistRepo.lastUsedAtUpdated, artistID)
+}
+
+func TestUpdateArtpiece_UpdatesArtistLastUsedAt(t *testing.T) {
+	userID := uuid.New()
+	artistRepo := newFakeArtpieceArtistRepository()
+	artistID := uuid.New()
+	artistRepo.artists[artistID] = &domain.Artist{ID: artistID, UserID: userID}
+
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+
+	uc := newArtpieceUsecase(artpieceRepo, artistRepo, newFakeArtpieceCharacterRepository(), newFakeArtpieceFileRepository())
+
+	_, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{ArtistID: &artistID})
+
+	require.NoError(t, err)
+	require.Contains(t, artistRepo.lastUsedAtUpdated, artistID)
 }
 
 func TestDownloadFiles_R2Error(t *testing.T) {

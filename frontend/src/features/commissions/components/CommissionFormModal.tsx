@@ -118,7 +118,7 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
           id: commission.artist_id,
           name: commission.artist_name,
           notes: null,
-          artist_link: commission.artist_link,
+          links: [],
           created_at: '',
           updated_at: '',
         })

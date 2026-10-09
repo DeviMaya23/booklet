@@ -29,12 +29,13 @@ func TestArtistRepository_Create(t *testing.T) {
 	repo := NewArtistRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
-	link := "https://example.com"
 	artist := &domain.Artist{
-		ID:         uuid.New(),
-		UserID:     user.ID,
-		Name:       "Jane Doe",
-		ArtistLink: &link,
+		ID:     uuid.New(),
+		UserID: user.ID,
+		Name:   "Jane Doe",
+		Links: []domain.ArtistLink{
+			{ID: uuid.New(), URL: "https://example.com", IsPrimary: true},
+		},
 	}
 
 	got, err := repo.Create(context.Background(), artist)
@@ -42,11 +43,35 @@ func TestArtistRepository_Create(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, artist.ID, got.ID)
 	assert.Equal(t, "Jane Doe", got.Name)
-	assert.Equal(t, &link, got.ArtistLink)
+	require.Len(t, got.Links, 1)
+	assert.Equal(t, "https://example.com", got.Links[0].URL)
+	assert.True(t, got.Links[0].IsPrimary)
+}
 
-	var row domain.Artist
-	require.NoError(t, tx.First(&row, "id = ?", artist.ID).Error)
-	assert.Equal(t, "Jane Doe", row.Name)
+func TestArtistRepository_Update_ReplacesLinks(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtistRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	artist := seedArtist(t, tx, user.ID, "Jane Doe")
+
+	updated, err := repo.Update(context.Background(), artist.ID, user.ID, usecase.UpdateArtistParams{
+		Name: "Jane Doe",
+		Links: []usecase.ArtistLinkInput{
+			{URL: "https://first.example.com", IsPrimary: true},
+			{URL: "https://second.example.com", IsPrimary: false},
+		},
+	})
+
+	require.NoError(t, err)
+	require.Len(t, updated.Links, 2)
+	primaryCount := 0
+	for _, l := range updated.Links {
+		if l.IsPrimary {
+			primaryCount++
+		}
+	}
+	assert.Equal(t, 1, primaryCount)
 }
 
 func TestArtistRepository_Create_DuplicateNameSameUser(t *testing.T) {

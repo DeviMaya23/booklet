@@ -204,8 +204,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     )
   }
 
-  const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
-  const viewArtist = cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null
+  const viewArtistPrimaryUrl = artpiece.artist_link
 
   const previewThumbnail =
     mode === 'edit' && pendingCoverFileId
@@ -272,9 +271,9 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                   {artpiece.artist_name ? (
                     <div className="mt-1 flex items-center gap-1">
                       <span className="text-sm">{artpiece.artist_name}</span>
-                      {viewArtist?.artist_link && (
+                      {viewArtistPrimaryUrl && (
                         <a
-                          href={viewArtist.artist_link}
+                          href={viewArtistPrimaryUrl}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="text-muted-foreground hover:text-foreground"

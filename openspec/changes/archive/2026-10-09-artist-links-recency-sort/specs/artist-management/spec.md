@@ -1,12 +1,4 @@
-# Artist Management
-
-## Purpose
-
-Defines the data model, endpoints, and ownership rules for managing artists within the system. Artists are owned by authenticated users and can be referenced by images via a foreign key relationship.
-
----
-
-## Requirements
+## MODIFIED Requirements
 
 ### Requirement: Artist data model
 The `artists` table SHALL use the following schema:
@@ -84,23 +76,6 @@ Optional query parameters:
 
 ---
 
-### Requirement: Get artist by ID
-An authenticated user SHALL be able to retrieve a single artist by ID, provided they own it.
-
-#### Scenario: Successful retrieval
-- **WHEN** an authenticated user sends `GET /artists/:id` for an artist they own
-- **THEN** the system returns 200 with the artist object
-
-#### Scenario: Artist not found or not owned
-- **WHEN** an authenticated user sends `GET /artists/:id` for an artist that does not exist or belongs to another user
-- **THEN** the system returns 404
-
-#### Scenario: Invalid UUID path param
-- **WHEN** an authenticated user sends `GET /artists/:id` with a non-UUID value
-- **THEN** the system returns 400
-
----
-
 ### Requirement: Update artist
 An authenticated user SHALL be able to fully replace the editable fields of an artist they own using PUT semantics. The request body SHALL always include all updatable fields; the server SHALL write them exactly as received.
 
@@ -140,27 +115,6 @@ Updatable fields: `name`, `notes`, `links`.
 
 ---
 
-### Requirement: Delete artist
-An authenticated user SHALL be able to hard-delete an artist they own. All `images.artist_id` and `pending_uploads.artist_id` values referencing the deleted artist SHALL be set to null by the database (`ON DELETE SET NULL`).
-
-#### Scenario: Successful deletion
-- **WHEN** an authenticated user sends `DELETE /artists/:id` for an artist they own
-- **THEN** the system returns 204 and the artist is no longer returned by list or get endpoints
-
-#### Scenario: Referencing images are not deleted
-- **WHEN** an authenticated user deletes an artist that is referenced by one or more images
-- **THEN** those images remain, with `artist_id` set to null
-
-#### Scenario: Artist not found or not owned
-- **WHEN** an authenticated user sends `DELETE /artists/:id` for an artist that does not exist or belongs to another user
-- **THEN** the system returns 404
-
-#### Scenario: Invalid UUID path param
-- **WHEN** an authenticated user sends `DELETE /artists/:id` with a non-UUID value
-- **THEN** the system returns 400
-
----
-
 ### Requirement: Artist response shape
 Every artist response SHALL use snake_case field names and include the following fields:
 - `id` (string, UUID)
@@ -177,12 +131,3 @@ Every artist response SHALL use snake_case field names and include the following
 #### Scenario: Links array present even when empty
 - **WHEN** an artist has no links
 - **THEN** the response SHALL include `"links": []` rather than omitting the field
-
----
-
-### Requirement: Artist ownership isolation
-The system SHALL ensure that a user cannot read or modify artists belonging to another user. Ownership checks SHALL be enforced at the database layer by scoping all queries to the authenticated user's ID.
-
-#### Scenario: Cross-user access attempt
-- **WHEN** user B attempts to get, update, or delete an artist owned by user A
-- **THEN** the system returns 404 (indistinguishable from not found)

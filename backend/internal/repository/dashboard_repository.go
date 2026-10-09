@@ -21,7 +21,7 @@ func NewDashboardRepository(db *gorm.DB) *dashboardRepository {
 func (r *dashboardRepository) GetRecentArtpieces(ctx context.Context, userID uuid.UUID) ([]*domain.Artpiece, error) {
 	var artpieces []*domain.Artpiece
 	err := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Preload("CoverFile").
 		Where("user_id = ?", userID).
 		Order("created_at DESC").
@@ -36,7 +36,7 @@ func (r *dashboardRepository) GetRecentArtpieces(ctx context.Context, userID uui
 func (r *dashboardRepository) GetInProgressCommissions(ctx context.Context, userID uuid.UUID) ([]*domain.Commission, error) {
 	var commissions []*domain.Commission
 	err := dbFromContext(ctx, r.db).
-		Preload("Artist").
+		Preload("Artist.Links").
 		Where("user_id = ? AND status IN ?", userID, []string{"waitlist", "wip"}).
 		Order("created_at ASC").
 		Find(&commissions).Error

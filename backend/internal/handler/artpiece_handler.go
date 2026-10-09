@@ -84,6 +84,7 @@ type artpieceResponse struct {
 	Title        *string        `json:"title"`
 	ArtistID     *string        `json:"artist_id"`
 	ArtistName   *string        `json:"artist_name"`
+	ArtistLink   *string        `json:"artist_link"`
 	CoverFileID  *string        `json:"cover_file_id"`
 	CommissionID *string        `json:"commission_id"`
 	ThumbnailURL *string        `json:"thumbnail_url"`
@@ -482,13 +483,20 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, files []fileRe
 		chars[i] = characterRef{ID: c.ID.String(), Name: c.Name}
 	}
 
-	var artistID, artistName *string
+	var artistID, artistName, artistLink *string
 	if a.ArtistID != nil {
 		s := a.ArtistID.String()
 		artistID = &s
 	}
 	if a.Artist != nil {
 		artistName = &a.Artist.Name
+		for _, l := range a.Artist.Links {
+			if l.IsPrimary {
+				u := l.URL
+				artistLink = &u
+				break
+			}
+		}
 	}
 
 	var coverFileID *string
@@ -508,6 +516,7 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, files []fileRe
 		Title:        a.Title,
 		ArtistID:     artistID,
 		ArtistName:   artistName,
+		ArtistLink:   artistLink,
 		CoverFileID:  coverFileID,
 		CommissionID: commissionID,
 		ThumbnailURL: thumbnailURL,

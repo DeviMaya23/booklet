@@ -29,6 +29,7 @@ type ArtpieceRepository interface {
 
 type ArtpieceArtistRepository interface {
 	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artist, error)
+	UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 }
 
 type ArtpieceCharacterRepository interface {

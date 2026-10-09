@@ -56,6 +56,11 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, userID); err != nil {
 			return nil, ErrArtistNotOwned
 		}
+		if err := u.artistRepo.UpdateLastUsedAt(ctx, *params.ArtistID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
 	}
 
 	if len(params.CharacterIDs) > 0 {
@@ -159,6 +164,17 @@ func (u *ArtpieceUsecase) List(ctx context.Context, userID uuid.UUID, filters Li
 func (u *ArtpieceUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateArtpieceParams) (*domain.Artpiece, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateArtpiece")
 	defer span.End()
+
+	if params.ArtistID != nil {
+		if _, err := u.artistRepo.GetByID(ctx, *params.ArtistID, userID); err != nil {
+			return nil, ErrArtistNotOwned
+		}
+		if err := u.artistRepo.UpdateLastUsedAt(ctx, *params.ArtistID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+	}
 
 	res, err := u.artpieceRepo.Update(ctx, id, userID, params)
 	if err != nil {

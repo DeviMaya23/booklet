@@ -422,7 +422,13 @@ func (h *CommissionHandler) toCommissionResponse(ctx context.Context, c *domain.
 	}
 	if c.Artist != nil {
 		artistName = &c.Artist.Name
-		artistLink = c.Artist.ArtistLink
+		for _, l := range c.Artist.Links {
+			if l.IsPrimary {
+				u := l.URL
+				artistLink = &u
+				break
+			}
+		}
 	}
 
 	var lastContactedAt *string

@@ -83,7 +83,8 @@ func (f *fakeCommissionRepository) Delete(_ context.Context, id uuid.UUID, userI
 }
 
 type fakeCommissionArtistRepository struct {
-	artists map[uuid.UUID]*domain.Artist
+	artists            map[uuid.UUID]*domain.Artist
+	lastUsedAtUpdated  []uuid.UUID
 }
 
 func newFakeCommissionArtistRepository() *fakeCommissionArtistRepository {
@@ -96,6 +97,11 @@ func (f *fakeCommissionArtistRepository) GetByID(_ context.Context, id uuid.UUID
 		return nil, gorm.ErrRecordNotFound
 	}
 	return a, nil
+}
+
+func (f *fakeCommissionArtistRepository) UpdateLastUsedAt(_ context.Context, id uuid.UUID, _ uuid.UUID) error {
+	f.lastUsedAtUpdated = append(f.lastUsedAtUpdated, id)
+	return nil
 }
 
 type fakeCommissionCharacterRepository struct {
@@ -570,6 +576,44 @@ func TestPatchCommission_PatchPaidTrue(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.True(t, updated.Paid)
+}
+
+func TestCreateCommission_UpdatesArtistLastUsedAt(t *testing.T) {
+	userID := uuid.New()
+	artistRepo := newFakeCommissionArtistRepository()
+	artistID := uuid.New()
+	artistRepo.artists[artistID] = &domain.Artist{ID: artistID, UserID: userID}
+
+	uc := newCommissionUsecase(newFakeCommissionRepository(), artistRepo, newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateCommissionParams{
+		Status:   usecase.CommissionStatusWaitlist,
+		ArtistID: &artistID,
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, artistRepo.lastUsedAtUpdated, artistID)
+}
+
+func TestUpdateCommission_UpdatesArtistLastUsedAt(t *testing.T) {
+	userID := uuid.New()
+	artistRepo := newFakeCommissionArtistRepository()
+	artistID := uuid.New()
+	artistRepo.artists[artistID] = &domain.Artist{ID: artistID, UserID: userID}
+
+	commissionRepo := newFakeCommissionRepository()
+	commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWaitlist}
+	commissionRepo.commissions[commission.ID] = commission
+
+	uc := newCommissionUsecase(commissionRepo, artistRepo, newFakeCommissionCharacterRepository(), newFakeCommissionArtpieceRepository())
+
+	_, err := uc.Update(context.Background(), commission.ID, userID, usecase.UpdateCommissionParams{
+		Status:   usecase.CommissionStatusWaitlist,
+		ArtistID: &artistID,
+	})
+
+	require.NoError(t, err)
+	require.Contains(t, artistRepo.lastUsedAtUpdated, artistID)
 }
 
 func TestPatchCommission_PatchPaidFalse(t *testing.T) {
