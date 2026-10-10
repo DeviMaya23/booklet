@@ -39,6 +39,7 @@ If, while implementing a task, you discover that something not covered by the de
 
 ### Others to keep in mind during proposals
 - Every surface listed in the Impact section must have at least one corresponding spec scenario. The scenario must name the specific data path (e.g. "commission list returns Artist.Links preloaded and surfaces the primary link"), not just the surface. Each scenario must also name how it is verified — a test or an explicit manual step. Impact without a scenario is documentation; Impact with a scenario and a named check is a contract.
+- Every scenario must include a `**Verified by:**` line stating either the test task that covers it (e.g. `**Verified by:** test — task 4.3`) or an explicit manual step (e.g. `**Verified by:** manual smoke — CSS overflow not assertable in jsdom`). "Manual smoke" is a legitimate answer but must be written down. A scenario without a `**Verified by:**` line is incomplete.
 - When a change modifies a shared contract (a function signature, API endpoint, hook, etc.), grep for every call site of that symbol across all layers (backend, frontend, extension) before finalizing Impact/Capabilities/tasks — do not rely on a named flow (e.g. "the upload flow") to be exhaustive, as parallel entry points (e.g. drag-and-drop vs. modal vs. batch upload) commonly funnel into the same shared function and are easy to miss.
 - When creating tasks for a new endpoint, always include a bruno file creation.
 - On any BE development, include a task to run golang-ci lint at the end, and fix whatever issue arises.

@@ -9,7 +9,7 @@ vi.mock('@kinde-oss/kinde-auth-react', () => ({
 }))
 
 vi.mock('../api/useArtpiece', () => ({
-  useArtpiece: (_id: string) => ({ data: mockArtpiece, isLoading: false, isError: false }),
+  useArtpiece: () => ({ data: mockArtpiece, isLoading: false, isError: false }),
   artpieceQueryKey: (id: string) => ['artpieces', id],
 }))
 

@@ -13,3 +13,11 @@ export function isValidUrl(value: string): boolean {
     return false
   }
 }
+
+export function getHostname(url: string): string {
+  try {
+    return new URL(url).hostname
+  } catch {
+    return url
+  }
+}
