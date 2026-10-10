@@ -7,9 +7,13 @@ This capability covers the `FileViewer` fullscreen modal component for previewin
 ### Requirement: FileViewer component — image preview state
 The system SHALL provide a `FileViewer` component that renders as a fullscreen modal overlay and displays a single file at a time with navigation controls.
 
-#### Scenario: Open viewer on file tile click
+#### Scenario: Open viewer on file tile click (artpiece detail)
 - **WHEN** a user clicks a file tile in the artpiece detail view (view mode)
 - **THEN** `FileViewer` SHALL open as a fullscreen overlay, displaying the clicked file at the initial index
+
+#### Scenario: Open viewer from gallery lightbox
+- **WHEN** a user single-clicks an artpiece tile in the gallery
+- **THEN** `FileViewer` SHALL open as a fullscreen overlay, displaying that artpiece's cover as the initial entry, with the full list of filtered artpiece covers available for navigation
 
 #### Scenario: Image preview with checkerboard background
 - **WHEN** the viewer displays a file whose `mimeType` starts with `image/` and whose `thumbnailUrl` is non-null

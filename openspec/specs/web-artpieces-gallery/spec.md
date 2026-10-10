@@ -1,6 +1,6 @@
 ## Purpose
 
-Defines the Artpieces gallery screen — a dedicated page for browsing all artpieces with client-side search, sort, and filter, an entry point to create a new artpiece, and the ability to delete an artpiece from the gallery.
+Defines the Artpieces gallery screen — a dedicated page for browsing all artpieces with client-side search, sort, and filter, an entry point to create a new artpiece, and a lightbox for previewing cover images.
 
 ## Requirements
 
@@ -9,7 +9,11 @@ The system SHALL render an Artpieces gallery page at `/app/artpieces` that displ
 
 #### Scenario: Page renders with artpieces
 - **WHEN** an authenticated user navigates to `/app/artpieces`
-- **THEN** the page SHALL display a card grid of all artpieces, each showing the cover thumbnail (or a placeholder icon if none), the title (or "Untitled" if null), and the artist name below the title (omitted if no artist)
+- **THEN** the page SHALL display a grid of artpiece tiles, each showing the cover thumbnail (or a placeholder icon if none), with title and artist displayed in a caption row below the tile (title shown as "Untitled" if null; artist row omitted if no artist); caption row visibility is subject to the "Show details" preference
+
+#### Scenario: Tile hover state
+- **WHEN** the user hovers over an artpiece tile
+- **THEN** the tile SHALL lift slightly and an ⓘ button SHALL appear in the top-right corner of the tile with an "Open details" tooltip
 
 #### Scenario: Empty state
 - **WHEN** an authenticated user has no artpieces
@@ -132,34 +136,64 @@ The gallery SHALL display a "+ New Artpiece" button that opens the existing Crea
 
 ---
 
-### Requirement: Open artpiece detail via double-click
-The gallery card SHALL support double-click to open the artpiece detail view.
+### Requirement: Single-click opens cover lightbox
+The system SHALL open `FileViewer` as a fullscreen lightbox when the user single-clicks an artpiece tile, navigating through artpieces by their cover image.
 
-#### Scenario: Double-click opens detail view
-- **WHEN** the user double-clicks an artpiece card in the gallery
-- **THEN** the artpiece detail view SHALL open for that artpiece
+#### Scenario: Single click opens lightbox at correct index
+- **WHEN** the user single-clicks an artpiece tile
+- **THEN** `FileViewer` SHALL open in fullscreen with that artpiece's cover as the active entry, and `<` / `>` arrows SHALL navigate to adjacent artpieces in the current filtered and sorted order
+
+#### Scenario: Artpiece with no cover in lightbox
+- **WHEN** the lightbox is open and the current artpiece has no cover file
+- **THEN** `FileViewer` SHALL render the no-preview fallback card for that entry
+
+#### Scenario: Closing the lightbox returns to the gallery
+- **WHEN** the user closes the lightbox (× button or Escape)
+- **THEN** `FileViewer` SHALL unmount and the gallery SHALL be visible and unchanged
 
 ---
 
-### Requirement: Delete artpiece from gallery
-The gallery SHALL allow the user to delete an artpiece via the card's overflow menu. A confirmation dialog with an "Also delete attached files" checkbox SHALL appear. When the checkbox is checked, attached files are permanently deleted along with the artpiece; when unchecked, files remain in the inbox with no artpiece association.
+### Requirement: Open artpiece detail via ⓘ button
+The system SHALL navigate to the artpiece detail view when the user clicks the ⓘ button visible on tile hover.
 
-#### Scenario: Delete triggers confirmation dialog with checkbox
-- **WHEN** the user clicks "Delete" in a card's overflow menu
-- **THEN** the `DeleteArtpieceDialog` SHALL open with the "Also delete attached files" checkbox (generic label, no file count) and a Cancel and Delete button
+#### Scenario: ⓘ click navigates to detail
+- **WHEN** the user clicks the ⓘ button on a tile
+- **THEN** the system SHALL navigate to the artpiece detail view for that artpiece
 
-#### Scenario: Confirmed deletion without delete_files
-- **WHEN** the user confirms deletion with the checkbox unchecked
-- **THEN** `DELETE /artpieces/:id` SHALL be called; on success the card SHALL be removed from the gallery and a toast SHALL show "Artpiece deleted"
+---
 
-#### Scenario: Confirmed deletion with delete_files
-- **WHEN** the user confirms deletion with the checkbox checked
-- **THEN** `DELETE /artpieces/:id?delete_files=true` SHALL be called; on success the card SHALL be removed from the gallery and a toast SHALL show "Artpiece deleted"
+### Requirement: View options popover
+The gallery toolbar SHALL include a **View** button that opens a popover with tile size and caption visibility controls.
 
-#### Scenario: Cancelled deletion does nothing
-- **WHEN** the user dismisses the confirmation dialog
-- **THEN** no API call is made and the gallery is unchanged
+#### Scenario: Tile size — Small
+- **WHEN** the user selects "Small" in the View popover
+- **THEN** the grid SHALL use a higher column count (denser layout)
 
-#### Scenario: Deletion failure shows error toast
-- **WHEN** the delete call fails
-- **THEN** the card SHALL remain in the gallery and a toast SHALL show "Failed to delete artpiece"
+#### Scenario: Tile size — Medium
+- **WHEN** the user selects "Medium" in the View popover
+- **THEN** the grid SHALL use a medium column count (default layout)
+
+#### Scenario: Tile size — Large
+- **WHEN** the user selects "Large" in the View popover
+- **THEN** the grid SHALL use a lower column count (spacious layout)
+
+#### Scenario: Show details toggle — on
+- **WHEN** "Show details" is enabled in the View popover
+- **THEN** the caption row (title and artist) SHALL be visible below each tile
+
+#### Scenario: Show details toggle — off
+- **WHEN** "Show details" is disabled in the View popover
+- **THEN** the caption row SHALL be hidden and tiles SHALL be image-only
+
+---
+
+### Requirement: View preferences persistence
+The gallery SHALL persist the tile size and show-details preference to `localStorage` so they survive page reloads and session restarts.
+
+#### Scenario: Preference survives reload
+- **WHEN** the user sets a tile size or show-details value and reloads the page
+- **THEN** the gallery SHALL restore the saved preference on load
+
+#### Scenario: Default when no preference stored
+- **WHEN** no preference has been saved (e.g. first visit or cleared storage)
+- **THEN** the gallery SHALL default to Medium tile size and show-details enabled

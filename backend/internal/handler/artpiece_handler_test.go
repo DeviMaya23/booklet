@@ -207,6 +207,62 @@ func TestListArtpieces_HappyPath(t *testing.T) {
 	require.Len(t, got, 1)
 }
 
+func TestListArtpieces_CoverFieldsPopulatedWhenCoverExists(t *testing.T) {
+	coverFileID := uuid.New()
+	fileName := "artwork.jpg"
+	coverFile := &domain.File{
+		ID:         coverFileID,
+		FileR2Path: "users/x/files/artwork.jpg",
+		MimeType:   "image/jpeg",
+		Name:       &fileName,
+	}
+	a := makeArtpiece()
+	a.CoverFileID = &coverFileID
+	a.CoverFile = coverFile
+
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/artwork.jpg?sig=xyz"}
+	spy := &spyArtpieceUsecase{listResult: []*domain.Artpiece{a}}
+	h := handler.NewArtpieceHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/artpieces", h.ListArtpieces)
+
+	req := httptest.NewRequest(http.MethodGet, "/artpieces", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 1)
+	require.Equal(t, "https://cdn.example.com/artwork.jpg?sig=xyz", got[0]["cover_file_url"])
+	require.Equal(t, "image/jpeg", got[0]["cover_file_mime_type"])
+	require.Equal(t, "artwork.jpg", got[0]["cover_file_name"])
+}
+
+func TestListArtpieces_CoverFieldsNullWhenNoCover(t *testing.T) {
+	a := makeArtpiece()
+	// CoverFile and CoverFileID are nil
+
+	spy := &spyArtpieceUsecase{listResult: []*domain.Artpiece{a}}
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/artpieces", h.ListArtpieces)
+
+	req := httptest.NewRequest(http.MethodGet, "/artpieces", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 1)
+	require.Nil(t, got[0]["cover_file_url"])
+	require.Nil(t, got[0]["cover_file_mime_type"])
+	require.Nil(t, got[0]["cover_file_name"])
+}
+
 // --- Update ---
 
 func TestUpdateArtpiece_HappyPath(t *testing.T) {

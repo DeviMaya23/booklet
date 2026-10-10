@@ -80,19 +80,22 @@ type fileRef struct {
 }
 
 type artpieceResponse struct {
-	ID           string         `json:"id"`
-	Title        *string        `json:"title"`
-	ArtistID     *string        `json:"artist_id"`
-	ArtistName   *string        `json:"artist_name"`
-	ArtistLink   *string        `json:"artist_link"`
-	CoverFileID  *string        `json:"cover_file_id"`
-	CommissionID *string        `json:"commission_id"`
-	ThumbnailURL *string        `json:"thumbnail_url"`
-	Notes        *string        `json:"notes"`
-	Characters   []characterRef `json:"characters"`
-	Files        []fileRef      `json:"files"`
-	CreatedAt    string         `json:"created_at"`
-	UpdatedAt    string         `json:"updated_at"`
+	ID                string         `json:"id"`
+	Title             *string        `json:"title"`
+	ArtistID          *string        `json:"artist_id"`
+	ArtistName        *string        `json:"artist_name"`
+	ArtistLink        *string        `json:"artist_link"`
+	CoverFileID       *string        `json:"cover_file_id"`
+	CommissionID      *string        `json:"commission_id"`
+	ThumbnailURL      *string        `json:"thumbnail_url"`
+	CoverFileURL      *string        `json:"cover_file_url"`
+	CoverFileMimeType *string        `json:"cover_file_mime_type"`
+	CoverFileName     *string        `json:"cover_file_name"`
+	Notes             *string        `json:"notes"`
+	Characters        []characterRef `json:"characters"`
+	Files             []fileRef      `json:"files"`
+	CreatedAt         string         `json:"created_at"`
+	UpdatedAt         string         `json:"updated_at"`
 }
 
 func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
@@ -133,7 +136,7 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusCreated, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusCreated, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
@@ -185,7 +188,7 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 		}
 		fileRefs = append(fileRefs, ref)
 	}
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, fileRefs))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, fileRefs))
 }
 
 func (h *ArtpieceHandler) ListArtpieces(c echo.Context) error {
@@ -213,7 +216,14 @@ func (h *ArtpieceHandler) ListArtpieces(c echo.Context) error {
 	responses := make([]artpieceResponse, len(artpieces))
 	for i, a := range artpieces {
 		thumbnailURL, _ := h.presignCoverThumbnail(ctx, a)
-		responses[i] = toArtpieceResponse(a, thumbnailURL, nil)
+		var coverFileURL *string
+		if a.CoverFile != nil {
+			u, err := h.presigner.GeneratePresignedGetURL(ctx, a.CoverFile.FileR2Path, usecase.PresignGetTTL)
+			if err == nil {
+				coverFileURL = &u
+			}
+		}
+		responses[i] = toArtpieceResponse(a, thumbnailURL, coverFileURL, nil)
 	}
 	return c.JSON(http.StatusOK, responses)
 }
@@ -260,7 +270,7 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) DeleteArtpiece(c echo.Context) error {
@@ -319,7 +329,7 @@ func (h *ArtpieceHandler) AttachFile(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) ReplaceFiles(c echo.Context) error {
@@ -353,7 +363,7 @@ func (h *ArtpieceHandler) ReplaceFiles(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) DetachFile(c echo.Context) error {
@@ -386,7 +396,7 @@ func (h *ArtpieceHandler) DetachFile(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) SetCover(c echo.Context) error {
@@ -423,7 +433,7 @@ func (h *ArtpieceHandler) SetCover(c echo.Context) error {
 	}
 
 	thumbnailURL, _ := h.presignCoverThumbnail(ctx, artpiece)
-	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil))
+	return c.JSON(http.StatusOK, toArtpieceResponse(artpiece, thumbnailURL, nil, nil))
 }
 
 func (h *ArtpieceHandler) DownloadFiles(c echo.Context) error {
@@ -477,7 +487,7 @@ func (h *ArtpieceHandler) presignCoverThumbnail(ctx context.Context, a *domain.A
 	return &u, nil
 }
 
-func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, files []fileRef) artpieceResponse {
+func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, coverFileURL *string, files []fileRef) artpieceResponse {
 	chars := make([]characterRef, len(a.Characters))
 	for i, c := range a.Characters {
 		chars[i] = characterRef{ID: c.ID.String(), Name: c.Name}
@@ -511,19 +521,28 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, files []fileRe
 		commissionID = &s
 	}
 
+	var coverFileMimeType, coverFileName *string
+	if a.CoverFile != nil {
+		coverFileMimeType = &a.CoverFile.MimeType
+		coverFileName = a.CoverFile.Name
+	}
+
 	return artpieceResponse{
-		ID:           a.ID.String(),
-		Title:        a.Title,
-		ArtistID:     artistID,
-		ArtistName:   artistName,
-		ArtistLink:   artistLink,
-		CoverFileID:  coverFileID,
-		CommissionID: commissionID,
-		ThumbnailURL: thumbnailURL,
-		Notes:        a.Notes,
-		Characters:   chars,
-		Files:        files,
-		CreatedAt:    a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:    a.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:                a.ID.String(),
+		Title:             a.Title,
+		ArtistID:          artistID,
+		ArtistName:        artistName,
+		ArtistLink:        artistLink,
+		CoverFileID:       coverFileID,
+		CommissionID:      commissionID,
+		ThumbnailURL:      thumbnailURL,
+		CoverFileURL:      coverFileURL,
+		CoverFileMimeType: coverFileMimeType,
+		CoverFileName:     coverFileName,
+		Notes:             a.Notes,
+		Characters:        chars,
+		Files:             files,
+		CreatedAt:         a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:         a.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }

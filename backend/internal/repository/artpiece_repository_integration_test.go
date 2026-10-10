@@ -93,6 +93,39 @@ func TestArtpieceRepository_List_FilterByCharacter(t *testing.T) {
 	assert.Equal(t, a1.ID, results[0].ID)
 }
 
+func TestArtpieceRepository_List_CoverFileFieldsAccessible(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+
+	fileName := "cover.jpg"
+	file := &domain.File{
+		ID:         uuid.New(),
+		UserID:     user.ID,
+		FileR2Path: "users/x/files/cover.jpg",
+		MimeType:   "image/jpeg",
+		Name:       &fileName,
+	}
+	require.NoError(t, tx.Create(file).Error)
+
+	artpiece := &domain.Artpiece{
+		ID:          uuid.New(),
+		UserID:      user.ID,
+		CoverFileID: &file.ID,
+	}
+	require.NoError(t, tx.Create(artpiece).Error)
+
+	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	require.NotNil(t, results[0].CoverFile)
+	assert.Equal(t, "users/x/files/cover.jpg", results[0].CoverFile.FileR2Path)
+	assert.Equal(t, "image/jpeg", results[0].CoverFile.MimeType)
+	assert.Equal(t, "cover.jpg", *results[0].CoverFile.Name)
+}
+
 func TestArtpieceRepository_Delete_DoesNotCascadeToFiles(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	artpieceRepo := NewArtpieceRepository(tx)

@@ -18,3 +18,11 @@ params:query {
 vars:pre-request {
   characterId: 8f9acc37-4836-4f3a-84f5-9966ac387460
 }
+
+docs {
+  Response includes cover file fields when cover_file_id is non-null:
+    cover_file_url       - presigned GET URL for the full-resolution cover file
+    cover_file_mime_type - MIME type of the cover file (e.g. "image/jpeg")
+    cover_file_name      - name of the cover file, null if unnamed
+  All three are null when the artpiece has no cover.
+}

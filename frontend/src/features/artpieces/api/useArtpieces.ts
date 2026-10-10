@@ -16,6 +16,9 @@ export interface ArtpieceSummary {
   cover_file_id: string | null
   commission_id: string | null
   thumbnail_url: string | null
+  cover_file_url: string | null
+  cover_file_mime_type: string | null
+  cover_file_name: string | null
   notes: string | null
   characters: ArtpieceCharacter[]
   created_at: string
