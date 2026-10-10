@@ -10,6 +10,7 @@ import (
 
 type BookleafClient interface {
 	GetPublicFolders(ctx context.Context, userID string) (*bookleaf.FolderList, error)
+	GetFolderImages(ctx context.Context, userID, folderID string) (*bookleaf.FolderImageList, error)
 	DeleteAccount(ctx context.Context, kindeUserID string) error
 }
 
@@ -27,6 +28,19 @@ func (u *folderUsecase) ListFolders(ctx context.Context, idpSubject string) (*bo
 	defer span.End()
 
 	result, err := u.client.GetPublicFolders(ctx, idpSubject)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	return result, nil
+}
+
+func (u *folderUsecase) GetFolderImages(ctx context.Context, idpSubject, folderID string) (*bookleaf.FolderImageList, error) {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.GetFolderImages")
+	defer span.End()
+
+	result, err := u.client.GetFolderImages(ctx, idpSubject, folderID)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

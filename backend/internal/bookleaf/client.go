@@ -11,6 +11,7 @@ import (
 var (
 	ErrUnauthorized     = errors.New("bookleaf: unauthorized")
 	ErrUnexpectedStatus = errors.New("bookleaf: unexpected status")
+	ErrNotFound         = errors.New("bookleaf: not found")
 )
 
 type Folder struct {
@@ -21,6 +22,15 @@ type Folder struct {
 
 type FolderList struct {
 	FolderList []Folder `json:"folder_list"`
+}
+
+type FolderImage struct {
+	ImageID      string `json:"image_id"`
+	ThumbnailURL string `json:"thumbnail_url"`
+}
+
+type FolderImageList struct {
+	Images []FolderImage `json:"images"`
 }
 
 type Client struct {
@@ -58,6 +68,34 @@ func (c *Client) DeleteAccount(ctx context.Context, kindeUserID string) error {
 		return fmt.Errorf("%w: status %d", ErrUnexpectedStatus, resp.StatusCode)
 	}
 	return nil
+}
+
+func (c *Client) GetFolderImages(ctx context.Context, userID, folderID string) (*FolderImageList, error) {
+	url := fmt.Sprintf("%s/internal/users/%s/folders/%s/images", c.host, userID, folderID)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return nil, fmt.Errorf("build request: %w", err)
+	}
+	req.Header.Set("X-Bookleaf-Internal-Secret", c.internalSecret)
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("get folder images: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf("%w: status %d", ErrNotFound, resp.StatusCode)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("get folder images: unexpected status %d", resp.StatusCode)
+	}
+
+	var result FolderImageList
+	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
+		return nil, fmt.Errorf("decode response: %w", err)
+	}
+	return &result, nil
 }
 
 func (c *Client) GetPublicFolders(ctx context.Context, userID string) (*FolderList, error) {

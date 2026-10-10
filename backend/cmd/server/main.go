@@ -337,6 +337,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.DELETE("/characters/:id/avatar", characterHandler.DeleteAvatar)
 
 	protected.GET("/folders", folderHandler.ListFolders)
+	protected.GET("/folders/:folderID/images", folderHandler.GetFolderImages)
 
 	protected.POST("/artists", artistHandler.CreateArtist)
 	protected.GET("/artists", artistHandler.ListArtists)

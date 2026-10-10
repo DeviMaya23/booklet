@@ -59,6 +59,10 @@ func (s *spyBookleafClient) GetPublicFolders(_ context.Context, _ string) (*book
 	return nil, nil
 }
 
+func (s *spyBookleafClient) GetFolderImages(_ context.Context, _, _ string) (*bookleaf.FolderImageList, error) {
+	return &bookleaf.FolderImageList{Images: []bookleaf.FolderImage{}}, nil
+}
+
 func (s *spyBookleafClient) DeleteAccount(_ context.Context, _ string) error {
 	return s.deleteAccountErr
 }

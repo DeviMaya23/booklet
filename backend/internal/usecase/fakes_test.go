@@ -191,6 +191,10 @@ func (f *fakeBookleafClient) GetPublicFolders(_ context.Context, userID string) 
 	return f.folderList, f.err
 }
 
+func (f *fakeBookleafClient) GetFolderImages(_ context.Context, _, _ string) (*bookleaf.FolderImageList, error) {
+	return &bookleaf.FolderImageList{Images: []bookleaf.FolderImage{}}, nil
+}
+
 func (f *fakeBookleafClient) DeleteAccount(_ context.Context, _ string) error {
 	return nil
 }
