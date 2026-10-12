@@ -374,7 +374,7 @@ func TestUpdateArtist_InvalidArtistLink(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.PUT("/artists/:id", h.UpdateArtist)
 
-	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Jane","notes":null,"artist_link":"not-a-url"}`))
+	req := httptest.NewRequest(http.MethodPut, fmt.Sprintf("/artists/%s", uuid.New()), strings.NewReader(`{"name":"Jane","notes":null,"links":[{"url":"not-a-url","is_primary":false}]}`))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
