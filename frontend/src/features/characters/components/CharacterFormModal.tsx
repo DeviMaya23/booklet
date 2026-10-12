@@ -24,6 +24,7 @@ import {
   AlertDialogCancel,
   AlertDialogAction,
 } from '@/components/ui/alert-dialog'
+import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api'
 import { type Character, CHARACTERS_QUERY_KEY } from '../api/useCharacters'
 import { useCreateCharacter } from '../api/useCreateCharacter'
@@ -31,8 +32,10 @@ import { useUpdateCharacter } from '../api/useUpdateCharacter'
 import { useDeleteCharacter } from '../api/useDeleteCharacter'
 import { useInitAvatarUpload } from '../api/useInitAvatarUpload'
 import { useCompleteAvatarUpload } from '../api/useCompleteAvatarUpload'
-import { usePublicFolders, type PublicFolder } from '../api/usePublicFolders'
-import { FolderPicker } from './FolderPicker'
+import { usePublicFolders } from '../api/usePublicFolders'
+import { useFolderDiff } from '../api/useFolderDiff'
+import { FolderList } from './FolderList'
+import { ChooseFoldersPanel } from './ChooseFoldersPanel'
 
 interface CharacterFormModalProps {
   open: boolean
@@ -56,11 +59,7 @@ export default function CharacterFormModal({
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
-
-  // Folder diff state: track adds/removes against the original character folders
-  const [addedFolders, setAddedFolders] = useState<PublicFolder[]>([])
-  const [removedIds, setRemovedIds] = useState<Set<string>>(new Set())
-  const [renamedFolders, setRenamedFolders] = useState<Map<string, string>>(new Map())
+  const [panelOpen, setPanelOpen] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { getToken } = useKindeAuth()
@@ -75,50 +74,23 @@ export default function CharacterFormModal({
 
   const isPending = isSubmitting || deleteMutation.isPending
 
-  // Compute current selected folders: (original + added) - removed
-  const originalFolders: PublicFolder[] = (character?.folders ?? []).map((f) => ({
-    id: f.id,
-    name: f.name,
-  }))
-  const selectedFolders: PublicFolder[] = [
-    ...originalFolders
-      .filter((f) => !removedIds.has(f.id))
-      .map((f) => ({ ...f, name: renamedFolders.get(f.id) ?? f.name })),
-    ...addedFolders,
-  ]
-  const selectedIds = new Set(selectedFolders.map((f) => f.id))
-  const availableFolders: PublicFolder[] = (publicFoldersQuery.data ?? []).filter(
-    (f) => !selectedIds.has(f.id),
-  )
-  const folderPickerDisabled = publicFoldersQuery.isLoading || publicFoldersQuery.isError
+  const originalFolders: { id: string; name: string }[] = character?.folders ?? []
+
+  const {
+    selectedFolders,
+    selectedIds,
+    invalidFolders,
+    addFolder,
+    removeFolder,
+    dismissInvalid,
+    reset: resetFolderDiff,
+  } = useFolderDiff({ originalFolders, publicFolders: publicFoldersQuery.data })
 
   useEffect(() => {
     return () => {
       if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
     }
   }, [localPreviewUrl])
-
-  useEffect(() => {
-    if (!publicFoldersQuery.data) return
-    const liveMap = new Map<string, string>(publicFoldersQuery.data.map((f) => [f.id, f.name]))
-    const nameOverrides = new Map<string, string>()
-    const newRemovedIds = new Set<string>()
-    for (const f of originalFolders) {
-      const liveName = liveMap.get(f.id)
-      if (liveName === undefined) {
-        newRemovedIds.add(f.id)
-      } else if (liveName !== f.name) {
-        nameOverrides.set(f.id, liveName)
-      }
-    }
-    if (nameOverrides.size > 0) {
-      setRenamedFolders(nameOverrides)
-    }
-    if (newRemovedIds.size > 0) {
-      setRemovedIds((prev) => new Set([...prev, ...newRemovedIds]))
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [publicFoldersQuery.data])
 
   const displayUrl = localPreviewUrl ?? (avatarCleared ? null : character?.avatar_url ?? null)
   const showClearButton = isEditMode && !avatarCleared && (localPreviewUrl !== null || character?.avatar_url != null)
@@ -130,9 +102,8 @@ export default function CharacterFormModal({
     setLocalPreviewUrl(null)
     setAvatarCleared(false)
     setDeleteDialogOpen(false)
-    setAddedFolders([])
-    setRemovedIds(new Set())
-    setRenamedFolders(new Map())
+    resetFolderDiff()
+    setPanelOpen(false)
     if (cropSourceUrl) {
       URL.revokeObjectURL(cropSourceUrl)
       setCropSourceUrl(null)
@@ -281,127 +252,159 @@ export default function CharacterFormModal({
     })
   }
 
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{isEditMode ? 'Edit character' : 'New character'}</DialogTitle>
-          </DialogHeader>
+        <DialogContent
+          className={cn(
+            'overflow-hidden transition-[max-width] duration-200',
+            panelOpen ? 'max-w-3xl' : 'max-w-md',
+          )}
+        >
+          <div className="flex min-h-0">
+            {/* Left column: the form */}
+            <div className={cn('flex flex-col gap-4', panelOpen ? 'w-[400px] shrink-0 pr-6' : 'w-full')}>
+              <DialogHeader>
+                <DialogTitle>{isEditMode ? 'Edit character' : 'New character'}</DialogTitle>
+              </DialogHeader>
 
-          <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-            <div className="relative">
-              <button
-                type="button"
-                className={`flex w-full cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted transition-colors${!displayUrl ? ' h-40' : ''}${dragActive ? ' ring-2 ring-ring' : ''}`}
-                onClick={() => fileInputRef.current?.click()}
-                onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-                onDragLeave={() => setDragActive(false)}
-                onDrop={handleDrop}
-                disabled={isPending}
-              >
-                {displayUrl ? (
-                  <img src={displayUrl} alt="Avatar preview" className="max-h-[35vh] max-w-full" />
-                ) : (
-                  <div className="flex flex-col items-center gap-2 text-muted-foreground">
-                    <Image className="size-10" />
-                    <span className="text-sm">{dragActive ? 'Drop to upload' : 'Click or drag to upload'}</span>
+              <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+                {/* Avatar + Name row */}
+                <div className="flex items-start gap-4">
+                  <div className="relative shrink-0">
+                    <button
+                      type="button"
+                      className={cn(
+                        'relative flex size-20 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted transition-colors',
+                        dragActive && 'ring-2 ring-ring',
+                      )}
+                      onClick={() => fileInputRef.current?.click()}
+                      onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
+                      onDragLeave={() => setDragActive(false)}
+                      onDrop={handleDrop}
+                      disabled={isPending}
+                    >
+                      {displayUrl ? (
+                        <>
+                          <img
+                            src={displayUrl}
+                            alt="Avatar preview"
+                            className="size-full object-cover"
+                          />
+                          <span className="absolute inset-x-0 bottom-0 bg-black/50 py-0.5 text-center text-xs font-medium text-white">
+                            Change
+                          </span>
+                        </>
+                      ) : (
+                        <Image className="size-8 text-muted-foreground" />
+                      )}
+                    </button>
+                    {showClearButton && (
+                      <button
+                        type="button"
+                        className="absolute -right-2 -top-2 z-10 inline-flex size-5 items-center justify-center rounded-full bg-foreground text-background hover:opacity-80"
+                        onClick={handleClearAvatar}
+                        disabled={isPending}
+                        aria-label="Remove avatar"
+                      >
+                        <X className="size-3" />
+                      </button>
+                    )}
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept="image/jpeg,image/png"
+                      className="hidden"
+                      onChange={handleFileChange}
+                    />
                   </div>
+
+                  <div className="flex flex-1 flex-col gap-1.5">
+                    <label className="text-sm font-medium" htmlFor="character-name">
+                      Name <span className="text-destructive">*</span>
+                    </label>
+                    <Input
+                      id="character-name"
+                      value={name}
+                      onChange={(e) => setName(e.target.value)}
+                      placeholder="Character name"
+                      required
+                      disabled={isPending}
+                    />
+                  </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium" htmlFor="character-notes">
+                    Notes
+                  </label>
+                  <Textarea
+                    id="character-notes"
+                    value={notes}
+                    onChange={(e) => setNotes(e.target.value)}
+                    placeholder="Notes about this character..."
+                    rows={4}
+                    disabled={isPending}
+                  />
+                </div>
+
+                <FolderList
+                  selectedFolders={selectedFolders}
+                  invalidFolders={invalidFolders}
+                  onRemove={removeFolder}
+                  onDismissInvalid={dismissInvalid}
+                  onOpenPanel={() => setPanelOpen(true)}
+                  disabled={isPending}
+                />
+              </form>
+
+              <DialogFooter>
+                {isEditMode && (
+                  <Button
+                    variant="destructive"
+                    type="button"
+                    onClick={() => setDeleteDialogOpen(true)}
+                    disabled={isPending}
+                    className="mr-auto"
+                  >
+                    Delete
+                  </Button>
                 )}
-              </button>
-              {showClearButton && (
-                <button
+                <Button
+                  variant="outline"
                   type="button"
-                  className="absolute right-2 top-2 inline-flex size-6 items-center justify-center rounded-full bg-black/50 text-white hover:bg-black/70"
-                  onClick={handleClearAvatar}
+                  onClick={() => handleOpenChange(false)}
                   disabled={isPending}
                 >
-                  <X className="size-3" />
-                </button>
-              )}
-              <input
-                ref={fileInputRef}
-                type="file"
-                accept="image/jpeg,image/png"
-                className="hidden"
-                onChange={handleFileChange}
-              />
+                  Cancel
+                </Button>
+                <Button
+                  type="submit"
+                  onClick={handleSubmit}
+                  disabled={isPending || !name.trim()}
+                >
+                  Save
+                </Button>
+              </DialogFooter>
             </div>
 
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium" htmlFor="character-name">
-                Name <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="character-name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                placeholder="Character name"
-                required
-                disabled={isPending}
-              />
-            </div>
-
-            <div className="flex flex-col gap-1.5">
-              <label className="text-sm font-medium" htmlFor="character-notes">
-                Notes
-              </label>
-              <Textarea
-                id="character-notes"
-                value={notes}
-                onChange={(e) => setNotes(e.target.value)}
-                placeholder="Notes about this character..."
-                rows={4}
-                disabled={isPending}
-              />
-            </div>
-
-            <FolderPicker
-              selected={selectedFolders}
-              available={availableFolders}
-              onAdd={(folder) => setAddedFolders((prev) => [...prev, folder])}
-              onRemove={(id) => {
-                const isOriginal = originalFolders.some((f) => f.id === id)
-                if (isOriginal) {
-                  setRemovedIds((prev) => new Set([...prev, id]))
-                } else {
-                  setAddedFolders((prev) => prev.filter((f) => f.id !== id))
-                }
-              }}
-              disabled={folderPickerDisabled}
-              isError={publicFoldersQuery.isError}
-              onRetry={() => publicFoldersQuery.refetch()}
-            />
-          </form>
-
-          <DialogFooter>
-            {isEditMode && (
-              <Button
-                variant="destructive"
-                type="button"
-                onClick={() => setDeleteDialogOpen(true)}
-                disabled={isPending}
-                className="mr-auto"
-              >
-                Delete
-              </Button>
+            {/* Right column: choose folders panel */}
+            {panelOpen && (
+              <div className="min-w-0 flex-1 border-l pl-6">
+                <ChooseFoldersPanel
+                  selectedIds={selectedIds}
+                  onAdd={addFolder}
+                  onRemove={removeFolder}
+                  onClose={() => setPanelOpen(false)}
+                  folders={publicFoldersQuery.data ?? null}
+                  isLoading={publicFoldersQuery.isLoading}
+                  isError={publicFoldersQuery.isError && !publicFoldersQuery.data}
+                  onRefresh={() => publicFoldersQuery.refetch()}
+                />
+              </div>
             )}
-            <Button
-              variant="outline"
-              type="button"
-              onClick={() => handleOpenChange(false)}
-              disabled={isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              type="submit"
-              onClick={handleSubmit}
-              disabled={isPending || !name.trim()}
-            >
-              Save
-            </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 

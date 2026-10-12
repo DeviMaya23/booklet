@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api'
 export interface PublicFolder {
   id: string
   name: string
+  token: string
 }
 
 const PUBLIC_FOLDERS_QUERY_KEY = ['publicFolders'] as const
@@ -17,9 +18,9 @@ export function usePublicFolders() {
     queryFn: async () => {
       const res = await apiFetch('/folders', getToken)
       if (!res.ok) throw new Error('Failed to fetch folders')
-      const data = (await res.json()) as { folder_list: { folder_id: string; folder_name: string }[] }
+      const data = (await res.json()) as { folder_list: { folder_id: string; folder_name: string; token: string }[] }
       return data.folder_list.map(
-        (f): PublicFolder => ({ id: f.folder_id, name: f.folder_name }),
+        (f): PublicFolder => ({ id: f.folder_id, name: f.folder_name, token: f.token }),
       )
     },
     retry: false,

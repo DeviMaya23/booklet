@@ -17,43 +17,45 @@ interface ResourceCardProps {
 
 export default function ResourceCard({ imageUrl, label, sublabel, onDeleteClick, onClick, onDoubleClick }: ResourceCardProps) {
   return (
-    <div
-      className={`relative aspect-square overflow-hidden rounded-lg bg-muted${onClick || onDoubleClick ? ' cursor-pointer' : ''}`}
-      onClick={onClick}
-      onDoubleClick={onDoubleClick}
-    >
-      {imageUrl ? (
-        <img
-          src={imageUrl}
-          alt={label}
-          className="size-full object-cover"
-        />
-      ) : (
-        <div className="flex size-full items-center justify-center">
-          <ImageOff className="size-8 text-muted-foreground" />
-        </div>
-      )}
-
-      <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/60 to-transparent px-2 pb-2 pt-6">
-        <span className="block truncate text-xs font-medium text-white">{label}</span>
-        {sublabel && (
-          <span className="block truncate text-[10px] text-white/70">{sublabel}</span>
+    <figure className="group/card select-none">
+      <div
+        className={`relative aspect-square overflow-hidden rounded-lg bg-muted transition-transform duration-150 group-hover/card:scale-[1.02] group-hover/card:shadow-md${onClick || onDoubleClick ? ' cursor-pointer' : ''}`}
+        onClick={onClick}
+        onDoubleClick={onDoubleClick}
+      >
+        {imageUrl ? (
+          <img
+            src={imageUrl}
+            alt={label}
+            className="size-full object-cover"
+          />
+        ) : (
+          <div className="flex size-full items-center justify-center">
+            <ImageOff className="size-8 text-muted-foreground" />
+          </div>
         )}
+
+        <div className="absolute right-1 top-1" onClick={(e) => e.stopPropagation()}>
+          <DropdownMenu>
+            <DropdownMenuTrigger className="inline-flex size-6 items-center justify-center rounded-[min(var(--radius-md),10px)] bg-background/80 text-foreground opacity-0 transition-opacity duration-150 hover:bg-background focus-visible:outline-none group-hover/card:opacity-100">
+              <MoreHorizontal className="size-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent side="bottom" align="end">
+              <DropdownMenuItem variant="destructive" onClick={onDeleteClick}>
+                <Trash2 />
+                Delete
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       </div>
 
-      <div className="absolute right-1 top-1" onClick={(e) => e.stopPropagation()}>
-        <DropdownMenu>
-          <DropdownMenuTrigger className="inline-flex size-6 items-center justify-center rounded-[min(var(--radius-md),10px)] bg-black/30 text-white hover:bg-black/50 focus-visible:outline-none">
-            <MoreHorizontal className="size-3" />
-          </DropdownMenuTrigger>
-          <DropdownMenuContent side="bottom" align="end">
-            <DropdownMenuItem variant="destructive" onClick={onDeleteClick}>
-              <Trash2 />
-              Delete
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      </div>
-    </div>
+      <figcaption className="mt-1.5 px-0.5">
+        <p className="truncate text-sm font-medium leading-tight">{label}</p>
+        {sublabel && (
+          <p className="truncate text-xs text-muted-foreground">{sublabel}</p>
+        )}
+      </figcaption>
+    </figure>
   )
 }

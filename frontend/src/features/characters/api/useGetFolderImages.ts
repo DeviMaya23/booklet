@@ -20,5 +20,6 @@ export function useGetFolderImages(folderID: string | undefined) {
     },
     enabled: !!folderID,
     retry: false,
+    staleTime: 5 * 60 * 1000,
   })
 }
