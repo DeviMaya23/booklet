@@ -6,10 +6,16 @@ import { setSessionExpired } from '../lib/sessionExpiredStore'
 import AppLayout from './AppLayout'
 
 vi.mock('sonner', () => ({ toast: { error: vi.fn() } }))
+const mockUseKindeAuth = vi.fn(() => ({ isAuthenticated: true, isLoading: false }))
+vi.mock('@kinde-oss/kinde-auth-react', () => ({
+  useKindeAuth: () => mockUseKindeAuth(),
+}))
 
 afterEach(() => {
   setMaintenanceActive(false)
   setSessionExpired(false)
+  vi.clearAllMocks()
+  mockUseKindeAuth.mockReturnValue({ isAuthenticated: true, isLoading: false })
 })
 
 function renderAppLayout(initialPath = '/app') {
@@ -54,6 +60,17 @@ describe('AppLayout', () => {
     expect(toast.error).toHaveBeenCalledTimes(1)
     expect(screen.getByText('Login page')).toBeInTheDocument()
     expect(screen.queryByText('App content')).not.toBeInTheDocument()
+  })
+
+  it('does not redirect or toast when session expires while Kinde is still loading', async () => {
+    mockUseKindeAuth.mockReturnValue({ isAuthenticated: false, isLoading: true })
+    const { toast } = await import('sonner')
+    setSessionExpired(true)
+
+    renderAppLayout()
+
+    expect(toast.error).not.toHaveBeenCalled()
+    expect(screen.getByText('App content')).toBeInTheDocument()
   })
 
   it('resets the session-expired flag after redirect', async () => {
