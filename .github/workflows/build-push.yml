@@ -71,5 +71,5 @@ jobs:
             R2_BUCKET_NAME=booklet-prod
             BOOKLEAF_HOST=https://bookleaf-backend-258487485284.australia-southeast1.run.app
             CORS_ALLOWED_ORIGINS=https://booklet.bookverse.fyi
-            R2_ACCESS_KEY_ID={{ vars.R2_ACCESS_KEY_ID }}
+            R2_ACCESS_KEY_ID=${{ vars.R2_ACCESS_KEY_ID }}
 
