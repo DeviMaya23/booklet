@@ -15,10 +15,11 @@ import (
 
 func TestHealthHandler_GetHealth(t *testing.T) {
 	tests := []struct {
-		name       string
-		dbErr      error
-		r2Err      error
-		wantStatus string
+		name         string
+		dbErr        error
+		r2Err        error
+		bookleafErr  error
+		wantStatus   string
 	}{
 		{
 			name:       "all healthy",
@@ -33,6 +34,11 @@ func TestHealthHandler_GetHealth(t *testing.T) {
 			name:       "r2 probe fails",
 			r2Err:      errors.New("r2 unavailable"),
 			wantStatus: "degraded",
+		},
+		{
+			name:        "bookleaf probe fails",
+			bookleafErr: errors.New("connection refused"),
+			wantStatus:  "degraded",
 		},
 	}
 
@@ -49,6 +55,9 @@ func TestHealthHandler_GetHealth(t *testing.T) {
 				},
 				r2Probe: func(_ context.Context) error {
 					return tt.r2Err
+				},
+				bookleafProbe: func(_ context.Context) error {
+					return tt.bookleafErr
 				},
 			}
 
@@ -70,6 +79,12 @@ func TestHealthHandler_GetHealth(t *testing.T) {
 				assert.Equal(t, "ok", resp.R2)
 			} else {
 				assert.Equal(t, tt.r2Err.Error(), resp.R2)
+			}
+
+			if tt.bookleafErr == nil {
+				assert.Equal(t, "ok", resp.Bookleaf)
+			} else {
+				assert.Equal(t, tt.bookleafErr.Error(), resp.Bookleaf)
 			}
 		})
 	}

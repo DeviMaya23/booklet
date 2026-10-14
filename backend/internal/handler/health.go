@@ -16,23 +16,31 @@ type r2Storage interface {
 	Ping(ctx context.Context) error
 }
 
+type bookleafClient interface {
+	Ping(ctx context.Context) error
+}
+
 type HealthHandler struct {
-	db      *gorm.DB
-	store   r2Storage
-	dbProbe func(ctx context.Context) error
-	r2Probe func(ctx context.Context) error
+	db             *gorm.DB
+	store          r2Storage
+	bookleaf       bookleafClient
+	dbProbe        func(ctx context.Context) error
+	r2Probe        func(ctx context.Context) error
+	bookleafProbe  func(ctx context.Context) error
 }
 
 type healthResponse struct {
-	Status string `json:"status"`
-	DB     string `json:"db"`
-	R2     string `json:"r2"`
+	Status   string `json:"status"`
+	DB       string `json:"db"`
+	R2       string `json:"r2"`
+	Bookleaf string `json:"bookleaf"`
 }
 
-func NewHealthHandler(db *gorm.DB, store r2Storage) *HealthHandler {
+func NewHealthHandler(db *gorm.DB, store r2Storage, bl bookleafClient) *HealthHandler {
 	h := &HealthHandler{
-		db:    db,
-		store: store,
+		db:       db,
+		store:    store,
+		bookleaf: bl,
 	}
 
 	h.dbProbe = func(ctx context.Context) error {
@@ -49,6 +57,13 @@ func NewHealthHandler(db *gorm.DB, store r2Storage) *HealthHandler {
 		return h.store.Ping(ctx)
 	}
 
+	h.bookleafProbe = func(ctx context.Context) error {
+		if h.bookleaf == nil {
+			return errors.New("bookleaf is not configured")
+		}
+		return h.bookleaf.Ping(ctx)
+	}
+
 	return h
 }
 
@@ -57,9 +72,10 @@ func (h *HealthHandler) GetHealth(c echo.Context) error {
 	defer cancel()
 
 	res := healthResponse{
-		Status: "ok",
-		DB:     "ok",
-		R2:     "ok",
+		Status:   "ok",
+		DB:       "ok",
+		R2:       "ok",
+		Bookleaf: "ok",
 	}
 
 	if err := h.dbProbe(ctx); err != nil {
@@ -70,6 +86,11 @@ func (h *HealthHandler) GetHealth(c echo.Context) error {
 	if err := h.r2Probe(ctx); err != nil {
 		res.Status = "degraded"
 		res.R2 = err.Error()
+	}
+
+	if err := h.bookleafProbe(ctx); err != nil {
+		res.Status = "degraded"
+		res.Bookleaf = err.Error()
 	}
 
 	return c.JSON(http.StatusOK, res)

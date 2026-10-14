@@ -1,5 +1,34 @@
-For code conventions, refer to CONVENTIONS.md.
-This file details Claude Code specific process and behavior only.
+
+# Project Information
+
+## What is Booklet
+Booklet is a single-user art library and commission tracker, built for the
+owner's personal use.
+
+- **Art library first**: files, artpieces, characters, artists, search.
+  Commission management is a workflow layer on top that *produces* artpieces.
+- **Artpiece** is the browsable unit: one distinct thing you'd show on its own.
+  Has an artist, characters, and one or more files.
+- **File** is a version/format of an artpiece (png, psd, clip, mp4...).
+  `artpiece_id` is nullable: unassigned files live in the "Inbox".
+- **Commission** is the transaction record (artist, price, paid, status:
+  waitlist/wip/done). One commission → many artpieces.
+
+## Bookleaf
+Bookleaf is a **separate, live app** (own codebase and deployment): an image
+moodboard/pinboard. Booklet shows Bookleaf moodboards on character pages by
+linking to Bookleaf's *public folders*.
+
+- Bookleaf's code and data are **not** in this repo. Ask me if you need specific information of its repo.
+- Integration is API-only. Booklet stores folder IDs and validates them against
+  Bookleaf's API.
+- Both apps share one Kinde user pool but are separate applications.
+- If a task seems to need a Bookleaf change, stop and flag it rather than
+  working around it.
+
+## Code Conventions
+For tech stack and code conventions, refer to CONVENTIONS.md.
+
 
 ## Decision Boundaries
 

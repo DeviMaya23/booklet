@@ -47,6 +47,25 @@ func NewClient(host, internalSecret string) *Client {
 	}
 }
 
+func (c *Client) Ping(ctx context.Context) error {
+	url := fmt.Sprintf("%s/health", c.host)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return fmt.Errorf("build request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("ping bookleaf: %w", err)
+	}
+	defer resp.Body.Close() //nolint:errcheck
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("ping bookleaf: unexpected status %d", resp.StatusCode)
+	}
+	return nil
+}
+
 func (c *Client) DeleteAccount(ctx context.Context, kindeUserID string) error {
 	url := fmt.Sprintf("%s/internal/accounts/%s", c.host, kindeUserID)
 	req, err := http.NewRequestWithContext(ctx, http.MethodDelete, url, nil)

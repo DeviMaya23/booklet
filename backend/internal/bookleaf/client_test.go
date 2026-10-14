@@ -16,6 +16,60 @@ func newTestClient(server *httptest.Server) *bookleaf.Client {
 	return bookleaf.NewClient(server.URL, "test-secret")
 }
 
+func TestPing(t *testing.T) {
+	tests := []struct {
+		name        string
+		handler     http.HandlerFunc
+		networkFail bool
+		wantErr     bool
+	}{
+		{
+			name: "2xx response",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				require.Equal(t, "/health", r.URL.Path)
+				require.Equal(t, http.MethodGet, r.Method)
+				require.Empty(t, r.Header.Get("X-Bookleaf-Internal-Secret"))
+				w.WriteHeader(http.StatusOK)
+			},
+		},
+		{
+			name: "non-2xx response",
+			handler: func(w http.ResponseWriter, r *http.Request) {
+				w.WriteHeader(http.StatusServiceUnavailable)
+			},
+			wantErr: true,
+		},
+		{
+			name:        "network error",
+			networkFail: true,
+			wantErr:     true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			if tc.networkFail {
+				client := bookleaf.NewClient("http://127.0.0.1:0", "test-secret")
+				err := client.Ping(context.Background())
+				require.Error(t, err)
+				return
+			}
+
+			srv := httptest.NewServer(tc.handler)
+			defer srv.Close()
+
+			client := newTestClient(srv)
+			err := client.Ping(context.Background())
+
+			if tc.wantErr {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestGetFolderImages_Success(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, "test-secret", r.Header.Get("X-Bookleaf-Internal-Secret"))

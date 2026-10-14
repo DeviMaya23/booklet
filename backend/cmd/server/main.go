@@ -280,7 +280,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 		logger.Fatal("initialise auth middleware", zap.Error(err))
 	}
 
-	healthHandler := httphandler.NewHealthHandler(db, r2Storage)
+	healthHandler := httphandler.NewHealthHandler(db, r2Storage, bookleafClient)
 
 	workers := river.NewWorkers()
 	river.AddWorker(workers, worker.NewPurgeExpiredCharacterAvatarUploadsWorker(characterUsecase, usecase.PresignTTL))
