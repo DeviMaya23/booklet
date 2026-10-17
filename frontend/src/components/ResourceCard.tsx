@@ -19,7 +19,7 @@ export default function ResourceCard({ imageUrl, label, sublabel, onDeleteClick,
   return (
     <figure className="group/card select-none">
       <div
-        className={`relative aspect-square overflow-hidden rounded-lg bg-muted transition-transform duration-150 group-hover/card:scale-[1.02] group-hover/card:shadow-md${onClick || onDoubleClick ? ' cursor-pointer' : ''}`}
+        className={`relative aspect-square overflow-hidden rounded-lg bg-muted transition-transform duration-150 group-hover/card:scale-[1.02] group-hover/card:shadow-md ${onClick || onDoubleClick ? 'cursor-pointer' : ''}`}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
       >

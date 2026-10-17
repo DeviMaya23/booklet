@@ -13,10 +13,10 @@ interface FileTileProps {
 
 export default function FileTile({ file, selected, onClick, onDoubleClick, onDeleteClick, onContextMenu }: FileTileProps) {
   return (
-    <div className="flex flex-col gap-1">
+    <div className="group/tile flex flex-col gap-1">
       <div
-        className={`group relative aspect-square rounded-md overflow-hidden border-2 cursor-pointer select-none ${
-          selected ? 'border-blue-500' : 'border-transparent'
+        className={`relative aspect-square rounded-md overflow-hidden cursor-pointer select-none transition-transform duration-150 group-hover/tile:scale-[1.02] group-hover/tile:shadow-md ${
+          selected ? 'ring-2 ring-blue-500' : ''
         }`}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
@@ -34,7 +34,7 @@ export default function FileTile({ file, selected, onClick, onDoubleClick, onDel
         >
           <button
             type="button"
-            className="p-1 rounded bg-black/40 hover:bg-black/60 text-white opacity-0 group-hover:opacity-100 focus:opacity-100"
+            className="p-1 rounded bg-black/40 hover:bg-black/60 text-white opacity-0 group-hover/tile:opacity-100 focus:opacity-100"
             aria-label="Delete file"
             onClick={onDeleteClick}
           >
