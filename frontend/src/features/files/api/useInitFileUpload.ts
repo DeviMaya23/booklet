@@ -5,6 +5,7 @@ import { apiFetch } from '@/lib/api'
 export interface InitFileUploadResult {
   id: string
   upload_url: string
+  thumbnail_upload_url: string | null
   expires_at: string
 }
 

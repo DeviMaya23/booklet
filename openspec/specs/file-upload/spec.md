@@ -5,11 +5,15 @@ This capability covers the full lifecycle of file uploads: initiating an upload 
 ## Requirements
 
 ### Requirement: Initiate file upload
-The system SHALL allow an authenticated user to initiate a file upload by generating a presigned PUT URL for R2, optionally associating the upload with an artpiece, notes, and a name. A pending_file_upload record is created to track the in-flight upload.
+The system SHALL allow an authenticated user to initiate a file upload by generating a presigned PUT URL for R2, optionally associating the upload with an artpiece, notes, and a name. A pending_file_upload record is created to track the in-flight upload. For image-type files, the system SHALL also generate a presigned PUT URL for the thumbnail and return it alongside the upload URL.
 
-#### Scenario: Successful initiation
-- **WHEN** a user posts a valid initiate request with a `mime_type` and optional `artpiece_id`, `notes`, and `name`
-- **THEN** the system creates a pending_file_upload record (storing `name` if provided) and returns a presigned PUT URL with an expiry
+#### Scenario: Successful initiation — image type
+- **WHEN** a user posts a valid initiate request with an image `mime_type` and optional `artpiece_id`, `notes`, and `name`
+- **THEN** the system creates a pending_file_upload record and returns a presigned PUT URL for the original file, a `thumbnail_upload_url` presigned PUT URL for the thumbnail, and an expiry
+
+#### Scenario: Successful initiation — non-image type
+- **WHEN** a user posts a valid initiate request with a non-image `mime_type` and optional `artpiece_id`, `notes`, and `name`
+- **THEN** the system creates a pending_file_upload record and returns a presigned PUT URL with an expiry; `thumbnail_upload_url` is null
 
 #### Scenario: Artpiece not owned by user
 - **WHEN** a user initiates an upload with an artpiece_id that does not belong to them
@@ -18,36 +22,23 @@ The system SHALL allow an authenticated user to initiate a file upload by genera
 ---
 
 ### Requirement: Complete file upload
-The system SHALL allow an authenticated user to complete a pending file upload. On completion, the pending record is deleted and a file row is created, carrying over `name`, `notes`, `artpiece_id`, and `mime_type` from the pending record. The file row is created with `thumbnail_gen_state` set based on mime type. For image-type files, an image_metadata row is inserted and a thumbnail generation job is enqueued. Cover auto-selection runs if the file is attached to an artpiece.
+The system SHALL allow an authenticated user to complete a pending file upload. On completion, the pending record is deleted and a file row is created, carrying over `name`, `notes`, `artpiece_id`, and `mime_type` from the pending record. For image-type files, `thumbnail_r2_path` is set deterministically from the known key pattern only when the client signals `thumbnail_uploaded: true`; when `false` (e.g. generation failed on the client), the path is left null. An image_metadata row is inserted when width/height are provided. Cover auto-selection runs if the file is attached to an artpiece.
 
-#### Scenario: Successful completion — image type
-- **WHEN** a user completes a pending upload whose mime_type starts with `image/`
-- **THEN** the file row is created (with `name` copied from the pending record and `thumbnail_gen_state = "pending"`), the pending record is deleted, an image_metadata row is inserted, and a generate_file_thumbnail job is enqueued
+#### Scenario: Successful completion — image type, thumbnail uploaded
+- **WHEN** a user completes a pending upload whose mime_type starts with `image/` and `thumbnail_uploaded` is `true`
+- **THEN** the file row is created (with `thumbnail_r2_path` set to `users/{user_id}/thumbnails/{file_id}.<ext>`), the pending record is deleted, and an image_metadata row is inserted; no thumbnail job is enqueued
+
+#### Scenario: Successful completion — image type, thumbnail not uploaded
+- **WHEN** a user completes a pending upload whose mime_type starts with `image/` and `thumbnail_uploaded` is `false`
+- **THEN** the file row is created with `thumbnail_r2_path` null, the pending record is deleted, and an image_metadata row is inserted if dimensions were provided; no thumbnail job is enqueued
 
 #### Scenario: Successful completion — non-image type
 - **WHEN** a user completes a pending upload whose mime_type does not start with `image/`
-- **THEN** the file row is created (with `name` copied from the pending record and `thumbnail_gen_state = "not_applicable"`) and the pending record is deleted; no thumbnail job is enqueued and no image_metadata row is created
+- **THEN** the file row is created (with `name` copied from the pending record and `thumbnail_r2_path` null) and the pending record is deleted; no image_metadata row is created
 
 #### Scenario: Pending upload not found or belongs to another user
 - **WHEN** a user attempts to complete a pending upload that does not exist or belongs to another user
 - **THEN** the system returns HTTP 404
-
----
-
-### Requirement: Generate file thumbnail
-The system SHALL generate a 600×600 JPEG thumbnail for image-type files after upload completion and store it in R2. The file's `thumbnail_r2_path` and `thumbnail_gen_state` are updated once the thumbnail is written. On final retry failure the worker SHALL update `thumbnail_gen_state` to `"failed"` and stop retrying.
-
-#### Scenario: Successful thumbnail generation
-- **WHEN** the generate_file_thumbnail worker processes a job for an image file
-- **THEN** the system downloads the original from R2, resizes to fit within 600×600, encodes as JPEG at 85% quality, uploads the thumbnail to R2 at `users/{user_id}/thumbnails/{file_id}.jpg`, updates the file's `thumbnail_r2_path`, and sets `thumbnail_gen_state = "done"`
-
-#### Scenario: Thumbnail generation fails on final attempt
-- **WHEN** the generate_file_thumbnail worker encounters an error and `job.Attempt >= job.MaxAttempts`
-- **THEN** the system sets the file's `thumbnail_gen_state = "failed"` and returns nil so River does not re-enqueue the job
-
-#### Scenario: Thumbnail generation fails before final attempt
-- **WHEN** the generate_file_thumbnail worker encounters an error and `job.Attempt < job.MaxAttempts`
-- **THEN** the system returns the error so River retries the job; `thumbnail_gen_state` remains `"pending"`
 
 ---
 

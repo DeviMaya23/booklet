@@ -69,7 +69,6 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
             >
               <FileThumb
                 thumbnailUrl={file.thumbnail_url}
-                thumbnailGenState={file.thumbnail_gen_state}
                 extension={file.extension}
               />
 

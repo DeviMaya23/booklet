@@ -33,7 +33,7 @@ func (s *spyFileUploadUsecase) InitiateUpload(_ context.Context, params usecase.
 	return s.initiateResult, s.initiateErr
 }
 
-func (s *spyFileUploadUsecase) CompleteUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.File, error) {
+func (s *spyFileUploadUsecase) CompleteUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.CompleteFileUploadParams) (*domain.File, error) {
 	return s.completeResult, s.completeErr
 }
 
@@ -157,6 +157,60 @@ func TestCompleteFileUpload_NotFound(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestInitiateFileUpload_ImageType_ReturnsThumbnailUploadURL(t *testing.T) {
+	pendingID := uuid.New()
+	thumbURL := "https://example.com/presigned-thumb"
+	spy := &spyFileUploadUsecase{
+		initiateResult: &usecase.InitiateFileUploadResult{
+			ID:                 pendingID,
+			UploadURL:          "https://example.com/presigned",
+			ThumbnailUploadURL: &thumbURL,
+			ExpiresAt:          time.Now().Add(15 * time.Minute),
+		},
+	}
+	h := handler.NewFileUploadHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/files", h.InitiateUpload)
+
+	body := `{"mime_type":"image/jpeg"}`
+	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, thumbURL, got["thumbnail_upload_url"])
+}
+
+func TestInitiateFileUpload_NonImageType_NullThumbnailUploadURL(t *testing.T) {
+	pendingID := uuid.New()
+	spy := &spyFileUploadUsecase{
+		initiateResult: &usecase.InitiateFileUploadResult{
+			ID:        pendingID,
+			UploadURL: "https://example.com/presigned",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		},
+	}
+	h := handler.NewFileUploadHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/files", h.InitiateUpload)
+
+	body := `{"mime_type":"video/mp4"}`
+	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Nil(t, got["thumbnail_upload_url"])
 }
 
 func TestInitiateFileUpload_ExtensionForwardedToUsecase(t *testing.T) {

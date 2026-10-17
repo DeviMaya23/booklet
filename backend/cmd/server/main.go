@@ -259,7 +259,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, r2Storage, transactor, enqueuer, tel)
 	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, enqueuer, tel)
 	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
-	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, enqueuer, tel)
+	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, tel)
 	artpieceHandler := httphandler.NewArtpieceHandler(artpieceUsecase, r2Storage, tel)
 	fileUploadHandler := httphandler.NewFileUploadHandler(fileUploadUsecase, r2Storage, tel)
 
@@ -286,7 +286,6 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	river.AddWorker(workers, worker.NewPurgeExpiredCharacterAvatarUploadsWorker(characterUsecase, usecase.PresignTTL))
 	river.AddWorker(workers, worker.NewPurgeR2ObjectsWorker(r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeTombstonesWorker(userUsecase))
-	river.AddWorker(workers, worker.NewGenerateFileThumbnailWorker(fileRepository, r2Storage, logger))
 	river.AddWorker(workers, worker.NewPurgeExpiredFileUploadsWorker(fileUploadUsecase, usecase.PresignTTL))
 
 	periodicJobs := []*river.PeriodicJob{

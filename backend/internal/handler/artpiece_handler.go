@@ -70,15 +70,14 @@ type characterRef struct {
 }
 
 type fileRef struct {
-	ID                string  `json:"id"`
-	FileURL           string  `json:"file_url"`
-	ThumbnailURL      *string `json:"thumbnail_url"`
-	ThumbnailGenState string  `json:"thumbnail_gen_state"`
-	MimeType          string  `json:"mime_type"`
-	Name              *string `json:"name"`
-	Extension         *string `json:"extension"`
-	Width             *int    `json:"width"`
-	Height            *int    `json:"height"`
+	ID           string  `json:"id"`
+	FileURL      string  `json:"file_url"`
+	ThumbnailURL *string `json:"thumbnail_url"`
+	MimeType     string  `json:"mime_type"`
+	Name         *string `json:"name"`
+	Extension    *string `json:"extension"`
+	Width        *int    `json:"width"`
+	Height       *int    `json:"height"`
 }
 
 type artpieceResponse struct {
@@ -177,18 +176,13 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 				thumbURL = &u
 			}
 		}
-		thumbnailGenState := "failed"
-		if f.ThumbnailGenState != nil {
-			thumbnailGenState = *f.ThumbnailGenState
-		}
 		ref := fileRef{
-			ID:                f.ID.String(),
-			FileURL:           fileURL,
-			ThumbnailURL:      thumbURL,
-			ThumbnailGenState: thumbnailGenState,
-			MimeType:          f.MimeType,
-			Name:              f.Name,
-			Extension:         f.Extension,
+			ID:           f.ID.String(),
+			FileURL:      fileURL,
+			ThumbnailURL: thumbURL,
+			MimeType:     f.MimeType,
+			Name:         f.Name,
+			Extension:    f.Extension,
 		}
 		if f.ImageMetadata != nil {
 			ref.Width = &f.ImageMetadata.Width

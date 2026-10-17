@@ -5,13 +5,13 @@ import { Input } from '@/components/ui/input'
 import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
-import { useFiles, type ThumbnailGenState } from '../api/useFiles'
-import { stripFileExtension, validateFileName } from '../lib/files'
+import { validateFileName } from '../lib/files'
+import { uploadFile } from '../lib/upload'
 import FileThumb from './FileThumb'
 
 type DraftFile =
   | { status: 'uploading'; clientId: string; fileName: string }
-  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState; extension: string | null; nameError: string | null }
+  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; localThumbnailUrl: string | null; extension: string | null; nameError: string | null }
 
 interface ArtpieceFilesInputProps {
   initialFiles?: { id: string; name: string | null; notes: string | null }[]
@@ -33,32 +33,25 @@ export default function ArtpieceFilesInput({
       id: f.id,
       name: f.name ?? '',
       notes: f.notes ?? '',
-      thumbnailUrl: null,
-      thumbnailGenState: 'pending' as ThumbnailGenState,
+      localThumbnailUrl: null,
       extension: null,
       nameError: null,
     })),
   )
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const objectUrlsRef = useRef<string[]>([])
 
   const initUpload = useInitFileUpload()
   const completeUpload = useCompleteFileUpload()
   const updateFile = useUpdateFile()
-  const { data: inboxFiles = [] } = useFiles()
 
-  // Sync thumbnailUrl and thumbnailGenState from the useFiles query for uploaded rows
   useEffect(() => {
-    setFiles((prev) =>
-      prev.map((f) => {
-        if (f.status !== 'uploaded') return f
-        const match = inboxFiles.find((inf) => inf.id === f.id)
-        if (!match) return f
-        if (match.thumbnail_url === f.thumbnailUrl && match.thumbnail_gen_state === f.thumbnailGenState) return f
-        return { ...f, thumbnailUrl: match.thumbnail_url, thumbnailGenState: match.thumbnail_gen_state }
-      }),
-    )
-  }, [inboxFiles])
+    const urls = objectUrlsRef.current
+    return () => {
+      urls.forEach((url) => URL.revokeObjectURL(url))
+    }
+  }, [])
 
   // Notify parent of file IDs and uploading state
   useEffect(() => {
@@ -85,28 +78,20 @@ export default function ArtpieceFilesInput({
         list.map(async (file, i) => {
           const clientId = clientIds[i]
           try {
-            const strippedName = stripFileExtension(file.name)
-            const dotIdx = file.name.lastIndexOf('.')
-            const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : undefined
-            const result = await initUpload.mutateAsync({
-              mimeType: file.type || 'application/octet-stream',
-              name: strippedName,
-              extension,
-            })
-            await fetch(result.upload_url, { method: 'PUT', body: file })
-            await completeUpload.mutateAsync(result.id)
+            const { fileId, name: strippedName, extension, thumbnailBlob } = await uploadFile(file, initUpload.mutateAsync, completeUpload.mutateAsync)
+            const localThumbnailUrl = thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : null
+            if (localThumbnailUrl) objectUrlsRef.current.push(localThumbnailUrl)
             setFiles((prev) =>
               prev.map((f) =>
                 f.clientId === clientId
                   ? {
                       status: 'uploaded' as const,
                       clientId,
-                      id: result.id,
+                      id: fileId,
                       name: strippedName,
                       notes: '',
-                      thumbnailUrl: null,
-                      thumbnailGenState: 'pending' as ThumbnailGenState,
-                      extension: extension ?? null,
+                      localThumbnailUrl,
+                      extension,
                       nameError: null,
                     }
                   : f,
@@ -213,14 +198,12 @@ export default function ArtpieceFilesInput({
               )
             }
 
-            const thumbnailPending = file.thumbnailGenState === 'pending'
             return (
               <div key={file.clientId} className="flex gap-3 rounded-md border p-2">
                 <div className="flex h-16 w-16 shrink-0 overflow-hidden rounded-md">
                   <FileThumb
-                    thumbnailUrl={file.thumbnailUrl}
+                    thumbnailUrl={file.localThumbnailUrl}
                     extension={file.extension}
-                    thumbnailGenState={file.thumbnailGenState}
                   />
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
@@ -229,7 +212,7 @@ export default function ArtpieceFilesInput({
                       <Input
                         value={file.name}
                         placeholder="Name"
-                        disabled={disabled || thumbnailPending}
+                        disabled={disabled}
                         onChange={(e) => updateLocalName(file.clientId, e.target.value)}
                         onBlur={() => handleNameBlur(file)}
                         className={file.nameError ? 'border-destructive focus-visible:border-destructive' : ''}
@@ -251,7 +234,7 @@ export default function ArtpieceFilesInput({
                   <Input
                     value={file.notes}
                     placeholder="Notes"
-                    disabled={disabled || thumbnailPending}
+                    disabled={disabled}
                     onChange={(e) => updateLocalNotes(file.clientId, e.target.value)}
                     onBlur={() => handleNotesBlur(file)}
                   />

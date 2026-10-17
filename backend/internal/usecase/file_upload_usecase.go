@@ -7,10 +7,8 @@ import (
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
-	"github.com/devi/booklet/internal/worker"
 	bookmime "github.com/devi/booklet/pkg/mime"
 	"github.com/google/uuid"
-	"github.com/riverqueue/river"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
@@ -25,9 +23,17 @@ type InitiateFileUploadParams struct {
 }
 
 type InitiateFileUploadResult struct {
-	ID        uuid.UUID
-	UploadURL string
-	ExpiresAt time.Time
+	ID                 uuid.UUID
+	UploadURL          string
+	ThumbnailUploadURL *string
+	ThumbnailR2Key     *string
+	ExpiresAt          time.Time
+}
+
+type CompleteFileUploadParams struct {
+	Width             *int
+	Height            *int
+	ThumbnailUploaded bool
 }
 
 type FileUploadUsecase struct {
@@ -37,7 +43,6 @@ type FileUploadUsecase struct {
 	metadataRepo  FileUploadImageMetadataRepository
 	artpieceCover ArtpieceCoverUpdater
 	storage       StorageService
-	jobInserter   JobInserter
 	tel           *observability.Telemetry
 }
 
@@ -52,7 +57,6 @@ func NewFileUploadUsecase(
 	metadataRepo FileUploadImageMetadataRepository,
 	artpieceCover ArtpieceCoverUpdater,
 	storage StorageService,
-	jobInserter JobInserter,
 	tel *observability.Telemetry,
 ) *FileUploadUsecase {
 	return &FileUploadUsecase{
@@ -62,7 +66,6 @@ func NewFileUploadUsecase(
 		metadataRepo:  metadataRepo,
 		artpieceCover: artpieceCover,
 		storage:       storage,
-		jobInserter:   jobInserter,
 		tel:           tel,
 	}
 }
@@ -89,6 +92,22 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		return nil, err
 	}
 
+	var thumbnailUploadURL *string
+	var thumbnailR2Key *string
+	if bookmime.IsImage(params.MimeType) {
+		thumbExt := bookmime.ThumbnailExt(params.MimeType)
+		thumbContentType := bookmime.ThumbnailContentType(params.MimeType)
+		thumbKey := fmt.Sprintf("users/%s/thumbnails/%s%s", params.UserID.String(), id.String(), thumbExt)
+		thumbURL, err := u.storage.GeneratePresignedPutURL(ctx, thumbKey, thumbContentType, PresignTTL)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		thumbnailUploadURL = &thumbURL
+		thumbnailR2Key = &thumbKey
+	}
+
 	pending := &domain.PendingFileUpload{
 		ID:         id,
 		UserID:     params.UserID,
@@ -105,10 +124,16 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		return nil, err
 	}
 
-	return &InitiateFileUploadResult{ID: id, UploadURL: uploadURL, ExpiresAt: expiresAt}, nil
+	return &InitiateFileUploadResult{
+		ID:                 id,
+		UploadURL:          uploadURL,
+		ThumbnailUploadURL: thumbnailUploadURL,
+		ThumbnailR2Key:     thumbnailR2Key,
+		ExpiresAt:          expiresAt,
+	}, nil
 }
 
-func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error) {
+func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, userID uuid.UUID, params CompleteFileUploadParams) (*domain.File, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CompleteFileUpload")
 	defer span.End()
 
@@ -119,21 +144,19 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 		return nil, err
 	}
 
-	thumbnailGenState := "not_applicable"
-	if bookmime.IsImage(pending.MimeType) {
-		thumbnailGenState = "pending"
-	}
-
 	file := &domain.File{
-		ID:                pending.ID,
-		UserID:            pending.UserID,
-		ArtpieceID:        pending.ArtpieceID,
-		FileR2Path:        pending.R2Key,
-		MimeType:          pending.MimeType,
-		ThumbnailGenState: &thumbnailGenState,
-		Name:              pending.Name,
-		Notes:             pending.Notes,
-		Extension:         pending.Extension,
+		ID:         pending.ID,
+		UserID:     pending.UserID,
+		ArtpieceID: pending.ArtpieceID,
+		FileR2Path: pending.R2Key,
+		MimeType:   pending.MimeType,
+		Name:       pending.Name,
+		Notes:      pending.Notes,
+		Extension:  pending.Extension,
+	}
+	if bookmime.IsImage(pending.MimeType) && params.ThumbnailUploaded {
+		thumbKey := fmt.Sprintf("users/%s/thumbnails/%s%s", pending.UserID.String(), pending.ID.String(), bookmime.ThumbnailExt(pending.MimeType))
+		file.ThumbnailR2Path = &thumbKey
 	}
 
 	created, err := u.fileRepo.Create(ctx, file)
@@ -151,20 +174,20 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 	}
 
 	if bookmime.IsImage(pending.MimeType) {
+		width, height := 0, 0
+		if params.Width != nil {
+			width = *params.Width
+		}
+		if params.Height != nil {
+			height = *params.Height
+		}
 		meta := &domain.ImageMetadata{
 			FileID: created.ID,
-			Width:  0,
-			Height: 0,
+			Width:  width,
+			Height: height,
 		}
 		if err := u.metadataRepo.CreateImageMetadata(ctx, meta); err != nil {
 			observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to insert image_metadata",
-				zap.String("file_id", created.ID.String()),
-				zap.Error(err),
-			)
-		}
-
-		if _, err := u.jobInserter.Insert(ctx, worker.GenerateFileThumbnailArgs{FileID: created.ID, UserID: created.UserID}, &river.InsertOpts{MaxAttempts: 3}); err != nil {
-			observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to enqueue file thumbnail job",
 				zap.String("file_id", created.ID.String()),
 				zap.Error(err),
 			)

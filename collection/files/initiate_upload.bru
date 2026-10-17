@@ -19,3 +19,20 @@ body:json {
     "extension": "png"
   }
 }
+
+docs {
+  ## Response
+
+  Image mime types return a `thumbnail_upload_url` (presigned PUT to R2) alongside
+  the regular `upload_url`. The client must PUT the generated thumbnail blob to that
+  URL before calling complete. Non-image types return `thumbnail_upload_url: null`.
+
+  ```json
+  {
+    "id": "uuid",
+    "upload_url": "https://...",
+    "thumbnail_upload_url": "https://... | null",
+    "expires_at": "2024-01-01T00:00:00Z"
+  }
+  ```
+}

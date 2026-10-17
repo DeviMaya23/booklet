@@ -73,7 +73,6 @@ export default function FileTileEditOverlay({ file, onClose }: FileTileEditOverl
         <div className="h-48 w-full overflow-hidden rounded-md">
           <FileThumb
             thumbnailUrl={file.thumbnail_url}
-            thumbnailGenState={file.thumbnail_gen_state}
             extension={file.extension}
           />
         </div>

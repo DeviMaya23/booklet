@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileIcon, Loader2, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -10,13 +10,12 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
-import { useFiles } from '../api/useFiles'
 import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
-import { stripFileExtension, validateFileName } from '../lib/files'
-
-type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
+import { validateFileName } from '../lib/files'
+import { uploadFile } from '../lib/upload'
+import FileThumb from './FileThumb'
 
 type DraftFile =
   | { status: 'uploading'; clientId: string; fileName: string }
@@ -26,8 +25,8 @@ type DraftFile =
       id: string
       name: string
       notes: string
-      thumbnailUrl: string | null
-      thumbnailGenState: ThumbnailGenState
+      localThumbnailUrl: string | null
+      extension: string | null
       nameError: string | null
       notesError: string | null
     }
@@ -41,28 +40,19 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
   const [files, setFiles] = useState<DraftFile[]>([])
   const [dragOver, setDragOver] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const objectUrlsRef = useRef<string[]>([])
 
-  const { data: inboxFiles = [] } = useFiles()
   const initUpload = useInitFileUpload()
   const completeUpload = useCompleteFileUpload()
   const updateFile = useUpdateFile()
 
-  // Sync thumbnailUrl and thumbnailGenState from the useFiles poll
+  // Revoke object URLs and reset state when modal closes
   useEffect(() => {
-    setFiles((prev) =>
-      prev.map((f) => {
-        if (f.status !== 'uploaded') return f
-        const match = inboxFiles.find((inf) => inf.id === f.id)
-        if (!match) return f
-        if (match.thumbnail_url === f.thumbnailUrl && match.thumbnail_gen_state === f.thumbnailGenState) return f
-        return { ...f, thumbnailUrl: match.thumbnail_url, thumbnailGenState: match.thumbnail_gen_state }
-      }),
-    )
-  }, [inboxFiles])
-
-  // Reset file list when modal closes
-  useEffect(() => {
-    if (!open) setFiles([])
+    if (!open) {
+      objectUrlsRef.current.forEach((url) => URL.revokeObjectURL(url))
+      objectUrlsRef.current = []
+      setFiles([])
+    }
   }, [open])
 
   async function uploadFiles(rawFiles: FileList | File[]) {
@@ -82,24 +72,20 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
-          const strippedName = stripFileExtension(file.name)
-          const result = await initUpload.mutateAsync({
-            mimeType: file.type || 'application/octet-stream',
-            name: strippedName,
-          })
-          await fetch(result.upload_url, { method: 'PUT', body: file })
-          await completeUpload.mutateAsync(result.id)
+          const { fileId, name: strippedName, extension, thumbnailBlob } = await uploadFile(file, initUpload.mutateAsync, completeUpload.mutateAsync)
+          const localThumbnailUrl = thumbnailBlob ? URL.createObjectURL(thumbnailBlob) : null
+          if (localThumbnailUrl) objectUrlsRef.current.push(localThumbnailUrl)
           setFiles((prev) =>
             prev.map((f) =>
               f.clientId === clientId
                 ? {
                     status: 'uploaded' as const,
                     clientId,
-                    id: result.id,
+                    id: fileId,
                     name: strippedName,
                     notes: '',
-                    thumbnailUrl: null,
-                    thumbnailGenState: 'pending' as ThumbnailGenState,
+                    localThumbnailUrl,
+                    extension,
                     nameError: null,
                     notesError: null,
                   }
@@ -229,17 +215,10 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
                   )
                 }
 
-                const thumbnailPending = file.thumbnailGenState === 'pending'
                 return (
                   <div key={file.clientId} className="flex gap-3 rounded-md border p-2">
-                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                      {file.thumbnailUrl ? (
-                        <img src={file.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                      ) : thumbnailPending ? (
-                        <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                      ) : (
-                        <FileIcon className="h-5 w-5 text-muted-foreground" />
-                      )}
+                    <div className="flex h-16 w-16 shrink-0 overflow-hidden rounded-md">
+                      <FileThumb thumbnailUrl={file.localThumbnailUrl} extension={file.extension} />
                     </div>
                     <div className="flex flex-1 flex-col gap-1.5">
                       <div className="flex gap-1.5">
@@ -247,7 +226,6 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
                           <Input
                             value={file.name}
                             placeholder="Name"
-                            disabled={thumbnailPending}
                             onChange={(e) => updateLocalName(file.clientId, e.target.value)}
                             onBlur={() => handleFieldBlur(file, 'name')}
                             className={file.nameError ? 'border-destructive focus-visible:border-destructive' : ''}
@@ -269,7 +247,6 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
                         <Input
                           value={file.notes}
                           placeholder="Notes"
-                          disabled={thumbnailPending}
                           onChange={(e) => updateLocalNotes(file.clientId, e.target.value)}
                           onBlur={() => handleFieldBlur(file, 'notes')}
                           className={file.notesError ? 'border-destructive focus-visible:border-destructive' : ''}

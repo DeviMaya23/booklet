@@ -1,14 +1,12 @@
 import { useQuery } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
-import { type ThumbnailGenState } from '@/features/files/api/useFiles'
 import { type ArtpieceCharacter } from './useArtpieces'
 
 export interface ArtpieceFile {
   id: string
   file_url: string
   thumbnail_url: string | null
-  thumbnail_gen_state: ThumbnailGenState
   mime_type: string
   name: string | null
   extension: string | null
@@ -46,9 +44,5 @@ export function useArtpiece(id: string | null) {
       return res.json() as Promise<ArtpieceDetail>
     },
     enabled: id !== null,
-    refetchInterval: (query) => {
-      const data = query.state.data
-      return data?.files.some((f) => f.thumbnail_gen_state === 'pending') ? 2000 : false
-    },
   })
 }

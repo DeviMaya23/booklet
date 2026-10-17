@@ -8,9 +8,12 @@ export function useCompleteFileUpload() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async (pendingId: string) => {
+    mutationFn: async ({ pendingId, width, height, thumbnailUploaded }: { pendingId: string; width?: number; height?: number; thumbnailUploaded?: boolean }) => {
+      const body = JSON.stringify({ width: width ?? null, height: height ?? null, thumbnail_uploaded: thumbnailUploaded ?? false })
       const res = await apiFetch(`/files/${pendingId}/complete`, getToken, {
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
       })
       if (!res.ok) throw new Error('Failed to complete file upload')
     },

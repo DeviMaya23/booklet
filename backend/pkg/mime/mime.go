@@ -42,3 +42,25 @@ func MimeTypeToExt(mimeType string) string {
 func IsImage(mimeType string) bool {
 	return strings.HasPrefix(mimeType, "image/")
 }
+
+// ThumbnailExt returns the file extension for a thumbnail generated from the
+// given source mime type. Alpha-capable formats produce PNG; all others JPEG.
+func ThumbnailExt(mimeType string) string {
+	switch mimeType {
+	case "image/png", "image/gif", "image/webp":
+		return ".png"
+	default:
+		return ".jpg"
+	}
+}
+
+// ThumbnailContentType returns the Content-Type for a thumbnail generated from
+// the given source mime type.
+func ThumbnailContentType(mimeType string) string {
+	switch mimeType {
+	case "image/png", "image/gif", "image/webp":
+		return "image/png"
+	default:
+		return "image/jpeg"
+	}
+}

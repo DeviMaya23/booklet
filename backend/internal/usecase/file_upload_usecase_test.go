@@ -8,10 +8,8 @@ import (
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
-	"github.com/devi/booklet/internal/worker"
 	"github.com/google/uuid"
-	"github.com/riverqueue/river"
-	rivertype "github.com/riverqueue/river/rivertype"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -120,17 +118,6 @@ func (s *spyCoverUpdater) UpdateCover(_ context.Context, artpieceID uuid.UUID, c
 	return nil
 }
 
-type spyFileJobInserter struct {
-	insertedArgs []worker.GenerateFileThumbnailArgs
-}
-
-func (s *spyFileJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.InsertOpts) (*rivertype.JobInsertResult, error) {
-	if a, ok := args.(worker.GenerateFileThumbnailArgs); ok {
-		s.insertedArgs = append(s.insertedArgs, a)
-	}
-	return &rivertype.JobInsertResult{}, nil
-}
-
 func newFileUploadTestUsecase(
 	pendingRepo *fakeFileUploadPendingRepository,
 	artpieceRepo *fakeFileUploadArtpieceRepository,
@@ -138,7 +125,6 @@ func newFileUploadTestUsecase(
 	metaRepo *fakeImageMetadataRepository,
 	coverUpdater *spyCoverUpdater,
 	storage *spyStorageService,
-	jobInserter *spyFileJobInserter,
 ) *usecase.FileUploadUsecase {
 	return usecase.NewFileUploadUsecase(
 		pendingRepo,
@@ -147,9 +133,51 @@ func newFileUploadTestUsecase(
 		metaRepo,
 		coverUpdater,
 		storage,
-		jobInserter,
 		observability.NewTelemetry(nil, nil, nil),
 	)
+}
+
+func TestInitiateFileUpload_ImageType_ReturnsThumbnailUploadURL(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	result, err := uc.InitiateUpload(context.Background(), usecase.InitiateFileUploadParams{
+		UserID:   userID,
+		MimeType: "image/jpeg",
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, result.ThumbnailUploadURL, "image upload should return a thumbnail_upload_url")
+	assert.NotNil(t, result.ThumbnailR2Key)
+	assert.Contains(t, *result.ThumbnailR2Key, ".jpg")
+}
+
+func TestInitiateFileUpload_NonImageType_NoThumbnailUploadURL(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	result, err := uc.InitiateUpload(context.Background(), usecase.InitiateFileUploadParams{
+		UserID:   userID,
+		MimeType: "video/mp4",
+	})
+	require.NoError(t, err)
+	assert.Nil(t, result.ThumbnailUploadURL, "non-image upload should not return a thumbnail_upload_url")
+	assert.Nil(t, result.ThumbnailR2Key)
 }
 
 func TestCompleteFileUpload_AutoSetsCoverOnFirstImageAttach(t *testing.T) {
@@ -162,7 +190,6 @@ func TestCompleteFileUpload_AutoSetsCoverOnFirstImageAttach(t *testing.T) {
 	metaRepo := &fakeImageMetadataRepository{}
 	coverUpdater := &spyCoverUpdater{}
 	storage := &spyStorageService{}
-	jobInserter := &spyFileJobInserter{}
 
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
 
@@ -175,9 +202,9 @@ func TestCompleteFileUpload_AutoSetsCoverOnFirstImageAttach(t *testing.T) {
 		ArtpieceID: &artpieceID,
 	}
 
-	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage, jobInserter)
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
 
-	file, err := uc.CompleteUpload(context.Background(), fileID, userID)
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{})
 	require.NoError(t, err)
 	require.True(t, coverUpdater.called, "cover should have been set")
 	require.Equal(t, artpieceID, coverUpdater.lastArtpieceID)
@@ -193,7 +220,6 @@ func TestCompleteFileUpload_ExtensionCopiedFromPending(t *testing.T) {
 	metaRepo := &fakeImageMetadataRepository{}
 	coverUpdater := &spyCoverUpdater{}
 	storage := &spyStorageService{}
-	jobInserter := &spyFileJobInserter{}
 
 	ext := "clip"
 	fileID := uuid.New()
@@ -205,15 +231,15 @@ func TestCompleteFileUpload_ExtensionCopiedFromPending(t *testing.T) {
 		Extension: &ext,
 	}
 
-	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage, jobInserter)
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
 
-	file, err := uc.CompleteUpload(context.Background(), fileID, userID)
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{})
 	require.NoError(t, err)
 	require.NotNil(t, file.Extension)
 	require.Equal(t, "clip", *file.Extension)
 }
 
-func TestCompleteFileUpload_NoThumbnailEnqueuedForNonImageType(t *testing.T) {
+func TestCompleteFileUpload_NonImageType_NoThumbnailAndNoMetadata(t *testing.T) {
 	userID := uuid.New()
 
 	pendingRepo := newFakeFileUploadPendingRepository()
@@ -222,7 +248,6 @@ func TestCompleteFileUpload_NoThumbnailEnqueuedForNonImageType(t *testing.T) {
 	metaRepo := &fakeImageMetadataRepository{}
 	coverUpdater := &spyCoverUpdater{}
 	storage := &spyStorageService{}
-	jobInserter := &spyFileJobInserter{}
 
 	fileID := uuid.New()
 	pendingRepo.pending[fileID] = &domain.PendingFileUpload{
@@ -232,10 +257,91 @@ func TestCompleteFileUpload_NoThumbnailEnqueuedForNonImageType(t *testing.T) {
 		MimeType: "video/mp4",
 	}
 
-	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage, jobInserter)
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
 
-	_, err := uc.CompleteUpload(context.Background(), fileID, userID)
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{})
 	require.NoError(t, err)
-	require.Empty(t, jobInserter.insertedArgs, "no thumbnail job should be enqueued for non-image")
-	require.Empty(t, metaRepo.created, "no image_metadata row should be created for non-image")
+	assert.Nil(t, file.ThumbnailR2Path, "non-image file should have no thumbnail path")
+	assert.Empty(t, metaRepo.created, "no image_metadata row should be created for non-image")
+}
+
+func TestCompleteFileUpload_ImageType_SetsThumbnailPathAndMetadata(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	fileID := uuid.New()
+	pendingRepo.pending[fileID] = &domain.PendingFileUpload{
+		ID:       fileID,
+		UserID:   userID,
+		R2Key:    "users/x/files/f.jpg",
+		MimeType: "image/jpeg",
+	}
+
+	w, h := 1920, 1080
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{Width: &w, Height: &h, ThumbnailUploaded: true})
+	require.NoError(t, err)
+	require.NotNil(t, file.ThumbnailR2Path)
+	assert.Equal(t, "users/"+userID.String()+"/thumbnails/"+fileID.String()+".jpg", *file.ThumbnailR2Path)
+	require.Len(t, metaRepo.created, 1)
+	assert.Equal(t, 1920, metaRepo.created[0].Width)
+	assert.Equal(t, 1080, metaRepo.created[0].Height)
+}
+
+func TestCompleteFileUpload_AlphaImageType_SetsPNGThumbnailPath(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	fileID := uuid.New()
+	pendingRepo.pending[fileID] = &domain.PendingFileUpload{
+		ID:       fileID,
+		UserID:   userID,
+		R2Key:    "users/x/files/f.png",
+		MimeType: "image/png",
+	}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{ThumbnailUploaded: true})
+	require.NoError(t, err)
+	require.NotNil(t, file.ThumbnailR2Path)
+	assert.Equal(t, "users/"+userID.String()+"/thumbnails/"+fileID.String()+".png", *file.ThumbnailR2Path)
+}
+
+func TestCompleteFileUpload_ImageType_ThumbnailNotUploaded_NoThumbnailPath(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	fileID := uuid.New()
+	pendingRepo.pending[fileID] = &domain.PendingFileUpload{
+		ID:       fileID,
+		UserID:   userID,
+		R2Key:    "users/x/files/f.heic",
+		MimeType: "image/heic",
+	}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID, usecase.CompleteFileUploadParams{ThumbnailUploaded: false})
+	require.NoError(t, err)
+	assert.Nil(t, file.ThumbnailR2Path, "thumbnail path should not be set when thumbnail was not uploaded")
 }
