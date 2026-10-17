@@ -1,6 +1,7 @@
-import { FileIcon, Loader2, Plus, Star, X } from 'lucide-react'
+import { Loader2, Plus, Star, X } from 'lucide-react'
 import { type ArtpieceFile } from '../api/useArtpiece'
 import { mimeTypeLabel } from '../lib/mimeTypeLabel'
+import FileThumb from '@/features/files/components/FileThumb'
 
 interface ViewModeProps {
   mode: 'view'
@@ -16,6 +17,7 @@ interface EditModeProps {
   onAddFiles: () => void
   dragHandlers: {
     dragOver: boolean
+    onDragEnter: (e: React.DragEvent) => void
     onDragOver: (e: React.DragEvent) => void
     onDragLeave: () => void
     onDrop: (e: React.DragEvent) => void
@@ -39,8 +41,16 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
     return <p className="text-sm text-muted-foreground">No files attached.</p>
   }
 
+  const editDragHandlers = props.mode === 'edit' ? props.dragHandlers : null
+
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+    <div
+      className={`grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 ${editDragHandlers?.dragOver ? 'rounded-lg ring-2 ring-ring' : ''}`}
+      onDragEnter={editDragHandlers?.onDragEnter}
+      onDragOver={editDragHandlers?.onDragOver}
+      onDragLeave={editDragHandlers?.onDragLeave}
+      onDrop={editDragHandlers?.onDrop}
+    >
       {mode === 'edit' && props.uploadPlaceholders.map((p) => (
         <div key={p.clientId} className="aspect-square rounded-md bg-muted flex items-center justify-center">
           <Loader2 className="size-6 text-muted-foreground animate-spin" />
@@ -57,13 +67,11 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
               className={`relative h-full w-full overflow-hidden rounded-md bg-muted transition-opacity ${isRemoved ? 'opacity-40' : ''} ${mode === 'view' && onOpen ? 'cursor-pointer' : ''}`}
               onClick={mode === 'view' && onOpen ? () => onOpen(fileIndex) : undefined}
             >
-              {file.thumbnail_url ? (
-                <img src={file.thumbnail_url} alt="" className="h-full w-full object-cover" />
-              ) : (
-                <div className="flex h-full w-full items-center justify-center">
-                  <FileIcon className="size-6 text-muted-foreground" />
-                </div>
-              )}
+              <FileThumb
+                thumbnailUrl={file.thumbnail_url}
+                thumbnailGenState={file.thumbnail_gen_state}
+                extension={file.extension}
+              />
 
               {/* Cover chip */}
               {isCover && !isRemoved && (
@@ -73,8 +81,8 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
                 </div>
               )}
 
-              {/* Type label */}
-              {label && (
+              {/* Type label — only shown when a thumbnail is visible; fallback tiles render their own extension label */}
+              {label && file.thumbnail_url && (
                 <div className="absolute bottom-1 left-1 rounded bg-black/60 px-1 py-0.5 text-[10px] font-medium text-white">
                   {label}
                 </div>
@@ -127,18 +135,11 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
         <div className="aspect-square">
           <button
             type="button"
-            className={`flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none ${props.dragHandlers.dragOver ? 'bg-muted/50 ring-2 ring-ring' : ''}`}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none"
             onClick={props.onAddFiles}
-            onDragOver={props.dragHandlers.onDragOver}
-            onDragLeave={props.dragHandlers.onDragLeave}
-            onDrop={props.dragHandlers.onDrop}
           >
-            <>
-              <Plus className="size-4" />
-              <span className="text-center text-[10px]">
-                Add files<br />or drop here
-              </span>
-            </>
+            <Plus className="size-4" />
+            <span className="text-center text-[10px]">Add files</span>
           </button>
         </div>
       )}

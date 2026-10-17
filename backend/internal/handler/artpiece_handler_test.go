@@ -468,3 +468,40 @@ func TestSetCover_FileNotInArtpiece(t *testing.T) {
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }
+
+// --- GetArtpieceByID file refs ---
+
+func TestGetArtpieceByID_FileExtensionInResponse(t *testing.T) {
+	ext := "clip"
+	fileID := uuid.New()
+	a := makeArtpiece()
+	a.Files = []domain.File{
+		{
+			ID:         fileID,
+			UserID:     testUserID,
+			FileR2Path: "users/x/files/f.bin",
+			MimeType:   "application/octet-stream",
+			Extension:  &ext,
+		},
+	}
+
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/signed"}
+	spy := &spyArtpieceUsecase{getByIDResult: a}
+	h := handler.NewArtpieceHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/artpieces/:id", h.GetArtpieceByID)
+
+	req := httptest.NewRequest(http.MethodGet, "/artpieces/"+a.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	files, ok := got["files"].([]interface{})
+	require.True(t, ok, "files field must be an array")
+	require.Len(t, files, 1)
+	fileMap := files[0].(map[string]interface{})
+	require.Equal(t, "clip", fileMap["extension"])
+}

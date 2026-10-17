@@ -20,14 +20,16 @@ import (
 )
 
 type spyFileUploadUsecase struct {
-	initiateResult *usecase.InitiateFileUploadResult
-	initiateErr    error
+	initiateResult    *usecase.InitiateFileUploadResult
+	initiateErr       error
+	lastInitiateParams usecase.InitiateFileUploadParams
 
 	completeResult *domain.File
 	completeErr    error
 }
 
-func (s *spyFileUploadUsecase) InitiateUpload(_ context.Context, _ usecase.InitiateFileUploadParams) (*usecase.InitiateFileUploadResult, error) {
+func (s *spyFileUploadUsecase) InitiateUpload(_ context.Context, params usecase.InitiateFileUploadParams) (*usecase.InitiateFileUploadResult, error) {
+	s.lastInitiateParams = params
 	return s.initiateResult, s.initiateErr
 }
 
@@ -155,4 +157,50 @@ func TestCompleteFileUpload_NotFound(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestInitiateFileUpload_ExtensionForwardedToUsecase(t *testing.T) {
+	pendingID := uuid.New()
+	spy := &spyFileUploadUsecase{
+		initiateResult: &usecase.InitiateFileUploadResult{
+			ID:        pendingID,
+			UploadURL: "https://example.com/presigned",
+			ExpiresAt: time.Now().Add(15 * time.Minute),
+		},
+	}
+	h := handler.NewFileUploadHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/files", h.InitiateUpload)
+
+	body := `{"mime_type":"application/octet-stream","extension":"clip"}`
+	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.NotNil(t, spy.lastInitiateParams.Extension)
+	require.Equal(t, "clip", *spy.lastInitiateParams.Extension)
+}
+
+func TestCompleteFileUpload_ExtensionInResponse(t *testing.T) {
+	ext := "clip"
+	f := makeFile()
+	f.Extension = &ext
+	spy := &spyFileUploadUsecase{completeResult: f}
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/signed"}
+	h := handler.NewFileUploadHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/files/:id/complete", h.CompleteUpload)
+
+	req := httptest.NewRequest(http.MethodPost, "/files/"+f.ID.String()+"/complete", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, "clip", got["extension"])
 }

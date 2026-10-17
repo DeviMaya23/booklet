@@ -12,11 +12,11 @@ export function useInitFileUpload() {
   const { getToken } = useKindeAuth()
 
   return useMutation({
-    mutationFn: async ({ mimeType, name }: { mimeType: string; name?: string }) => {
+    mutationFn: async ({ mimeType, name, extension }: { mimeType: string; name?: string; extension?: string }) => {
       const res = await apiFetch('/files', getToken, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ mime_type: mimeType, name: name ?? null }),
+        body: JSON.stringify({ mime_type: mimeType, name: name ?? null, extension: extension ?? null }),
       })
       if (!res.ok) throw new Error('Failed to initiate file upload')
       return res.json() as Promise<InitFileUploadResult>

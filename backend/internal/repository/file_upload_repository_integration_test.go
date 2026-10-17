@@ -49,6 +49,32 @@ func TestPendingFileUploadRepository_Create(t *testing.T) {
 	assert.Equal(t, "artwork.png", *got.Name)
 }
 
+func TestPendingFileUploadRepository_Create_RoundTripsExtension(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewPendingFileUploadRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	ext := "clip"
+	p := &domain.PendingFileUpload{
+		ID:        uuid.New(),
+		UserID:    user.ID,
+		R2Key:     "uploads/f.bin",
+		MimeType:  "application/octet-stream",
+		Extension: &ext,
+	}
+
+	got, err := repo.Create(context.Background(), p)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.Extension)
+	assert.Equal(t, "clip", *got.Extension)
+
+	fetched, err := repo.GetByID(context.Background(), p.ID, user.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.Extension)
+	assert.Equal(t, "clip", *fetched.Extension)
+}
+
 func TestPendingFileUploadRepository_GetByID(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewPendingFileUploadRepository(tx)
