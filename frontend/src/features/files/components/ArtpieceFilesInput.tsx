@@ -14,7 +14,7 @@ type DraftFile =
   | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; localThumbnailUrl: string | null; extension: string | null; nameError: string | null }
 
 interface ArtpieceFilesInputProps {
-  initialFiles?: { id: string; name: string | null; notes: string | null }[]
+  initialFiles?: { id: string; name: string | null; notes: string | null; thumbnailUrl?: string | null; extension?: string | null }[]
   onFileIdsChange: (ids: string[]) => void
   onHasUploading: (uploading: boolean) => void
   disabled?: boolean
@@ -33,8 +33,8 @@ export default function ArtpieceFilesInput({
       id: f.id,
       name: f.name ?? '',
       notes: f.notes ?? '',
-      localThumbnailUrl: null,
-      extension: null,
+      localThumbnailUrl: f.thumbnailUrl ?? null,
+      extension: f.extension ?? null,
       nameError: null,
     })),
   )
