@@ -56,7 +56,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
 
   const initialFilesForInput = initialFileIds?.map((id) => {
     const match = inboxFiles.find((f) => f.id === id)
-    return { id, name: match?.name ?? null, notes: match?.notes ?? null }
+    return { id, name: match?.name ?? null, notes: match?.notes ?? null, thumbnailUrl: match?.thumbnail_url ?? null, extension: match?.extension ?? null }
   })
 
   function resetForm() {
