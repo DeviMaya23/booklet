@@ -19,7 +19,7 @@ import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useInitFileUpload } from '@/features/files/api/useInitFileUpload'
 import { useCompleteFileUpload } from '@/features/files/api/useCompleteFileUpload'
 import { apiFetch } from '@/lib/api'
-import { stripFileExtension } from '@/features/files/lib/files'
+import { uploadFile } from '@/features/files/lib/upload'
 import ArtpieceDetailFileGrid from './ArtpieceDetailFileGrid'
 import DeleteArtpieceDialog from './DeleteArtpieceDialog'
 
@@ -128,16 +128,8 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
-          const dotIdx = file.name.lastIndexOf('.')
-          const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : undefined
-          const result = await initUpload.mutateAsync({
-            mimeType: file.type || 'application/octet-stream',
-            name: stripFileExtension(file.name),
-            extension,
-          })
-          await fetch(result.upload_url, { method: 'PUT', body: file })
-          await completeUpload.mutateAsync(result.id)
-          const res = await apiFetch(`/artpieces/${artpieceId}/files/${result.id}`, getToken, {
+          const { fileId } = await uploadFile(file, initUpload.mutateAsync, completeUpload.mutateAsync)
+          const res = await apiFetch(`/artpieces/${artpieceId}/files/${fileId}`, getToken, {
             method: 'POST',
           })
           if (!res.ok) throw new Error('Failed to attach file')

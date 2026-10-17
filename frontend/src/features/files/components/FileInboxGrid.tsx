@@ -10,7 +10,7 @@ import FileDeleteDialog from './FileDeleteDialog'
 import FileTileEditOverlay from './FileTileEditOverlay'
 import { useDeleteFile } from '../api/useDeleteFile'
 import { useBulkDeleteFiles } from '../api/useBulkDeleteFiles'
-import { stripFileExtension } from '../lib/files'
+import { uploadFile } from '../lib/upload'
 
 interface PlaceholderTile {
   clientId: string
@@ -81,11 +81,7 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
-          const dotIdx = file.name.lastIndexOf('.')
-          const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : undefined
-          const result = await initUpload.mutateAsync({ mimeType: file.type || 'application/octet-stream', name: stripFileExtension(file.name), extension })
-          await fetch(result.upload_url, { method: 'PUT', body: file })
-          await completeUpload.mutateAsync(result.id)
+          await uploadFile(file, initUpload.mutateAsync, completeUpload.mutateAsync)
         } catch {
           toast.error(`Failed to upload ${file.name}`)
         } finally {

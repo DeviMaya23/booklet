@@ -13,7 +13,6 @@ type File struct {
 	FileR2Path      string         `gorm:"type:text;not null;column:file_r2_path"`
 	MimeType        string         `gorm:"type:text;not null;column:mime_type"`
 	ThumbnailR2Path  *string        `gorm:"type:text;column:thumbnail_r2_path"`
-	ThumbnailGenState *string       `gorm:"type:text;column:thumbnail_gen_state"`
 	Name             *string        `gorm:"type:text;column:name"`
 	Notes            *string        `gorm:"type:text;column:notes"`
 	Extension        *string        `gorm:"type:text;column:extension"`

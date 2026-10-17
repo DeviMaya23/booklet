@@ -1,22 +1,27 @@
-import { Loader2 } from 'lucide-react'
+import { useEffect, useState } from 'react'
 import { getFileCategory } from '../lib/fileCategory'
 
 interface FileThumbProps {
   thumbnailUrl: string | null
   extension: string | null
-  thumbnailGenState?: 'pending' | 'done' | 'failed' | 'not_applicable'
 }
 
-export default function FileThumb({ thumbnailUrl, extension, thumbnailGenState }: FileThumbProps) {
-  if (thumbnailUrl) {
-    return <img src={thumbnailUrl} alt="" className="h-full w-full object-cover" draggable={false} />
-  }
+export default function FileThumb({ thumbnailUrl, extension }: FileThumbProps) {
+  const [imgFailed, setImgFailed] = useState(false)
 
-  if (thumbnailGenState === 'pending') {
+  useEffect(() => {
+    setImgFailed(false)
+  }, [thumbnailUrl])
+
+  if (thumbnailUrl && !imgFailed) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-muted">
-        <Loader2 className="h-6 w-6 text-muted-foreground animate-spin" />
-      </div>
+      <img
+        src={thumbnailUrl}
+        alt=""
+        className="h-full w-full object-cover"
+        draggable={false}
+        onError={() => setImgFailed(true)}
+      />
     )
   }
 

@@ -25,7 +25,6 @@ export default function FileTile({ file, selected, onClick, onDoubleClick, onDel
         <FileThumb
           thumbnailUrl={file.thumbnail_url}
           extension={file.extension}
-          thumbnailGenState={file.thumbnail_gen_state}
         />
 
         <div

@@ -17,7 +17,7 @@ import (
 
 type FileUploadUsecase interface {
 	InitiateUpload(ctx context.Context, params usecase.InitiateFileUploadParams) (*usecase.InitiateFileUploadResult, error)
-	CompleteUpload(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error)
+	CompleteUpload(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.CompleteFileUploadParams) (*domain.File, error)
 }
 
 type FileUploadHandler struct {
@@ -39,23 +39,23 @@ type initiateFileUploadRequest struct {
 }
 
 type initiateFileUploadResponse struct {
-	ID        string `json:"id"`
-	UploadURL string `json:"upload_url"`
-	ExpiresAt string `json:"expires_at"`
+	ID                 string  `json:"id"`
+	UploadURL          string  `json:"upload_url"`
+	ThumbnailUploadURL *string `json:"thumbnail_upload_url"`
+	ExpiresAt          string  `json:"expires_at"`
 }
 
 type fileResponse struct {
-	ID                string  `json:"id"`
-	FileURL           *string `json:"file_url,omitempty"`
-	MimeType          string  `json:"mime_type"`
-	ThumbnailURL      *string `json:"thumbnail_url"`
-	ThumbnailGenState string  `json:"thumbnail_gen_state"`
-	ArtpieceID        *string `json:"artpiece_id"`
-	Name              *string `json:"name"`
-	Notes             *string `json:"notes"`
-	Extension         *string `json:"extension"`
-	CreatedAt         string  `json:"created_at"`
-	UpdatedAt         string  `json:"updated_at"`
+	ID           string  `json:"id"`
+	FileURL      *string `json:"file_url,omitempty"`
+	MimeType     string  `json:"mime_type"`
+	ThumbnailURL *string `json:"thumbnail_url"`
+	ArtpieceID   *string `json:"artpiece_id"`
+	Name         *string `json:"name"`
+	Notes        *string `json:"notes"`
+	Extension    *string `json:"extension"`
+	CreatedAt    string  `json:"created_at"`
+	UpdatedAt    string  `json:"updated_at"`
 }
 
 func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
@@ -91,10 +91,17 @@ func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
 	}
 
 	return c.JSON(http.StatusCreated, initiateFileUploadResponse{
-		ID:        result.ID.String(),
-		UploadURL: result.UploadURL,
-		ExpiresAt: result.ExpiresAt.Format(time.RFC3339),
+		ID:                 result.ID.String(),
+		UploadURL:          result.UploadURL,
+		ThumbnailUploadURL: result.ThumbnailUploadURL,
+		ExpiresAt:          result.ExpiresAt.Format(time.RFC3339),
 	})
+}
+
+type completeFileUploadRequest struct {
+	Width             *int  `json:"width"`
+	Height            *int  `json:"height"`
+	ThumbnailUploaded *bool `json:"thumbnail_uploaded"`
 }
 
 func (h *FileUploadHandler) CompleteUpload(c echo.Context) error {
@@ -111,7 +118,14 @@ func (h *FileUploadHandler) CompleteUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	file, err := h.fileUploadUsecase.CompleteUpload(ctx, id, userID)
+	var req completeFileUploadRequest
+	_ = c.Bind(&req)
+
+	file, err := h.fileUploadUsecase.CompleteUpload(ctx, id, userID, usecase.CompleteFileUploadParams{
+		Width:             req.Width,
+		Height:            req.Height,
+		ThumbnailUploaded: req.ThumbnailUploaded != nil && *req.ThumbnailUploaded,
+	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "pending upload not found")
@@ -149,21 +163,16 @@ func toFileResponse(f *domain.File, fileURL *string, thumbnailURL *string) fileR
 		s := f.ArtpieceID.String()
 		artpieceID = &s
 	}
-	thumbnailGenState := "failed"
-	if f.ThumbnailGenState != nil {
-		thumbnailGenState = *f.ThumbnailGenState
-	}
 	return fileResponse{
-		ID:                f.ID.String(),
-		FileURL:           fileURL,
-		MimeType:          f.MimeType,
-		ThumbnailURL:      thumbnailURL,
-		ThumbnailGenState: thumbnailGenState,
-		ArtpieceID:        artpieceID,
-		Name:              f.Name,
-		Notes:             f.Notes,
-		Extension:         f.Extension,
-		CreatedAt:         f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
-		UpdatedAt:         f.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		ID:           f.ID.String(),
+		FileURL:      fileURL,
+		MimeType:     f.MimeType,
+		ThumbnailURL: thumbnailURL,
+		ArtpieceID:   artpieceID,
+		Name:         f.Name,
+		Notes:        f.Notes,
+		Extension:    f.Extension,
+		CreatedAt:    f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
+		UpdatedAt:    f.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}
 }
