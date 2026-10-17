@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"image"
 	"io"
 	"time"
 
@@ -11,10 +12,26 @@ import (
 	"github.com/disintegration/imaging"
 	"github.com/google/uuid"
 	"github.com/riverqueue/river"
+	_ "golang.org/x/image/webp"
 	"go.uber.org/zap"
 )
 
 const thumbnailCacheControl = "private, max-age=172800"
+
+type thumbnailFormat struct {
+	encoding    imaging.Format
+	ext         string
+	contentType string
+}
+
+func formatForMimeType(mimeType string) thumbnailFormat {
+	switch mimeType {
+	case "image/png", "image/gif", "image/webp":
+		return thumbnailFormat{imaging.PNG, ".png", "image/png"}
+	default:
+		return thumbnailFormat{imaging.JPEG, ".jpg", "image/jpeg"}
+	}
+}
 
 type fileThumbnailFileRepository interface {
 	GetByIDForWorker(ctx context.Context, id uuid.UUID) (*domain.File, error)
@@ -37,17 +54,34 @@ func (GenerateFileThumbnailArgs) Kind() string { return "generate_file_thumbnail
 
 type GenerateFileThumbnailWorker struct {
 	river.WorkerDefaults[GenerateFileThumbnailArgs]
-	fileRepo fileThumbnailFileRepository
-	storage  fileThumbnailStorageService
-	logger   *zap.Logger
+	fileRepo      fileThumbnailFileRepository
+	storage       fileThumbnailStorageService
+	logger        *zap.Logger
+	decodeTimeout time.Duration
 }
 
 func NewGenerateFileThumbnailWorker(fileRepo fileThumbnailFileRepository, storage fileThumbnailStorageService, logger *zap.Logger) *GenerateFileThumbnailWorker {
-	return &GenerateFileThumbnailWorker{fileRepo: fileRepo, storage: storage, logger: logger}
+	return NewGenerateFileThumbnailWorkerWithTimeout(fileRepo, storage, logger, 30*time.Second)
+}
+
+func NewGenerateFileThumbnailWorkerWithTimeout(fileRepo fileThumbnailFileRepository, storage fileThumbnailStorageService, logger *zap.Logger, decodeTimeout time.Duration) *GenerateFileThumbnailWorker {
+	return &GenerateFileThumbnailWorker{
+		fileRepo:      fileRepo,
+		storage:       storage,
+		logger:        logger,
+		decodeTimeout: decodeTimeout,
+	}
 }
 
 func (w *GenerateFileThumbnailWorker) NextRetry(job *river.Job[GenerateFileThumbnailArgs]) time.Time {
 	return time.Now().Add(15 * time.Second)
+}
+
+type decodeResizeResult struct {
+	img    image.Image
+	width  int
+	height int
+	err    error
 }
 
 func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[GenerateFileThumbnailArgs]) error {
@@ -60,7 +94,7 @@ func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[G
 	}
 
 	setFailed := func() error {
-		if err := w.fileRepo.UpdateThumbnailGenState(ctx, fileID, "failed"); err != nil {
+		if err := w.fileRepo.UpdateThumbnailGenState(context.Background(), fileID, "failed"); err != nil {
 			w.logger.Error("failed to set thumbnail_gen_state to failed",
 				zap.String("file_id", fileID.String()),
 				zap.Error(err),
@@ -78,34 +112,62 @@ func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[G
 	}
 	defer func() { _ = rc.Close() }()
 
-	decoded, err := imaging.Decode(rc)
-	if err != nil {
+	decodeCtx, cancelDecode := context.WithTimeout(ctx, w.decodeTimeout)
+	defer cancelDecode()
+
+	ch := make(chan decodeResizeResult, 1)
+	go func() {
+		decoded, decodeErr := imaging.Decode(rc)
+		if decodeErr != nil {
+			ch <- decodeResizeResult{err: decodeErr}
+			return
+		}
+		bounds := decoded.Bounds()
+		thumbnail := imaging.Fit(decoded, 600, 600, imaging.Lanczos)
+		ch <- decodeResizeResult{img: thumbnail, width: bounds.Dx(), height: bounds.Dy()}
+	}()
+
+	var res decodeResizeResult
+	select {
+	case res = <-ch:
+	case <-decodeCtx.Done():
 		if job.Attempt >= job.MaxAttempts {
 			return setFailed()
 		}
-		return fmt.Errorf("decode image: %w", err)
+		return fmt.Errorf("decode timeout: %w", decodeCtx.Err())
 	}
 
-	bounds := decoded.Bounds()
-	if err := w.fileRepo.UpdateImageMetadataDimensions(ctx, fileID, bounds.Dx(), bounds.Dy()); err != nil {
+	if res.err != nil {
+		if job.Attempt >= job.MaxAttempts {
+			return setFailed()
+		}
+		return fmt.Errorf("decode image: %w", res.err)
+	}
+
+	if err := w.fileRepo.UpdateImageMetadataDimensions(ctx, fileID, res.width, res.height); err != nil {
 		w.logger.Error("failed to update image_metadata dimensions",
 			zap.String("file_id", fileID.String()),
 			zap.Error(err),
 		)
 	}
 
-	thumbnail := imaging.Fit(decoded, 600, 600, imaging.Lanczos)
+	format := formatForMimeType(file.MimeType)
+
+	var encodeOpts []imaging.EncodeOption
+	if format.encoding == imaging.JPEG {
+		encodeOpts = append(encodeOpts, imaging.JPEGQuality(85))
+	}
 
 	var buf bytes.Buffer
-	if err := imaging.Encode(&buf, thumbnail, imaging.JPEG, imaging.JPEGQuality(85)); err != nil {
+	if err := imaging.Encode(&buf, res.img, format.encoding, encodeOpts...); err != nil {
 		if job.Attempt >= job.MaxAttempts {
 			return setFailed()
 		}
 		return fmt.Errorf("encode thumbnail: %w", err)
 	}
 
-	thumbnailKey := fmt.Sprintf("users/%s/thumbnails/%s.jpg", userID.String(), fileID.String())
-	if err := w.storage.PutObject(ctx, thumbnailKey, &buf, "image/jpeg", thumbnailCacheControl); err != nil {
+	thumbnailKey := fmt.Sprintf("users/%s/thumbnails/%s%s", userID.String(), fileID.String(), format.ext)
+	if err := w.storage.PutObject(ctx, thumbnailKey, &buf, format.contentType, thumbnailCacheControl); err != nil {
 		if job.Attempt >= job.MaxAttempts {
 			return setFailed()
 		}
