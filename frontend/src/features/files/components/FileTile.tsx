@@ -1,6 +1,6 @@
-import { FileIcon, Trash2 } from 'lucide-react'
-import { Skeleton } from '@/components/ui/skeleton'
+import { Trash2 } from 'lucide-react'
 import { type File } from '../api/useFiles'
+import FileThumb from './FileThumb'
 
 interface FileTileProps {
   file: File
@@ -22,20 +22,11 @@ export default function FileTile({ file, selected, onClick, onDoubleClick, onDel
         onDoubleClick={onDoubleClick}
         onContextMenu={onContextMenu}
       >
-        {file.thumbnail_url ? (
-          <img
-            src={file.thumbnail_url}
-            alt=""
-            className="w-full h-full object-cover"
-            draggable={false}
-          />
-        ) : file.thumbnail_gen_state === 'pending' ? (
-          <Skeleton className="w-full h-full rounded-none" />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center bg-muted">
-            <FileIcon size={24} className="text-muted-foreground" />
-          </div>
-        )}
+        <FileThumb
+          thumbnailUrl={file.thumbnail_url}
+          extension={file.extension}
+          thumbnailGenState={file.thumbnail_gen_state}
+        />
 
         <div
           className="absolute top-1 right-1"

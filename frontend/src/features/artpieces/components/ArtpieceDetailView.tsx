@@ -127,9 +127,12 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
       list.map(async (file, i) => {
         const clientId = clientIds[i]
         try {
+          const dotIdx = file.name.lastIndexOf('.')
+          const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : undefined
           const result = await initUpload.mutateAsync({
             mimeType: file.type || 'application/octet-stream',
             name: stripFileExtension(file.name),
+            extension,
           })
           await fetch(result.upload_url, { method: 'PUT', body: file })
           await completeUpload.mutateAsync(result.id)

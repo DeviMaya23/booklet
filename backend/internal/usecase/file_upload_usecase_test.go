@@ -184,6 +184,35 @@ func TestCompleteFileUpload_AutoSetsCoverOnFirstImageAttach(t *testing.T) {
 	require.Equal(t, file.ID, *coverUpdater.lastCoverID)
 }
 
+func TestCompleteFileUpload_ExtensionCopiedFromPending(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+	jobInserter := &spyFileJobInserter{}
+
+	ext := "clip"
+	fileID := uuid.New()
+	pendingRepo.pending[fileID] = &domain.PendingFileUpload{
+		ID:        fileID,
+		UserID:    userID,
+		R2Key:     "users/x/files/f.bin",
+		MimeType:  "application/octet-stream",
+		Extension: &ext,
+	}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage, jobInserter)
+
+	file, err := uc.CompleteUpload(context.Background(), fileID, userID)
+	require.NoError(t, err)
+	require.NotNil(t, file.Extension)
+	require.Equal(t, "clip", *file.Extension)
+}
+
 func TestCompleteFileUpload_NoThumbnailEnqueuedForNonImageType(t *testing.T) {
 	userID := uuid.New()
 

@@ -35,6 +35,7 @@ type initiateFileUploadRequest struct {
 	ArtpieceID *uuid.UUID `json:"artpiece_id"`
 	Name       *string    `json:"name"`
 	Notes      *string    `json:"notes"`
+	Extension  *string    `json:"extension"`
 }
 
 type initiateFileUploadResponse struct {
@@ -52,6 +53,7 @@ type fileResponse struct {
 	ArtpieceID        *string `json:"artpiece_id"`
 	Name              *string `json:"name"`
 	Notes             *string `json:"notes"`
+	Extension         *string `json:"extension"`
 	CreatedAt         string  `json:"created_at"`
 	UpdatedAt         string  `json:"updated_at"`
 }
@@ -79,6 +81,7 @@ func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
 		ArtpieceID: req.ArtpieceID,
 		Name:       req.Name,
 		Notes:      req.Notes,
+		Extension:  req.Extension,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtpieceNotOwned) {
@@ -159,6 +162,7 @@ func toFileResponse(f *domain.File, fileURL *string, thumbnailURL *string) fileR
 		ArtpieceID:        artpieceID,
 		Name:              f.Name,
 		Notes:             f.Notes,
+		Extension:         f.Extension,
 		CreatedAt:         f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:         f.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

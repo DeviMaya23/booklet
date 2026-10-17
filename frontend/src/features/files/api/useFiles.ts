@@ -2,15 +2,18 @@ import { useQuery } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
 
+export type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
+
 export interface File {
   id: string
   file_url: string | null
   mime_type: string
   thumbnail_url: string | null
-  thumbnail_gen_state: 'pending' | 'done' | 'failed' | 'not_applicable'
+  thumbnail_gen_state: ThumbnailGenState
   artpiece_id: string | null
   name: string | null
   notes: string | null
+  extension: string | null
   created_at: string
   updated_at: string
 }

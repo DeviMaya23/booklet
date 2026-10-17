@@ -15,7 +15,8 @@ type File struct {
 	ThumbnailR2Path  *string        `gorm:"type:text;column:thumbnail_r2_path"`
 	ThumbnailGenState *string       `gorm:"type:text;column:thumbnail_gen_state"`
 	Name             *string        `gorm:"type:text;column:name"`
-	Notes           *string        `gorm:"type:text;column:notes"`
+	Notes            *string        `gorm:"type:text;column:notes"`
+	Extension        *string        `gorm:"type:text;column:extension"`
 	ImageMetadata   *ImageMetadata `gorm:"foreignKey:FileID"`
 	CreatedAt       time.Time      `gorm:"column:created_at"`
 	UpdatedAt       time.Time      `gorm:"column:updated_at"`

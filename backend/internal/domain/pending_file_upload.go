@@ -14,5 +14,6 @@ type PendingFileUpload struct {
 	ArtpieceID *uuid.UUID `gorm:"type:uuid;column:artpiece_id"`
 	Name       *string    `gorm:"type:text;column:name"`
 	Notes      *string    `gorm:"type:text;column:notes"`
+	Extension  *string    `gorm:"type:text;column:extension"`
 	CreatedAt  time.Time  `gorm:"column:created_at"`
 }

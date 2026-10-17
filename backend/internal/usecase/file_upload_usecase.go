@@ -10,6 +10,7 @@ import (
 	"github.com/devi/booklet/internal/worker"
 	bookmime "github.com/devi/booklet/pkg/mime"
 	"github.com/google/uuid"
+	"github.com/riverqueue/river"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
@@ -20,6 +21,7 @@ type InitiateFileUploadParams struct {
 	ArtpieceID *uuid.UUID
 	Name       *string
 	Notes      *string
+	Extension  *string
 }
 
 type InitiateFileUploadResult struct {
@@ -95,6 +97,7 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		ArtpieceID: params.ArtpieceID,
 		Name:       params.Name,
 		Notes:      params.Notes,
+		Extension:  params.Extension,
 	}
 	if _, err := u.pendingRepo.Create(ctx, pending); err != nil {
 		span.RecordError(err)
@@ -130,6 +133,7 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 		ThumbnailGenState: &thumbnailGenState,
 		Name:              pending.Name,
 		Notes:             pending.Notes,
+		Extension:         pending.Extension,
 	}
 
 	created, err := u.fileRepo.Create(ctx, file)
@@ -159,7 +163,7 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 			)
 		}
 
-		if _, err := u.jobInserter.Insert(ctx, worker.GenerateFileThumbnailArgs{FileID: created.ID, UserID: created.UserID}, nil); err != nil {
+		if _, err := u.jobInserter.Insert(ctx, worker.GenerateFileThumbnailArgs{FileID: created.ID, UserID: created.UserID}, &river.InsertOpts{MaxAttempts: 3}); err != nil {
 			observability.LoggerFromContext(ctx, u.tel.Logger).Error("failed to enqueue file thumbnail job",
 				zap.String("file_id", created.ID.String()),
 				zap.Error(err),

@@ -53,6 +53,32 @@ func TestFileRepository_Create(t *testing.T) {
 	assert.Equal(t, "image/jpeg", created.MimeType)
 }
 
+func TestFileRepository_Create_RoundTripsExtension(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewFileRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	ext := "kra"
+	f := &domain.File{
+		ID:         uuid.New(),
+		UserID:     user.ID,
+		FileR2Path: "users/" + user.ID.String() + "/files/f.bin",
+		MimeType:   "application/octet-stream",
+		Extension:  &ext,
+	}
+
+	created, err := repo.Create(context.Background(), f)
+
+	require.NoError(t, err)
+	require.NotNil(t, created.Extension)
+	assert.Equal(t, "kra", *created.Extension)
+
+	fetched, err := repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
+	require.NoError(t, err)
+	require.NotNil(t, fetched.Extension)
+	assert.Equal(t, "kra", *fetched.Extension)
+}
+
 func TestFileRepository_GetByIDAndUserID_WrongUser(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewFileRepository(tx)

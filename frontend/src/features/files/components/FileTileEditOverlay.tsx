@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
-import { FileIcon, X } from 'lucide-react'
+import { X } from 'lucide-react'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
 import { type File } from '../api/useFiles'
 import { useUpdateFile } from '../api/useUpdateFile'
+import FileThumb from './FileThumb'
 
 interface FileTileEditOverlayProps {
   file: File
@@ -69,12 +70,12 @@ export default function FileTileEditOverlay({ file, onClose }: FileTileEditOverl
         </div>
 
         {/* Thumbnail */}
-        <div className="flex h-48 w-full items-center justify-center overflow-hidden rounded-md bg-muted">
-          {file.thumbnail_url ? (
-            <img src={file.thumbnail_url} alt="" className="h-full w-full object-cover" />
-          ) : (
-            <FileIcon className="h-8 w-8 text-muted-foreground" />
-          )}
+        <div className="h-48 w-full overflow-hidden rounded-md">
+          <FileThumb
+            thumbnailUrl={file.thumbnail_url}
+            thumbnailGenState={file.thumbnail_gen_state}
+            extension={file.extension}
+          />
         </div>
 
         {/* Name */}

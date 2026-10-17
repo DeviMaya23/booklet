@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/disintegration/imaging"
@@ -43,6 +44,10 @@ type GenerateFileThumbnailWorker struct {
 
 func NewGenerateFileThumbnailWorker(fileRepo fileThumbnailFileRepository, storage fileThumbnailStorageService, logger *zap.Logger) *GenerateFileThumbnailWorker {
 	return &GenerateFileThumbnailWorker{fileRepo: fileRepo, storage: storage, logger: logger}
+}
+
+func (w *GenerateFileThumbnailWorker) NextRetry(job *river.Job[GenerateFileThumbnailArgs]) time.Time {
+	return time.Now().Add(15 * time.Second)
 }
 
 func (w *GenerateFileThumbnailWorker) Work(ctx context.Context, job *river.Job[GenerateFileThumbnailArgs]) error {

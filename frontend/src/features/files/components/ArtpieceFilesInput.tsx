@@ -1,18 +1,17 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { FileIcon, Loader2, X } from 'lucide-react'
+import { Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
-import { useFiles } from '../api/useFiles'
+import { useFiles, type ThumbnailGenState } from '../api/useFiles'
 import { stripFileExtension, validateFileName } from '../lib/files'
-
-type ThumbnailGenState = 'pending' | 'done' | 'failed' | 'not_applicable'
+import FileThumb from './FileThumb'
 
 type DraftFile =
   | { status: 'uploading'; clientId: string; fileName: string }
-  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState; nameError: string | null }
+  | { status: 'uploaded'; clientId: string; id: string; name: string; notes: string; thumbnailUrl: string | null; thumbnailGenState: ThumbnailGenState; extension: string | null; nameError: string | null }
 
 interface ArtpieceFilesInputProps {
   initialFiles?: { id: string; name: string | null; notes: string | null }[]
@@ -36,6 +35,7 @@ export default function ArtpieceFilesInput({
       notes: f.notes ?? '',
       thumbnailUrl: null,
       thumbnailGenState: 'pending' as ThumbnailGenState,
+      extension: null,
       nameError: null,
     })),
   )
@@ -86,9 +86,12 @@ export default function ArtpieceFilesInput({
           const clientId = clientIds[i]
           try {
             const strippedName = stripFileExtension(file.name)
+            const dotIdx = file.name.lastIndexOf('.')
+            const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : undefined
             const result = await initUpload.mutateAsync({
               mimeType: file.type || 'application/octet-stream',
               name: strippedName,
+              extension,
             })
             await fetch(result.upload_url, { method: 'PUT', body: file })
             await completeUpload.mutateAsync(result.id)
@@ -103,6 +106,7 @@ export default function ArtpieceFilesInput({
                       notes: '',
                       thumbnailUrl: null,
                       thumbnailGenState: 'pending' as ThumbnailGenState,
+                      extension: extension ?? null,
                       nameError: null,
                     }
                   : f,
@@ -212,14 +216,12 @@ export default function ArtpieceFilesInput({
             const thumbnailPending = file.thumbnailGenState === 'pending'
             return (
               <div key={file.clientId} className="flex gap-3 rounded-md border p-2">
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-md bg-muted">
-                  {file.thumbnailUrl ? (
-                    <img src={file.thumbnailUrl} alt="" className="h-full w-full object-cover" />
-                  ) : thumbnailPending ? (
-                    <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-                  ) : (
-                    <FileIcon className="h-5 w-5 text-muted-foreground" />
-                  )}
+                <div className="flex h-16 w-16 shrink-0 overflow-hidden rounded-md">
+                  <FileThumb
+                    thumbnailUrl={file.thumbnailUrl}
+                    extension={file.extension}
+                    thumbnailGenState={file.thumbnailGenState}
+                  />
                 </div>
                 <div className="flex flex-1 flex-col gap-1.5">
                   <div className="flex gap-1.5">
