@@ -51,6 +51,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [isSaving, setIsSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
+  const dragEnterCount = useRef(0)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -153,6 +154,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
 
   function handleDrop(e: React.DragEvent) {
     e.preventDefault()
+    dragEnterCount.current = 0
     setDragOver(false)
     if (e.dataTransfer.files.length > 0) void uploadAndAttach(e.dataTransfer.files)
   }
@@ -449,8 +451,9 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               onAddFiles={() => fileInputRef.current?.click()}
               dragHandlers={{
                 dragOver,
-                onDragOver: (e) => { e.preventDefault(); setDragOver(true) },
-                onDragLeave: () => setDragOver(false),
+                onDragEnter: (e) => { e.preventDefault(); dragEnterCount.current++; setDragOver(true) },
+                onDragOver: (e) => { e.preventDefault() },
+                onDragLeave: () => { dragEnterCount.current--; if (dragEnterCount.current === 0) setDragOver(false) },
                 onDrop: handleDrop,
               }}
               uploadPlaceholders={uploadPlaceholders}

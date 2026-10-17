@@ -17,6 +17,7 @@ interface EditModeProps {
   onAddFiles: () => void
   dragHandlers: {
     dragOver: boolean
+    onDragEnter: (e: React.DragEvent) => void
     onDragOver: (e: React.DragEvent) => void
     onDragLeave: () => void
     onDrop: (e: React.DragEvent) => void
@@ -40,8 +41,16 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
     return <p className="text-sm text-muted-foreground">No files attached.</p>
   }
 
+  const editDragHandlers = props.mode === 'edit' ? props.dragHandlers : null
+
   return (
-    <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5">
+    <div
+      className={`grid grid-cols-3 gap-2 sm:grid-cols-4 md:grid-cols-5 ${editDragHandlers?.dragOver ? 'rounded-lg ring-2 ring-ring' : ''}`}
+      onDragEnter={editDragHandlers?.onDragEnter}
+      onDragOver={editDragHandlers?.onDragOver}
+      onDragLeave={editDragHandlers?.onDragLeave}
+      onDrop={editDragHandlers?.onDrop}
+    >
       {mode === 'edit' && props.uploadPlaceholders.map((p) => (
         <div key={p.clientId} className="aspect-square rounded-md bg-muted flex items-center justify-center">
           <Loader2 className="size-6 text-muted-foreground animate-spin" />
@@ -126,16 +135,11 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
         <div className="aspect-square">
           <button
             type="button"
-            className={`flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none ${props.dragHandlers.dragOver ? 'bg-muted/50 ring-2 ring-ring' : ''}`}
+            className="flex h-full w-full flex-col items-center justify-center gap-1 rounded-md border border-dashed border-border text-muted-foreground transition-colors hover:bg-muted/50 focus-visible:outline-none"
             onClick={props.onAddFiles}
-            onDragOver={props.dragHandlers.onDragOver}
-            onDragLeave={props.dragHandlers.onDragLeave}
-            onDrop={props.dragHandlers.onDrop}
           >
             <Plus className="size-4" />
-            <span className="text-center text-[10px]">
-              Add files<br />or drop here
-            </span>
+            <span className="text-center text-[10px]">Add files</span>
           </button>
         </div>
       )}
