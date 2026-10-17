@@ -291,6 +291,22 @@ top level of `internal/`.
 `repository/` may contain ORM infrastructure files (e.g. a custom GORM logger)
 alongside repository implementations. These do not need to move to `platform/`.
 
+### Go version and dependencies
+
+The `go` directive in go.mod is a deliberate choice, not a side effect. Go upgrades are
+only done when the user asks. Every `1.N` release is a major Go release, never treat it as minor.
+
+`go get` and `go mod tidy` silently raise the `go` (and add `toolchain`) line when a
+dependency declares a higher version. This is common with `golang.org/x/*` modules.
+
+After any dependency change, check `git diff go.mod`. If `go`/`toolchain` changed:
+
+1. Revert that change.
+2. Look for an older version of the dependency that works with the current Go version
+   (`go list -m -versions <module>`, then `go get <module>@<version>`).
+3. If no compatible version provides what is needed, stop and tell the user which
+   dependency requires which Go version. Do not bump it yourself.
+
 ---
 
 ## Backend Testing
