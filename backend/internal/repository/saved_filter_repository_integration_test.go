@@ -181,3 +181,38 @@ func TestSavedFilterRepository_Delete_NotFound(t *testing.T) {
 
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
+
+func TestSavedFilterRepository_Create_DuplicateName_SameUser(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewSavedFilterRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	seedSavedFilter(t, tx, user.ID, "My Filter")
+
+	_, err := repo.Create(context.Background(), &domain.SavedFilter{
+		ID:            uuid.New(),
+		UserID:        user.ID,
+		Name:          "My Filter",
+		FilterPayload: json.RawMessage(`{}`),
+	})
+
+	assert.ErrorIs(t, err, usecase.ErrDuplicateSavedFilterName)
+}
+
+func TestSavedFilterRepository_Create_SameName_DifferentUsers_Allowed(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewSavedFilterRepository(tx)
+
+	user1 := seedUser(t, tx, "user_1")
+	user2 := seedUser(t, tx, "user_2")
+	seedSavedFilter(t, tx, user1.ID, "Shared Name")
+
+	_, err := repo.Create(context.Background(), &domain.SavedFilter{
+		ID:            uuid.New(),
+		UserID:        user2.ID,
+		Name:          "Shared Name",
+		FilterPayload: json.RawMessage(`{}`),
+	})
+
+	assert.NoError(t, err)
+}

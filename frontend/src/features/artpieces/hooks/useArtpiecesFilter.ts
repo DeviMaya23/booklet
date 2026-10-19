@@ -1,6 +1,8 @@
 import { useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { type ArtpieceSummary } from '../api/useArtpieces'
-import { type Artist } from '@/features/artists/api/useArtists'
+import { type Artist, useArtists } from '@/features/artists/api/useArtists'
+import { useCharacters } from '@/features/characters/api/useCharacters'
 
 export type SortMode = 'newest' | 'alpha'
 
@@ -47,11 +49,64 @@ export function filterAndSortArtpieces(
 }
 
 export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const artistsQuery = useArtists()
+  const charactersQuery = useCharacters()
+
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortMode>('newest')
-  const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
-  const [selectedCharacters, setSelectedCharacters] = useState<{ id: string; name: string }[]>([])
-  const [characterMatch, setCharacterMatch] = useState<'all' | 'any'>('all')
+
+  // Derive filter state from URL params + cached query data
+  const artistParam = searchParams.get('artist')
+  const selectedArtist: Artist | null = artistParam
+    ? (artistsQuery.data?.find((a) => a.id === artistParam) ?? null)
+    : null
+
+  const charactersParam = searchParams.get('characters')
+  const characterIdList = charactersParam ? charactersParam.split(',').filter(Boolean) : []
+  const selectedCharacters = characterIdList
+    .map((id) => charactersQuery.data?.find((c) => c.id === id))
+    .filter((c): c is NonNullable<typeof c> => c != null)
+    .map((c) => ({ id: c.id, name: c.name }))
+
+  const matchParam = searchParams.get('match')
+  const characterMatch: 'all' | 'any' = matchParam === 'any' ? 'any' : 'all'
+
+  function setSelectedArtist(artist: Artist | null) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (artist) next.set('artist', artist.id)
+        else next.delete('artist')
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  function setSelectedCharacters(chars: { id: string; name: string }[]) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (chars.length > 0) next.set('characters', chars.map((c) => c.id).join(','))
+        else next.delete('characters')
+        return next
+      },
+      { replace: true },
+    )
+  }
+
+  function setCharacterMatch(mode: 'all' | 'any') {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (mode === 'any') next.set('match', 'any')
+        else next.delete('match')
+        return next
+      },
+      { replace: true },
+    )
+  }
 
   const filtered = filterAndSortArtpieces(artpieces, {
     search,

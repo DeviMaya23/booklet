@@ -14,8 +14,10 @@ import (
 	"gorm.io/gorm"
 )
 
+// fakeSavedFilterRepository implements SavedFilterRepository for tests.
 type fakeSavedFilterRepository struct {
-	filters map[uuid.UUID]*domain.SavedFilter
+	filters   map[uuid.UUID]*domain.SavedFilter
+	createErr error
 }
 
 func newFakeSavedFilterRepository() *fakeSavedFilterRepository {
@@ -25,6 +27,9 @@ func newFakeSavedFilterRepository() *fakeSavedFilterRepository {
 }
 
 func (f *fakeSavedFilterRepository) Create(_ context.Context, sf *domain.SavedFilter) (*domain.SavedFilter, error) {
+	if f.createErr != nil {
+		return nil, f.createErr
+	}
 	f.filters[sf.ID] = sf
 	return sf, nil
 }
@@ -73,12 +78,23 @@ func (f *fakeSavedFilterRepository) Delete(_ context.Context, id uuid.UUID, user
 	return nil
 }
 
+// spyArtpieceThumbnailRepository implements ArtpieceThumbnailRepository for tests.
+type spyArtpieceThumbnailRepository struct {
+	result *domain.Artpiece
+	err    error
+}
+
+func (s *spyArtpieceThumbnailRepository) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artpiece, error) {
+	return s.result, s.err
+}
+
 func TestCreateSavedFilter_AssemblesRecord(t *testing.T) {
 	repo := newFakeSavedFilterRepository()
-	uc := usecase.NewSavedFilterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+	artpieceRepo := &spyArtpieceThumbnailRepository{}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
 
 	userID := uuid.New()
-	payload := json.RawMessage(`{"artists":["abc"]}`)
+	payload := json.RawMessage(`{"artist_id":null,"character_ids":[],"match_mode":"all"}`)
 	got, err := uc.Create(context.Background(), userID, usecase.CreateSavedFilterParams{
 		Name:          "My Filter",
 		FilterPayload: payload,
@@ -88,12 +104,67 @@ func TestCreateSavedFilter_AssemblesRecord(t *testing.T) {
 	require.NotEqual(t, uuid.Nil, got.ID)
 	require.Equal(t, userID, got.UserID)
 	require.Equal(t, "My Filter", got.Name)
-	require.JSONEq(t, `{"artists":["abc"]}`, string(got.FilterPayload))
+	require.Nil(t, got.ThumbnailR2Path)
+	require.JSONEq(t, `{"artist_id":null,"character_ids":[],"match_mode":"all"}`, string(got.FilterPayload))
+}
+
+func TestCreateSavedFilter_WithThumbnailArtpieceID_CopiesR2Path(t *testing.T) {
+	repo := newFakeSavedFilterRepository()
+	r2Path := "thumbnails/artpieces/abc.webp"
+	artpieceRepo := &spyArtpieceThumbnailRepository{
+		result: &domain.Artpiece{
+			CoverFile: &domain.File{ThumbnailR2Path: &r2Path},
+		},
+	}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
+
+	artpieceID := uuid.New()
+	got, err := uc.Create(context.Background(), uuid.New(), usecase.CreateSavedFilterParams{
+		Name:                "Filtered",
+		ThumbnailArtpieceID: &artpieceID,
+		FilterPayload:       json.RawMessage(`{}`),
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.ThumbnailR2Path)
+	require.Equal(t, r2Path, *got.ThumbnailR2Path)
+}
+
+func TestCreateSavedFilter_ThumbnailArtpieceHasNoFile_StoresNilPath(t *testing.T) {
+	repo := newFakeSavedFilterRepository()
+	artpieceRepo := &spyArtpieceThumbnailRepository{
+		result: &domain.Artpiece{CoverFile: nil},
+	}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
+
+	artpieceID := uuid.New()
+	got, err := uc.Create(context.Background(), uuid.New(), usecase.CreateSavedFilterParams{
+		Name:                "No Thumb",
+		ThumbnailArtpieceID: &artpieceID,
+		FilterPayload:       json.RawMessage(`{}`),
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, got.ThumbnailR2Path)
+}
+
+func TestCreateSavedFilter_DuplicateName_ReturnsErrDuplicateSavedFilterName(t *testing.T) {
+	repo := newFakeSavedFilterRepository()
+	repo.createErr = usecase.ErrDuplicateSavedFilterName
+	artpieceRepo := &spyArtpieceThumbnailRepository{}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
+
+	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateSavedFilterParams{
+		Name:          "Duplicate",
+		FilterPayload: json.RawMessage(`{}`),
+	})
+
+	require.ErrorIs(t, err, usecase.ErrDuplicateSavedFilterName)
 }
 
 func TestGetSavedFilterByID_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T) {
 	repo := newFakeSavedFilterRepository()
-	uc := usecase.NewSavedFilterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewSavedFilterUsecase(repo, &spyArtpieceThumbnailRepository{}, observability.NewTelemetry(nil, nil, nil))
 
 	_, err := uc.GetByID(context.Background(), uuid.New(), uuid.New())
 
@@ -102,7 +173,7 @@ func TestGetSavedFilterByID_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T)
 
 func TestUpdateSavedFilter_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T) {
 	repo := newFakeSavedFilterRepository()
-	uc := usecase.NewSavedFilterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewSavedFilterUsecase(repo, &spyArtpieceThumbnailRepository{}, observability.NewTelemetry(nil, nil, nil))
 
 	_, err := uc.Update(context.Background(), uuid.New(), uuid.New(), usecase.UpdateSavedFilterParams{})
 
@@ -111,7 +182,7 @@ func TestUpdateSavedFilter_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T) 
 
 func TestDeleteSavedFilter_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T) {
 	repo := newFakeSavedFilterRepository()
-	uc := usecase.NewSavedFilterUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewSavedFilterUsecase(repo, &spyArtpieceThumbnailRepository{}, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.Delete(context.Background(), uuid.New(), uuid.New())
 

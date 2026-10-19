@@ -13,14 +13,24 @@ post {
 body:json {
   {
     "name": "My Filter",
-    "thumbnail_r2_path": null,
+    "thumbnail_artpiece_id": null,
     "filter_payload": {
-      "artists": [],
-      "characters": [],
+      "artist_id": null,
+      "character_ids": [],
       "match_mode": "all"
     }
   }
 }
+
+// Response (201):
+// {
+//   "id": "<uuid>",
+//   "name": "My Filter",
+//   "thumbnail_url": "<signed-url or null>",
+//   "filter_payload": { "artist_id": null, "character_ids": [], "match_mode": "all" },
+//   "created_at": "...",
+//   "updated_at": "..."
+// }
 
 script:post-response {
   if (res.status === 201) {

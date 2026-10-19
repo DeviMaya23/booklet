@@ -66,11 +66,17 @@ func makeSavedFilter() *domain.SavedFilter {
 	}
 }
 
+func makeSavedFilterWithThumbnail(r2Path string) *domain.SavedFilter {
+	sf := makeSavedFilter()
+	sf.ThumbnailR2Path = &r2Path
+	return sf
+}
+
 // --- CreateSavedFilter ---
 
 func TestCreateSavedFilter_MissingName_Returns422(t *testing.T) {
 	spy := &spySavedFilterUsecase{}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.POST("/saved_filters", h.CreateSavedFilter)
@@ -87,7 +93,7 @@ func TestCreateSavedFilter_MissingName_Returns422(t *testing.T) {
 func TestCreateSavedFilter_HappyPath_Returns201WithBody(t *testing.T) {
 	sf := makeSavedFilter()
 	spy := &spySavedFilterUsecase{createResult: sf}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.POST("/saved_filters", h.CreateSavedFilter)
@@ -105,11 +111,105 @@ func TestCreateSavedFilter_HappyPath_Returns201WithBody(t *testing.T) {
 	require.Equal(t, "My Filter", got["name"])
 }
 
+func TestCreateSavedFilter_DuplicateName_Returns422WithNameFieldError(t *testing.T) {
+	spy := &spySavedFilterUsecase{createErr: usecase.ErrDuplicateSavedFilterName}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/saved_filters", h.CreateSavedFilter)
+
+	body := `{"name":"Duplicate","filter_payload":{}}`
+	req := httptest.NewRequest(http.MethodPost, "/saved_filters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errors, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errors, 1)
+	field := errors[0].(map[string]interface{})
+	require.Equal(t, "name", field["field"])
+}
+
+func TestCreateSavedFilter_WithThumbnail_ResponseHasThumbnailURL(t *testing.T) {
+	r2Path := "thumbnails/artpieces/abc.webp"
+	sf := makeSavedFilterWithThumbnail(r2Path)
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/thumb?sig=xyz"}
+	spy := &spySavedFilterUsecase{createResult: sf}
+	h := handler.NewSavedFilterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/saved_filters", h.CreateSavedFilter)
+
+	body := fmt.Sprintf(`{"name":"My Filter","thumbnail_artpiece_id":"%s","filter_payload":{}}`, uuid.New())
+	req := httptest.NewRequest(http.MethodPost, "/saved_filters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Contains(t, got, "thumbnail_url")
+	require.NotContains(t, got, "thumbnail_r2_path")
+	require.NotNil(t, got["thumbnail_url"])
+}
+
+// --- ListSavedFilters ---
+
+func TestListSavedFilters_ResponseHasThumbnailURL(t *testing.T) {
+	r2Path := "thumbnails/artpieces/list.webp"
+	sf := makeSavedFilterWithThumbnail(r2Path)
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/list-thumb?sig=xyz"}
+	spy := &spySavedFilterUsecase{listResult: []*domain.SavedFilter{sf}}
+	h := handler.NewSavedFilterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/saved_filters", h.ListSavedFilters)
+
+	req := httptest.NewRequest(http.MethodGet, "/saved_filters", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 1)
+	require.Contains(t, got[0], "thumbnail_url")
+	require.NotContains(t, got[0], "thumbnail_r2_path")
+	require.NotNil(t, got[0]["thumbnail_url"])
+}
+
 // --- GetSavedFilter ---
+
+func TestGetSavedFilter_HappyPath_ResponseHasThumbnailURL(t *testing.T) {
+	r2Path := "thumbnails/artpieces/get.webp"
+	sf := makeSavedFilterWithThumbnail(r2Path)
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/get-thumb?sig=xyz"}
+	spy := &spySavedFilterUsecase{getByIDResult: sf}
+	h := handler.NewSavedFilterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.GET("/saved_filters/:id", h.GetSavedFilter)
+
+	req := httptest.NewRequest(http.MethodGet, fmt.Sprintf("/saved_filters/%s", sf.ID), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Contains(t, got, "thumbnail_url")
+	require.NotContains(t, got, "thumbnail_r2_path")
+	require.NotNil(t, got["thumbnail_url"])
+}
 
 func TestGetSavedFilter_NotFound_Returns404(t *testing.T) {
 	spy := &spySavedFilterUsecase{getByIDErr: usecase.ErrSavedFilterNotFound}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.GET("/saved_filters/:id", h.GetSavedFilter)
@@ -125,7 +225,7 @@ func TestGetSavedFilter_NotFound_Returns404(t *testing.T) {
 
 func TestPatchSavedFilter_NotFound_Returns404(t *testing.T) {
 	spy := &spySavedFilterUsecase{updateErr: usecase.ErrSavedFilterNotFound}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.PATCH("/saved_filters/:id", h.PatchSavedFilter)
@@ -143,7 +243,7 @@ func TestPatchSavedFilter_NotFound_Returns404(t *testing.T) {
 
 func TestDeleteSavedFilter_NotFound_Returns404(t *testing.T) {
 	spy := &spySavedFilterUsecase{deleteErr: usecase.ErrSavedFilterNotFound}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.DELETE("/saved_filters/:id", h.DeleteSavedFilter)
@@ -157,7 +257,7 @@ func TestDeleteSavedFilter_NotFound_Returns404(t *testing.T) {
 
 func TestDeleteSavedFilter_HappyPath_Returns204(t *testing.T) {
 	spy := &spySavedFilterUsecase{}
-	h := handler.NewSavedFilterHandler(spy, observability.NewTelemetry(nil, nil, nil))
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
 
 	e := setupEcho(testUserID)
 	e.DELETE("/saved_filters/:id", h.DeleteSavedFilter)

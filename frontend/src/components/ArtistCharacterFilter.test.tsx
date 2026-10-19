@@ -130,3 +130,20 @@ describe('ArtistCharacterFilter — Clear all', () => {
     expect(onCharactersChange).toHaveBeenCalledWith([])
   })
 })
+
+describe('ArtistCharacterFilter — footerAction slot', () => {
+  it('renders slot content when footerAction is provided', async () => {
+    renderFilter({
+      artist,
+      footerAction: <button type="button">Save to dashboard</button>,
+    })
+    await userEvent.click(screen.getByRole('button', { name: /1 artist/i }))
+    expect(screen.getByRole('button', { name: 'Save to dashboard' })).toBeInTheDocument()
+  })
+
+  it('does not render slot content when footerAction is omitted', async () => {
+    renderFilter({ artist })
+    await userEvent.click(screen.getByRole('button', { name: /1 artist/i }))
+    expect(screen.queryByRole('button', { name: 'Save to dashboard' })).not.toBeInTheDocument()
+  })
+})

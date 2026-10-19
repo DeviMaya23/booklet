@@ -268,8 +268,8 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	commissionHandler := httphandler.NewCommissionHandler(commissionUsecase, r2Storage, tel)
 
 	savedFilterRepository := repository.NewSavedFilterRepository(db)
-	savedFilterUsecase := usecase.NewSavedFilterUsecase(savedFilterRepository, tel)
-	savedFilterHandler := httphandler.NewSavedFilterHandler(savedFilterUsecase, tel)
+	savedFilterUsecase := usecase.NewSavedFilterUsecase(savedFilterRepository, artpieceRepository, tel)
+	savedFilterHandler := httphandler.NewSavedFilterHandler(savedFilterUsecase, r2Storage, tel)
 
 	dashboardRepository := repository.NewDashboardRepository(db)
 	dashboardUsecase := usecase.NewDashboardUsecase(dashboardRepository, tel)

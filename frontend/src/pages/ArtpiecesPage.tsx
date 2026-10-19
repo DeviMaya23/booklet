@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Plus, ChevronDown, SlidersHorizontal } from 'lucide-react'
+import { Bookmark, Plus, ChevronDown, SlidersHorizontal } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { useQueryClient } from '@tanstack/react-query'
 import { Input } from '@/components/ui/input'
@@ -23,7 +23,9 @@ import ArtpiecesGrid, { type TileSize } from '@/features/artpieces/components/Ar
 import ArtistCharacterFilter from '@/components/ArtistCharacterFilter'
 import ArtpieceFormModal from '@/features/files/components/ArtpieceFormModal'
 import ArtpieceDetailView from '@/features/artpieces/components/ArtpieceDetailView'
+import SaveFilterModal from '@/features/artpieces/components/SaveFilterModal'
 import { useArtpiecesFilter, type SortMode } from '@/features/artpieces/hooks/useArtpiecesFilter'
+import { type SavedFilter } from '@/features/artpieces/api/useCreateSavedFilter'
 import FileViewer, { type ViewerFile } from '@/features/files/components/FileViewer'
 
 const SORT_LABELS: Record<SortMode, string> = {
@@ -36,6 +38,25 @@ const TILE_SIZE_LABELS: Record<TileSize, string> = {
   small: 'Small',
   medium: 'Medium',
   large: 'Large',
+}
+
+interface SavedFilterSnapshot {
+  name: string
+  artistId: string | null
+  characterIds: string[]
+  matchMode: 'all' | 'any'
+}
+
+function snapshotMatchesCurrent(
+  snapshot: SavedFilterSnapshot,
+  artistId: string | null,
+  characterIds: string[],
+  matchMode: 'all' | 'any',
+): boolean {
+  if (snapshot.artistId !== artistId || snapshot.matchMode !== matchMode) return false
+  if (snapshot.characterIds.length !== characterIds.length) return false
+  const current = new Set(characterIds)
+  return snapshot.characterIds.every((id) => current.has(id))
 }
 
 function ArtpiecesGridSkeleton({ tileSize }: { tileSize: TileSize }) {
@@ -73,6 +94,8 @@ export default function ArtpiecesPage() {
   const { id: selectedArtpieceId } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const [modalOpen, setModalOpen] = useState(false)
+  const [saveFilterModalOpen, setSaveFilterModalOpen] = useState(false)
+  const [savedFilterSnapshot, setSavedFilterSnapshot] = useState<SavedFilterSnapshot | null>(null)
   const [tileSize, setTileSize] = useState<TileSize>(readStoredTileSize)
   const [showDetails, setShowDetails] = useState<boolean>(readStoredShowDetails)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
@@ -89,6 +112,16 @@ export default function ArtpiecesPage() {
     filtered,
   } = useArtpiecesFilter(artpieces ?? [])
 
+  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0
+  const currentCharacterIds = selectedCharacters.map((c) => c.id)
+
+  const snapshotMatches = savedFilterSnapshot !== null && snapshotMatchesCurrent(
+    savedFilterSnapshot,
+    selectedArtist?.id ?? null,
+    currentCharacterIds,
+    characterMatch,
+  )
+
   function handleTileSizeChange(size: TileSize) {
     setTileSize(size)
     try { localStorage.setItem('gallery.tileSize', size) } catch { /* storage blocked */ }
@@ -99,9 +132,54 @@ export default function ArtpiecesPage() {
     try { localStorage.setItem('gallery.showDetails', String(checked)) } catch { /* storage blocked */ }
   }
 
+  function handleSaveFilterSuccess(savedFilter: SavedFilter) {
+    setSavedFilterSnapshot({
+      name: savedFilter.name,
+      artistId: selectedArtist?.id ?? null,
+      characterIds: currentCharacterIds,
+      matchMode: characterMatch,
+    })
+  }
+
+  // When filters change, clear the snapshot if it no longer matches
+  function handleArtistChange(artist: typeof selectedArtist) {
+    setSavedFilterSnapshot(null)
+    setSelectedArtist(artist)
+  }
+
+  function handleCharactersChange(chars: typeof selectedCharacters) {
+    setSavedFilterSnapshot(null)
+    setSelectedCharacters(chars)
+  }
+
+  function handleMatchChange(mode: 'all' | 'any') {
+    setSavedFilterSnapshot(null)
+    setCharacterMatch(mode)
+  }
+
+  const saveButton = hasActiveFilter ? (
+    snapshotMatches ? (
+      <span className="inline-flex items-center gap-1.5 text-xs text-muted-foreground whitespace-nowrap">
+        <Bookmark className="size-3.5 fill-current" />
+        Saved as &ldquo;{savedFilterSnapshot!.name}&rdquo;
+      </span>
+    ) : (
+      <button
+        type="button"
+        aria-label="Save to dashboard"
+        title="Save to dashboard"
+        onClick={() => setSaveFilterModalOpen(true)}
+        className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors whitespace-nowrap"
+      >
+        <Bookmark className="size-3.5" />
+        Save to dashboard
+      </button>
+    )
+  ) : undefined
+
   const viewerFiles: ViewerFile[] = filtered.map((a) => ({
     id: a.cover_file_id ?? a.id,
-    name:  a.title ?? a.cover_file_name ?? 'Untitled',
+    name: a.title ?? a.cover_file_name ?? 'Untitled',
     mimeType: a.cover_file_mime_type ?? 'application/octet-stream',
     thumbnailUrl: a.thumbnail_url,
     previewUrl: a.cover_file_url ?? '',
@@ -134,11 +212,12 @@ export default function ArtpiecesPage() {
 
           <ArtistCharacterFilter
             artist={selectedArtist}
-            onArtistChange={setSelectedArtist}
+            onArtistChange={handleArtistChange}
             characters={selectedCharacters}
-            onCharactersChange={setSelectedCharacters}
+            onCharactersChange={handleCharactersChange}
             characterMatch={characterMatch}
-            onCharacterMatchChange={setCharacterMatch}
+            onCharacterMatchChange={handleMatchChange}
+            footerAction={saveButton}
           />
 
           <DropdownMenu>
@@ -234,6 +313,18 @@ export default function ArtpiecesPage() {
           open={modalOpen}
           onOpenChange={setModalOpen}
           onSuccess={handleSuccess}
+        />
+
+        <SaveFilterModal
+          open={saveFilterModalOpen}
+          onOpenChange={setSaveFilterModalOpen}
+          filteredArtpieces={filtered}
+          filterState={{
+            artist: selectedArtist,
+            characters: selectedCharacters,
+            matchMode: characterMatch,
+          }}
+          onSuccess={handleSaveFilterSuccess}
         />
       </div>
     </TooltipProvider>

@@ -1,3 +1,4 @@
+import { type ReactNode } from 'react'
 import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
@@ -15,6 +16,7 @@ interface ArtistCharacterFilterProps {
   onCharactersChange: (chars: CharacterToken[]) => void
   characterMatch?: 'all' | 'any'
   onCharacterMatchChange?: (mode: 'all' | 'any') => void
+  footerAction?: ReactNode
 }
 
 function buildSummaryLabel(
@@ -38,6 +40,7 @@ export default function ArtistCharacterFilter({
   onCharactersChange,
   characterMatch,
   onCharacterMatchChange,
+  footerAction,
 }: ArtistCharacterFilterProps) {
   const charactersQuery = useCharacters()
   const allCharacters = (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
@@ -95,15 +98,18 @@ export default function ArtistCharacterFilter({
           )}
         </div>
 
-        {(artist !== null || characters.length > 0) && (
-          <div className="flex justify-end">
-            <button
-              type="button"
-              className="text-sm underline text-muted-foreground hover:text-foreground"
-              onClick={() => { onArtistChange(null); onCharactersChange([]) }}
-            >
-              Clear all
-            </button>
+        {(artist !== null || characters.length > 0 || footerAction) && (
+          <div className="flex items-center justify-between">
+            {(artist !== null || characters.length > 0) ? (
+              <button
+                type="button"
+                className="text-sm underline text-muted-foreground hover:text-foreground"
+                onClick={() => { onArtistChange(null); onCharactersChange([]) }}
+              >
+                Clear all
+              </button>
+            ) : <span />}
+            {footerAction}
           </div>
         )}
       </PopoverContent>
