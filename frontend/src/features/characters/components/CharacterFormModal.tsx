@@ -135,6 +135,13 @@ export default function CharacterFormModal({
     if (file) stageFileForCrop(file)
   }
 
+  function handlePaste(e: React.ClipboardEvent) {
+    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+    const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
+    const file = item?.getAsFile()
+    if (file) stageFileForCrop(file)
+  }
+
   function handleCropConfirm(croppedFile: File) {
     if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
     setLocalFile(croppedFile)
@@ -261,6 +268,7 @@ export default function CharacterFormModal({
             'overflow-hidden transition-[max-width] duration-200',
             panelOpen ? 'max-w-3xl' : 'max-w-md',
           )}
+          onPaste={handlePaste}
         >
           <div className="flex min-h-0">
             {/* Left column: the form */}
