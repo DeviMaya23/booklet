@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react'
 import { vi, describe, it, expect } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import ArtpieceDetailView from './ArtpieceDetailView'
 import { type ArtpieceDetail } from '../api/useArtpiece'
 
@@ -65,27 +66,32 @@ const baseArtpiece: ArtpieceDetail = {
   updated_at: '2024-01-01T00:00:00Z',
 }
 
-function wrapper({ children }: { children: React.ReactNode }) {
+function renderWithProviders(ui: React.ReactElement) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
-  return <QueryClientProvider client={qc}>{children}</QueryClientProvider>
+  const router = createMemoryRouter([{ path: '/', element: ui }])
+  return render(
+    <QueryClientProvider client={qc}>
+      <RouterProvider router={router} />
+    </QueryClientProvider>,
+  )
 }
 
 describe('ArtpieceDetailView — artist link', () => {
   it('shows a link when artist_link is set', () => {
     mockArtpiece = { ...baseArtpiece, artist_link: 'https://artist.example.com' }
-    render(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />, { wrapper })
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
     expect(screen.getByRole('link', { name: /open artist link/i })).toHaveAttribute('href', 'https://artist.example.com')
   })
 
   it('shows no link when artist_link is null', () => {
     mockArtpiece = { ...baseArtpiece, artist_link: null }
-    render(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />, { wrapper })
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
     expect(screen.queryByRole('link')).toBeNull()
   })
 
   it('shows the artist name', () => {
     mockArtpiece = { ...baseArtpiece, artist_name: 'Alice' }
-    render(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />, { wrapper })
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
     expect(screen.getByText('Alice')).toBeInTheDocument()
   })
 })

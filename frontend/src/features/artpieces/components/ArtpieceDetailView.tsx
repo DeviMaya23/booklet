@@ -1,12 +1,23 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import FileViewer, { type ViewerFile } from '@/features/files/components/FileViewer'
 import { useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
+import { useBlocker } from 'react-router-dom'
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import TokenInput from '@/components/TokenInput'
 import { useArtpiece, artpieceQueryKey } from '../api/useArtpiece'
 import { useDownloadArtpiece } from '../api/useDownloadArtpiece'
@@ -50,6 +61,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [uploadPlaceholders, setUploadPlaceholders] = useState<{ clientId: string }[]>([])
   const [isSaving, setIsSaving] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [dragOver, setDragOver] = useState(false)
   const dragEnterCount = useRef(0)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
@@ -81,10 +93,40 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     setMode('edit')
   }
 
+  const blocker = useBlocker(() => mode === 'edit' && unsavedChangesSummary() !== null)
+
+  useEffect(() => {
+    if (blocker.state === 'blocked') setDiscardOpen(true)
+  }, [blocker.state])
+
   function handleCancel() {
     setLocallyRemovedIds(new Set())
     setPendingCoverFileId(null)
     setMode('view')
+  }
+
+  function handleBackClick() {
+    if (mode === 'edit' && unsavedChangesSummary() !== null) {
+      setDiscardOpen(true)
+      return
+    }
+    onClose()
+  }
+
+  function handleDiscardConfirm() {
+    setDiscardOpen(false)
+    if (blocker.state === 'blocked') {
+      blocker.proceed()
+    } else {
+      onClose()
+    }
+  }
+
+  function handleDiscardCancel() {
+    setDiscardOpen(false)
+    if (blocker.state === 'blocked') {
+      blocker.reset()
+    }
   }
 
   async function handleSave() {
@@ -214,7 +256,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     <div className="flex flex-col gap-6">
       {/* Back link */}
       <button
-        onClick={onClose}
+        onClick={handleBackClick}
         className="flex w-fit items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
       >
         <ArrowLeft className="size-4" /> Back
@@ -489,6 +531,19 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
           onClose={() => setViewerIndex(null)}
         />
       )}
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Any unsaved changes will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel onClick={handleDiscardCancel}>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDiscardConfirm}>Discard</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

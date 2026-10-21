@@ -1,11 +1,11 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
-import { BrowserRouter } from 'react-router-dom'
+import { RouterProvider } from 'react-router-dom'
 import { KindeProvider } from '@kinde-oss/kinde-auth-react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { Toaster } from 'sonner'
 import './index.css'
-import App from './App.tsx'
+import { router } from './router.tsx'
 import { ThemeProvider } from './hooks/useTheme'
 
 const queryClient = new QueryClient()
@@ -33,10 +33,8 @@ createRoot(document.getElementById('root')!).render(
         audience={kindeVars.VITE_KINDE_AUDIENCE}
       >
         <QueryClientProvider client={queryClient}>
-          <BrowserRouter>
-            <App />
-            <Toaster richColors />
-          </BrowserRouter>
+          <RouterProvider router={router} />
+          <Toaster richColors />
         </QueryClientProvider>
       </KindeProvider>
     </ThemeProvider>
