@@ -1,0 +1,1 @@
+ALTER TABLE saved_filters DROP CONSTRAINT saved_filters_user_id_name_key;

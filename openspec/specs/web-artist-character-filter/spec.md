@@ -5,7 +5,7 @@ Defines the shared `ArtistCharacterFilter` component — a controlled trigger bu
 ## Requirements
 
 ### Requirement: ArtistCharacterFilter shared component
-The system SHALL provide a shared controlled component `ArtistCharacterFilter` at `components/ArtistCharacterFilter.tsx`. The component renders a trigger button that opens a floating panel. The panel contains: a single-select Artist combobox, a multi-select Characters token input, an optional All/Any match toggle, and a "Clear all" link. All value state is owned by the caller; the component owns only the open/closed state of the panel internally.
+The system SHALL provide a shared controlled component `ArtistCharacterFilter` at `components/ArtistCharacterFilter.tsx`. The component renders a trigger button that opens a floating panel. The panel contains: a single-select Artist combobox, a multi-select Characters token input, an optional All/Any match toggle, a "Clear all" link, and an optional caller-supplied footer action rendered alongside "Clear all". All value state is owned by the caller; the component owns only the open/closed state of the panel internally.
 
 #### Scenario: Trigger button — no active filters
 - **WHEN** no artist is selected and no characters are selected
@@ -30,6 +30,14 @@ The system SHALL provide a shared controlled component `ArtistCharacterFilter` a
 #### Scenario: Panel closes on outside click or Escape
 - **WHEN** the panel is open and the user clicks outside it or presses Escape
 - **THEN** the panel SHALL close without resetting filter values
+
+#### Scenario: Footer action rendered when provided
+- **WHEN** the caller passes a `footerAction` prop
+- **THEN** the panel footer SHALL render it alongside the "Clear all" link
+
+#### Scenario: Footer action absent when not provided
+- **WHEN** the caller omits `footerAction`
+- **THEN** the panel footer SHALL show only the "Clear all" link with no extra slot content
 
 ---
 

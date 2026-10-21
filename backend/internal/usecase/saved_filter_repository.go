@@ -10,6 +10,7 @@ import (
 )
 
 var ErrSavedFilterNotFound = errors.New("saved filter not found")
+var ErrDuplicateSavedFilterName = errors.New("saved filter name already exists")
 
 // Patch[T] is a three-state PATCH field: absent (not in request), null (explicit clear), or a value.
 type Patch[T any] struct {
@@ -30,16 +31,21 @@ func (p *Patch[T]) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+type ArtpieceThumbnailRepository interface {
+	GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error)
+}
+
 type CreateSavedFilterParams struct {
-	Name            string
-	ThumbnailR2Path *string
-	FilterPayload   json.RawMessage
+	Name                string
+	ThumbnailArtpieceID *uuid.UUID
+	FilterPayload       json.RawMessage
 }
 
 type UpdateSavedFilterParams struct {
-	Name            Patch[string]
-	ThumbnailR2Path Patch[string]
-	FilterPayload   *json.RawMessage
+	Name                Patch[string]
+	ThumbnailR2Path     Patch[string]
+	ThumbnailArtpieceID *uuid.UUID
+	FilterPayload       *json.RawMessage
 }
 
 type SavedFilterRepository interface {

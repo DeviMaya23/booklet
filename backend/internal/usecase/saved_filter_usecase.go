@@ -12,29 +12,41 @@ import (
 )
 
 type savedFilterUsecase struct {
-	repo SavedFilterRepository
-	tel  *observability.Telemetry
+	repo         SavedFilterRepository
+	artpieceRepo ArtpieceThumbnailRepository
+	tel          *observability.Telemetry
 }
 
-func NewSavedFilterUsecase(repo SavedFilterRepository, tel *observability.Telemetry) *savedFilterUsecase {
-	return &savedFilterUsecase{repo: repo, tel: tel}
+func NewSavedFilterUsecase(repo SavedFilterRepository, artpieceRepo ArtpieceThumbnailRepository, tel *observability.Telemetry) *savedFilterUsecase {
+	return &savedFilterUsecase{repo: repo, artpieceRepo: artpieceRepo, tel: tel}
 }
 
 func (u *savedFilterUsecase) Create(ctx context.Context, userID uuid.UUID, params CreateSavedFilterParams) (*domain.SavedFilter, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CreateSavedFilter")
 	defer span.End()
 
+	var thumbnailR2Path *string
+	if params.ThumbnailArtpieceID != nil {
+		artpiece, err := u.artpieceRepo.GetByID(ctx, *params.ThumbnailArtpieceID, userID)
+		if err == nil && artpiece.CoverFile != nil {
+			thumbnailR2Path = artpiece.CoverFile.ThumbnailR2Path
+		}
+	}
+
 	sf := &domain.SavedFilter{
 		ID:              uuid.New(),
 		UserID:          userID,
 		Name:            params.Name,
-		ThumbnailR2Path: params.ThumbnailR2Path,
+		ThumbnailR2Path: thumbnailR2Path,
 		FilterPayload:   params.FilterPayload,
 	}
 	res, err := u.repo.Create(ctx, sf)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
+		if errors.Is(err, ErrDuplicateSavedFilterName) {
+			return nil, ErrDuplicateSavedFilterName
+		}
 		return nil, err
 	}
 	return res, nil
@@ -72,6 +84,15 @@ func (u *savedFilterUsecase) List(ctx context.Context, userID uuid.UUID) ([]*dom
 func (u *savedFilterUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateSavedFilterParams) (*domain.SavedFilter, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateSavedFilter")
 	defer span.End()
+
+	if params.ThumbnailArtpieceID != nil {
+		artpiece, err := u.artpieceRepo.GetByID(ctx, *params.ThumbnailArtpieceID, userID)
+		var r2Path *string
+		if err == nil && artpiece.CoverFile != nil {
+			r2Path = artpiece.CoverFile.ThumbnailR2Path
+		}
+		params.ThumbnailR2Path = Patch[string]{Set: true, Value: r2Path}
+	}
 
 	res, err := u.repo.Update(ctx, id, userID, params)
 	if err != nil {

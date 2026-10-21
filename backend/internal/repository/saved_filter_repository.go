@@ -20,6 +20,9 @@ func NewSavedFilterRepository(db *gorm.DB) *savedFilterRepository {
 
 func (r *savedFilterRepository) Create(ctx context.Context, sf *domain.SavedFilter) (*domain.SavedFilter, error) {
 	if err := dbFromContext(ctx, r.db).Create(sf).Error; err != nil {
+		if isUniqueConstraintViolation(err) {
+			return nil, usecase.ErrDuplicateSavedFilterName
+		}
 		return nil, fmt.Errorf("insert saved filter: %w", err)
 	}
 	return sf, nil
@@ -101,3 +104,4 @@ func (r *savedFilterRepository) Delete(ctx context.Context, id uuid.UUID, userID
 	}
 	return nil
 }
+
