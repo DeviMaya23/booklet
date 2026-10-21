@@ -239,6 +239,50 @@ func TestPatchSavedFilter_NotFound_Returns404(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, rec.Code)
 }
 
+func TestPatchSavedFilter_WithThumbnailArtpieceID_Returns200WithThumbnailURL(t *testing.T) {
+	r2Path := "thumbnails/artpieces/patch.webp"
+	sf := makeSavedFilterWithThumbnail(r2Path)
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/patch-thumb?sig=xyz"}
+	spy := &spySavedFilterUsecase{updateResult: sf}
+	h := handler.NewSavedFilterHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/saved_filters/:id", h.PatchSavedFilter)
+
+	body := fmt.Sprintf(`{"thumbnail_artpiece_id":"%s"}`, uuid.New())
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/saved_filters/%s", sf.ID), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Contains(t, got, "thumbnail_url")
+	require.NotNil(t, got["thumbnail_url"])
+}
+
+func TestPatchSavedFilter_WithThumbnailArtpieceID_ArtpieceHasNoThumbnail_Returns200WithNullURL(t *testing.T) {
+	sf := makeSavedFilter()
+	spy := &spySavedFilterUsecase{updateResult: sf}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/saved_filters/:id", h.PatchSavedFilter)
+
+	body := fmt.Sprintf(`{"thumbnail_artpiece_id":"%s"}`, uuid.New())
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/saved_filters/%s", sf.ID), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Contains(t, got, "thumbnail_url")
+	require.Nil(t, got["thumbnail_url"])
+}
+
 // --- DeleteSavedFilter ---
 
 func TestDeleteSavedFilter_NotFound_Returns404(t *testing.T) {

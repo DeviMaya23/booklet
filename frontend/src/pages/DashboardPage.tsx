@@ -1,15 +1,33 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { RefreshCw, Upload, Plus, ExternalLink, Images, ReceiptText, type LucideIcon } from 'lucide-react'
+import { RefreshCw, Upload, Plus, ExternalLink, Images, ReceiptText, Trash2, ImageIcon, type LucideIcon } from 'lucide-react'
 import { useQueryClient } from '@tanstack/react-query'
 import { Button } from '@/components/ui/button'
 import { Tooltip, TooltipTrigger, TooltipContent } from '@/components/ui/tooltip'
 import { Loader2 } from 'lucide-react'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog'
+import { Checkbox } from '@/components/ui/checkbox'
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import AddFilesModal from '@/features/files/components/AddFilesModal'
 import { useDashboard, DASHBOARD_QUERY_KEY, type DashboardCommission, type DashboardHousekeepingItem } from '@/features/dashboard/api/useDashboard'
 import { usePatchCommission } from '@/features/commissions/api/usePatchCommission'
 import { STATUS_LABELS } from '@/features/commissions/statusOptions'
 import { formatRelativeTime } from '@/features/commissions/utils/relativeTime'
+import ThumbnailTile, { type ThumbnailTileMenuItem } from '@/components/ThumbnailTile'
+import { useSavedFilters, SAVED_FILTERS_QUERY_KEY } from '@/features/artpieces/api/useSavedFilters'
+import { useDeleteSavedFilter } from '@/features/artpieces/api/useDeleteSavedFilter'
+import { parseFilterPayload } from '@/features/artpieces/lib/parseFilterPayload'
+import ChangeThumbnailModal from '@/features/artpieces/components/ChangeThumbnailModal'
+import { type SavedFilter } from '@/features/artpieces/api/useCreateSavedFilter'
 
 const STALE_DAYS = 14
 
@@ -23,34 +41,36 @@ function daysElapsed(createdAt: string): number {
   return Math.floor((Date.now() - new Date(createdAt).getTime()) / (1000 * 60 * 60 * 24))
 }
 
-// --- Recent Artpieces ---
+// --- Helpers ---
 
-function RecentArtpiecesTile({ title, artistName, thumbnailUrl }: {
-  title: string | null
-  artistName: string | null
-  thumbnailUrl: string | null
-}) {
-  return (
-    <div className="flex flex-col gap-1">
-      <div className="aspect-square w-full overflow-hidden rounded-lg bg-muted">
-        {thumbnailUrl ? (
-          <img
-            src={thumbnailUrl}
-            alt={title ?? ''}
-            className="h-full w-full object-cover"
-          />
-        ) : (
-          <div className="flex h-full w-full items-center justify-center text-muted-foreground">
-            <Images className="size-6 opacity-40" />
-          </div>
-        )}
-      </div>
-      <p className="truncate text-sm font-medium leading-tight">{title ?? '—'}</p>
-      {artistName && (
-        <p className="truncate text-xs text-muted-foreground">{artistName}</p>
-      )}
-    </div>
-  )
+function filterToHref(filter: SavedFilter): string {
+  const payload = parseFilterPayload(filter.filter_payload)
+  if (!payload) return '/app/artpieces'
+  const params = new URLSearchParams()
+  if (payload.artist_id) params.set('artist', payload.artist_id)
+  if (payload.character_ids.length > 0) params.set('characters', payload.character_ids.join(','))
+  if (payload.match_mode === 'any') params.set('match', 'any')
+  const qs = params.toString()
+  return qs ? `/app/artpieces?${qs}` : '/app/artpieces'
+}
+
+function getHiddenFilterIds(): string[] {
+  try {
+    const raw = localStorage.getItem('dashboard.hiddenFilterIds')
+    if (!raw) return []
+    const parsed = JSON.parse(raw)
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []
+  } catch {
+    return []
+  }
+}
+
+function setHiddenFilterIds(ids: string[]): void {
+  try {
+    localStorage.setItem('dashboard.hiddenFilterIds', JSON.stringify(ids))
+  } catch {
+    // ignore
+  }
 }
 
 // --- In Progress Row ---
@@ -148,15 +168,38 @@ function HousekeepingSection({ label, items, icon: Icon, linkTo }: {
 
 export default function DashboardPage() {
   const [addFilesOpen, setAddFilesOpen] = useState(false)
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null)
+  const [changeThumbnailFilter, setChangeThumbnailFilter] = useState<SavedFilter | null>(null)
+  const [hiddenIds, setHiddenIdsState] = useState<string[]>(() => getHiddenFilterIds())
+  const [chooseShownOpen, setChooseShownOpen] = useState(false)
+
   const { data, isLoading, isError } = useDashboard()
+  const savedFiltersQuery = useSavedFilters()
   const queryClient = useQueryClient()
   const patchCommission = usePatchCommission()
+  const deleteFilter = useDeleteSavedFilter()
 
   function handleStamp(id: string) {
     patchCommission.mutate(
       { id, lastContactedAt: new Date().toISOString() },
       { onSuccess: () => queryClient.invalidateQueries({ queryKey: DASHBOARD_QUERY_KEY }) },
     )
+  }
+
+  function handleDeleteConfirm() {
+    if (!deleteTargetId) return
+    deleteFilter.mutate(deleteTargetId, {
+      onSuccess: () => queryClient.invalidateQueries({ queryKey: SAVED_FILTERS_QUERY_KEY }),
+      onSettled: () => setDeleteTargetId(null),
+    })
+  }
+
+  function toggleHidden(id: string) {
+    setHiddenIdsState((prev) => {
+      const next = prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+      setHiddenFilterIds(next)
+      return next
+    })
   }
 
   const housekeepingItems = data ? [
@@ -200,6 +243,70 @@ export default function DashboardPage() {
         <div className="flex min-h-0 flex-1 gap-6">
           {/* Left column */}
           <div className="flex min-w-0 flex-1 flex-col gap-6">
+            {/* Saved filters */}
+            {(savedFiltersQuery.data !== undefined || savedFiltersQuery.isError) && (
+              <section>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-base font-semibold">Saved filters</h2>
+                  {savedFiltersQuery.data != null && savedFiltersQuery.data.length > 0 && (
+                    <Popover open={chooseShownOpen} onOpenChange={setChooseShownOpen}>
+                      <PopoverTrigger className="text-sm text-muted-foreground hover:text-foreground">
+                        Choose shown
+                      </PopoverTrigger>
+                      <PopoverContent align="end" className="w-56 p-2">
+                        <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">Show on dashboard</p>
+                        {savedFiltersQuery.data.map((sf) => (
+                          <label key={sf.id} className="flex cursor-pointer items-center gap-2 rounded px-1 py-1.5 hover:bg-accent">
+                            <Checkbox
+                              checked={!hiddenIds.includes(sf.id)}
+                              onCheckedChange={() => toggleHidden(sf.id)}
+                            />
+                            <span className="truncate text-sm">{sf.name}</span>
+                          </label>
+                        ))}
+                      </PopoverContent>
+                    </Popover>
+                  )}
+                </div>
+                {savedFiltersQuery.isError ? (
+                  <p className="text-sm text-muted-foreground">Failed to load saved filters.</p>
+                ) : savedFiltersQuery.data!.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No saved filters yet. Save a filter from the artpieces page to show it here.</p>
+                ) : savedFiltersQuery.data.every((sf) => hiddenIds.includes(sf.id)) ? (
+                  <p className="text-sm text-muted-foreground">All filters are hidden. Use "Choose shown" to show some.</p>
+                ) : (
+                  <div className="grid grid-cols-5 gap-3">
+                    {savedFiltersQuery.data
+                      .filter((sf) => !hiddenIds.includes(sf.id))
+                      .map((sf) => {
+                        const menuItems: ThumbnailTileMenuItem[] = [
+                          {
+                            label: 'Change thumbnail',
+                            icon: ImageIcon,
+                            onClick: () => setChangeThumbnailFilter(sf),
+                          },
+                          {
+                            label: 'Delete',
+                            icon: Trash2,
+                            variant: 'destructive',
+                            onClick: () => setDeleteTargetId(sf.id),
+                          },
+                        ]
+                        return (
+                          <ThumbnailTile
+                            key={sf.id}
+                            imageUrl={sf.thumbnail_url}
+                            label={sf.name}
+                            href={filterToHref(sf)}
+                            menuItems={menuItems}
+                          />
+                        )
+                      })}
+                  </div>
+                )}
+              </section>
+            )}
+
             {/* Recent artpieces */}
             <section>
               <div className="mb-3 flex items-center justify-between">
@@ -213,11 +320,12 @@ export default function DashboardPage() {
               ) : (
                 <div className="grid grid-cols-5 gap-3">
                   {data.recent_artpieces.map((a) => (
-                    <RecentArtpiecesTile
+                    <ThumbnailTile
                       key={a.id}
-                      title={a.title}
-                      artistName={a.artist_name}
-                      thumbnailUrl={a.thumbnail_url}
+                      imageUrl={a.thumbnail_url}
+                      label={a.title ?? '—'}
+                      sublabel={a.artist_name ?? undefined}
+                      href={`/app/artpieces/${a.id}`}
                     />
                   ))}
                 </div>
@@ -297,6 +405,33 @@ export default function DashboardPage() {
       )}
 
       <AddFilesModal open={addFilesOpen} onOpenChange={setAddFilesOpen} />
+
+      <AlertDialog open={deleteTargetId != null} onOpenChange={(open) => { if (!open) setDeleteTargetId(null) }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete saved filter?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove the saved filter. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteConfirm}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {changeThumbnailFilter && (
+        <ChangeThumbnailModal
+          filter={changeThumbnailFilter}
+          open={true}
+          onOpenChange={(open) => { if (!open) setChangeThumbnailFilter(null) }}
+          onSaved={() => {
+            queryClient.invalidateQueries({ queryKey: SAVED_FILTERS_QUERY_KEY })
+            setChangeThumbnailFilter(null)
+          }}
+        />
+      )}
     </div>
   )
 }

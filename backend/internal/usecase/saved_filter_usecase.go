@@ -85,6 +85,15 @@ func (u *savedFilterUsecase) Update(ctx context.Context, id uuid.UUID, userID uu
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateSavedFilter")
 	defer span.End()
 
+	if params.ThumbnailArtpieceID != nil {
+		artpiece, err := u.artpieceRepo.GetByID(ctx, *params.ThumbnailArtpieceID, userID)
+		var r2Path *string
+		if err == nil && artpiece.CoverFile != nil {
+			r2Path = artpiece.CoverFile.ThumbnailR2Path
+		}
+		params.ThumbnailR2Path = Patch[string]{Set: true, Value: r2Path}
+	}
+
 	res, err := u.repo.Update(ctx, id, userID, params)
 	if err != nil {
 		span.RecordError(err)

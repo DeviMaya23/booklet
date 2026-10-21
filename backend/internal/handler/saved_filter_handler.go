@@ -39,9 +39,10 @@ type createSavedFilterRequest struct {
 }
 
 type patchSavedFilterRequest struct {
-	Name            usecase.Patch[string] `json:"name"`
-	ThumbnailR2Path usecase.Patch[string] `json:"thumbnail_r2_path"`
-	FilterPayload   *json.RawMessage      `json:"filter_payload"`
+	Name                usecase.Patch[string] `json:"name"`
+	ThumbnailR2Path     usecase.Patch[string] `json:"thumbnail_r2_path"`
+	ThumbnailArtpieceID *string               `json:"thumbnail_artpiece_id"`
+	FilterPayload       *json.RawMessage      `json:"filter_payload"`
 }
 
 type savedFilterResponse struct {
@@ -180,10 +181,20 @@ func (h *SavedFilterHandler) PatchSavedFilter(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
+	var thumbnailArtpieceID *uuid.UUID
+	if req.ThumbnailArtpieceID != nil {
+		parsed, err := uuid.Parse(*req.ThumbnailArtpieceID)
+		if err != nil {
+			return echo.NewHTTPError(http.StatusBadRequest, "invalid thumbnail_artpiece_id")
+		}
+		thumbnailArtpieceID = &parsed
+	}
+
 	sf, err := h.uc.Update(ctx, id, userID, usecase.UpdateSavedFilterParams{
-		Name:            req.Name,
-		ThumbnailR2Path: req.ThumbnailR2Path,
-		FilterPayload:   req.FilterPayload,
+		Name:                req.Name,
+		ThumbnailR2Path:     req.ThumbnailR2Path,
+		ThumbnailArtpieceID: thumbnailArtpieceID,
+		FilterPayload:       req.FilterPayload,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrSavedFilterNotFound) {

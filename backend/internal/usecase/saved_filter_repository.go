@@ -42,9 +42,10 @@ type CreateSavedFilterParams struct {
 }
 
 type UpdateSavedFilterParams struct {
-	Name            Patch[string]
-	ThumbnailR2Path Patch[string]
-	FilterPayload   *json.RawMessage
+	Name                Patch[string]
+	ThumbnailR2Path     Patch[string]
+	ThumbnailArtpieceID *uuid.UUID
+	FilterPayload       *json.RawMessage
 }
 
 type SavedFilterRepository interface {

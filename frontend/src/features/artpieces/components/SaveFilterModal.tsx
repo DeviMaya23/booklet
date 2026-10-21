@@ -114,7 +114,7 @@ export default function SaveFilterModal({
                 setName(e.target.value)
                 if (nameError) setNameError(null)
               }}
-              placeholder="e.g. Chev portraits"
+              placeholder="filter title"
               aria-invalid={nameError != null}
               aria-describedby={nameError ? 'save-filter-name-error' : undefined}
             />

@@ -171,6 +171,60 @@ func TestGetSavedFilterByID_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T)
 	require.ErrorIs(t, err, usecase.ErrSavedFilterNotFound)
 }
 
+func TestUpdateSavedFilter_WithThumbnailArtpieceID_CopiesR2Path(t *testing.T) {
+	repo := newFakeSavedFilterRepository()
+	r2Path := "thumbnails/artpieces/update.webp"
+	artpieceRepo := &spyArtpieceThumbnailRepository{
+		result: &domain.Artpiece{
+			CoverFile: &domain.File{ThumbnailR2Path: &r2Path},
+		},
+	}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	existing := &domain.SavedFilter{
+		ID:            uuid.New(),
+		UserID:        userID,
+		Name:          "My Filter",
+		FilterPayload: json.RawMessage(`{}`),
+	}
+	repo.filters[existing.ID] = existing
+
+	artpieceID := uuid.New()
+	got, err := uc.Update(context.Background(), existing.ID, userID, usecase.UpdateSavedFilterParams{
+		ThumbnailArtpieceID: &artpieceID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.ThumbnailR2Path)
+	require.Equal(t, r2Path, *got.ThumbnailR2Path)
+}
+
+func TestUpdateSavedFilter_WithThumbnailArtpieceID_ArtpieceHasNoFile_StoresNilPath(t *testing.T) {
+	repo := newFakeSavedFilterRepository()
+	artpieceRepo := &spyArtpieceThumbnailRepository{
+		result: &domain.Artpiece{CoverFile: nil},
+	}
+	uc := usecase.NewSavedFilterUsecase(repo, artpieceRepo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	existing := &domain.SavedFilter{
+		ID:            uuid.New(),
+		UserID:        userID,
+		Name:          "My Filter",
+		FilterPayload: json.RawMessage(`{}`),
+	}
+	repo.filters[existing.ID] = existing
+
+	artpieceID := uuid.New()
+	got, err := uc.Update(context.Background(), existing.ID, userID, usecase.UpdateSavedFilterParams{
+		ThumbnailArtpieceID: &artpieceID,
+	})
+
+	require.NoError(t, err)
+	require.Nil(t, got.ThumbnailR2Path)
+}
+
 func TestUpdateSavedFilter_NotFound_ReturnsErrSavedFilterNotFound(t *testing.T) {
 	repo := newFakeSavedFilterRepository()
 	uc := usecase.NewSavedFilterUsecase(repo, &spyArtpieceThumbnailRepository{}, observability.NewTelemetry(nil, nil, nil))
