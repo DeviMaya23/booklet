@@ -56,6 +56,7 @@ export default function CharacterFormModal({
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const [avatarCleared, setAvatarCleared] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
   const [dragActive, setDragActive] = useState(false)
@@ -109,6 +110,27 @@ export default function CharacterFormModal({
       setCropSourceUrl(null)
     }
     setDragActive(false)
+  }
+
+  function isDirty(): boolean {
+    if (isEditMode) {
+      const originalFolderIds = originalFolders.map((f) => f.id)
+      const currentFolderIds = selectedFolders.map((f) => f.id)
+      return (
+        name !== (character?.name ?? '') ||
+        notes !== (character?.notes ?? '') ||
+        localFile !== null ||
+        avatarCleared ||
+        currentFolderIds.length !== originalFolderIds.length ||
+        currentFolderIds.some((id) => !originalFolderIds.includes(id))
+      )
+    }
+    return (
+      name.trim() !== '' ||
+      notes.trim() !== '' ||
+      localFile !== null ||
+      selectedFolders.length > 0
+    )
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -262,7 +284,16 @@ export default function CharacterFormModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (!nextOpen && (eventDetails.reason === 'escape-key' || eventDetails.reason === 'outside-press') && isDirty()) {
+            setDiscardOpen(true)
+            return
+          }
+          handleOpenChange(nextOpen)
+        }}
+      >
         <DialogContent
           className={cn(
             'overflow-hidden transition-[max-width] duration-200',
@@ -441,6 +472,21 @@ export default function CharacterFormModal({
               disabled={deleteMutation.isPending}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Any unsaved changes will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDiscardOpen(false); handleOpenChange(false) }}>
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

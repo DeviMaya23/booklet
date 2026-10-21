@@ -2,6 +2,19 @@ import { Combobox as ComboboxPrimitive } from "@base-ui/react/combobox"
 
 import { cn } from "@/lib/utils"
 
+function ComboboxList({
+  className,
+  ...props
+}: ComboboxPrimitive.List.Props) {
+  return (
+    <ComboboxPrimitive.List
+      data-slot="combobox-list"
+      className={cn("flex flex-col", className)}
+      {...props}
+    />
+  )
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function Combobox(props: ComboboxPrimitive.Root.Props<any>) {
   return <ComboboxPrimitive.Root data-slot="combobox" {...props} />
@@ -105,6 +118,7 @@ const useComboboxFilter: typeof ComboboxPrimitive.useFilter = ComboboxPrimitive.
 
 export {
   Combobox,
+  ComboboxList,
   ComboboxInputGroup,
   ComboboxInput,
   ComboboxTrigger,

@@ -12,6 +12,16 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import TokenInput from '@/components/TokenInput'
 import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
@@ -42,6 +52,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   const [hasUploading, setHasUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [artistModalOpen, setArtistModalOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const charactersQuery = useCharacters()
   const { data: inboxFiles = [] } = useFiles()
@@ -71,6 +82,17 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   useEffect(() => {
     if (!open) resetForm()
   }, [open])
+
+  function isDirty(): boolean {
+    return (
+      title.trim() !== '' ||
+      notes.trim() !== '' ||
+      selectedArtist !== null ||
+      selectedCharacters.length > 0 ||
+      fileIds.length > 0 ||
+      hasUploading
+    )
+  }
 
   function handleOpenChange(next: boolean) {
     if (!next && hasUploading) return
@@ -108,7 +130,16 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(next, eventDetails) => {
+          if (!next && (eventDetails.reason === 'escape-key' || eventDetails.reason === 'outside-press') && isDirty()) {
+            setDiscardOpen(true)
+            return
+          }
+          handleOpenChange(next)
+        }}
+      >
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>New artpiece</DialogTitle>
@@ -212,6 +243,21 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
         onOpenChange={setArtistModalOpen}
         onCreated={(artist) => setSelectedArtist(artist)}
       />
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Any unsaved changes will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDiscardOpen(false); handleOpenChange(false) }}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

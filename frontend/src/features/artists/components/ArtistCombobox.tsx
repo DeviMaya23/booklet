@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, X } from 'lucide-react'
 import {
   Combobox,
+  ComboboxList,
   ComboboxInput,
   ComboboxInputGroup,
   ComboboxTrigger,
@@ -65,12 +66,14 @@ export default function ArtistCombobox({
         )}
       </ComboboxInputGroup>
       <ComboboxPopup>
-        {filtered.length === 0 && <ComboboxEmpty>No artists found</ComboboxEmpty>}
-        {filtered.map((artist) => (
-          <ComboboxItem key={artist.id} value={artist}>
-            {artist.name}
-          </ComboboxItem>
-        ))}
+        <ComboboxList>
+          {filtered.length === 0 && <ComboboxEmpty>No artists found</ComboboxEmpty>}
+          {filtered.map((artist) => (
+            <ComboboxItem key={artist.id} value={artist}>
+              {artist.name}
+            </ComboboxItem>
+          ))}
+        </ComboboxList>
       </ComboboxPopup>
     </Combobox>
   )

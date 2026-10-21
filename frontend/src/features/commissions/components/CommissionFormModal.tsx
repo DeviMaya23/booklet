@@ -10,6 +10,16 @@ import {
 } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
+import {
+  AlertDialog,
+  AlertDialogContent,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogCancel,
+  AlertDialogAction,
+} from '@/components/ui/alert-dialog'
 import { Textarea } from '@/components/ui/textarea'
 import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
@@ -65,6 +75,7 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
   const [filterCharacters, setFilterCharacters] = useState<{ id: string; name: string }[]>([])
 
   const [artistModalOpen, setArtistModalOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const initialArtpieceIds = useRef<string[]>([])
 
@@ -178,8 +189,33 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
     setStripItems((prev) => prev.filter((a) => a.id !== id))
   }
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
+  function isDirty(): boolean {
+    if (mode === 'create') {
+      return (
+        title.trim() !== '' ||
+        selectedArtist !== null ||
+        notes.trim() !== '' ||
+        priceInput.trim() !== '' ||
+        paid ||
+        paidDate !== undefined ||
+        finishDate !== undefined ||
+        stripItems.length > 0
+      )
+    }
+    return (
+      title !== (commission?.title ?? '') ||
+      selectedArtist?.id !== (commission?.artist_id ?? null) ||
+      notes !== (commission?.notes ?? '') ||
+      priceInput !== (commission?.price != null ? String(commission.price) : '') ||
+      paid !== (commission?.paid ?? false) ||
+      formatDateForApi(paidDate) !== (commission?.paid_date ?? null) ||
+      formatDateForApi(finishDate) !== (commission?.finish_date ?? null) ||
+      artpieceSetChanged()
+    )
+  }
+
+  async function handleSubmit(e?: React.FormEvent) {
+    e?.preventDefault()
     try {
       const price = priceInput.trim() ? parseFloat(priceInput) : null
       const artpieceIds = currentIds
@@ -225,13 +261,23 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
 
   return (
     <>
-      <Dialog open={open} onOpenChange={(next) => { if (!isSubmitting) onOpenChange(next) }}>
+      <Dialog
+        open={open}
+        onOpenChange={(next, eventDetails) => {
+          if (isSubmitting) return
+          if (!next && (eventDetails.reason === 'escape-key' || eventDetails.reason === 'outside-press') && isDirty()) {
+            setDiscardOpen(true)
+            return
+          }
+          onOpenChange(next)
+        }}
+      >
         <DialogContent className="flex max-h-[calc(100dvh-2rem)] max-w-md flex-col overflow-hidden">
           <DialogHeader>
             <DialogTitle>{mode === 'create' ? 'New commission' : 'Edit commission'}</DialogTitle>
           </DialogHeader>
 
-          <form id="commission-form" onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
+          <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto pr-1">
             {/* Title */}
             <div className="flex flex-col gap-1.5">
               <label className="text-sm font-medium" htmlFor="commission-title">Title</label>
@@ -471,7 +517,7 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
             >
               Cancel
             </Button>
-            <Button type="submit" form="commission-form" disabled={isSubmitting}>
+            <Button type="button" onClick={() => handleSubmit()} disabled={isSubmitting}>
               {isSubmitting ? 'Saving…' : 'Save'}
             </Button>
           </DialogFooter>
@@ -483,6 +529,21 @@ export default function CommissionFormModal({ open, onOpenChange, mode, commissi
         onOpenChange={setArtistModalOpen}
         onCreated={(artist) => setSelectedArtist(artist)}
       />
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Any unsaved changes will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDiscardOpen(false); onOpenChange(false) }}>
+              Discard
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   )
 }

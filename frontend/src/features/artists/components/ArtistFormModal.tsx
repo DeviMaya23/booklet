@@ -45,6 +45,7 @@ export default function ArtistFormModal({
   const [name, setName] = useState(artist?.name ?? '')
   const [notes, setNotes] = useState(artist?.notes ?? '')
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [discardOpen, setDiscardOpen] = useState(false)
 
   const linkEditor = useArtistLinkEditor(artist?.links ?? [])
 
@@ -59,6 +60,24 @@ export default function ArtistFormModal({
     setName(artist?.name ?? '')
     setNotes(artist?.notes ?? '')
     linkEditor.reset()
+  }
+
+  function isDirty(): boolean {
+    if (isEditMode) {
+      const builtLinks = linkEditor.buildLinks()
+      const origLinks = artist?.links ?? []
+      return (
+        name !== (artist?.name ?? '') ||
+        notes !== (artist?.notes ?? '') ||
+        builtLinks.length !== origLinks.length ||
+        builtLinks.some((l, i) => l.url !== origLinks[i]?.url || l.is_primary !== origLinks[i]?.is_primary)
+      )
+    }
+    return (
+      name.trim() !== '' ||
+      notes.trim() !== '' ||
+      linkEditor.links.some((l) => l.url.trim() !== '')
+    )
   }
 
   function handleOpenChange(nextOpen: boolean) {
@@ -122,7 +141,16 @@ export default function ArtistFormModal({
 
   return (
     <>
-      <Dialog open={open} onOpenChange={handleOpenChange}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen, eventDetails) => {
+          if (!nextOpen && (eventDetails.reason === 'escape-key' || eventDetails.reason === 'outside-press') && isDirty()) {
+            setDiscardOpen(true)
+            return
+          }
+          handleOpenChange(nextOpen)
+        }}
+      >
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle>{isEditMode ? 'Edit artist' : 'New artist'}</DialogTitle>
@@ -264,6 +292,21 @@ export default function ArtistFormModal({
               disabled={deleteMutation.isPending}
             >
               Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Discard changes?</AlertDialogTitle>
+            <AlertDialogDescription>Any unsaved changes will be lost.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep editing</AlertDialogCancel>
+            <AlertDialogAction onClick={() => { setDiscardOpen(false); handleOpenChange(false) }}>
+              Discard
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
