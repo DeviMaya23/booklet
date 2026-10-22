@@ -26,8 +26,18 @@ linking to Bookleaf's *public folders*.
 - If a task seems to need a Bookleaf change, stop and flag it rather than
   working around it.
 
-## Code Conventions
-For tech stack and code conventions, refer to CONVENTIONS.md.
+## Reference Files
+
+Read these before the work type they cover — not all at once, only the relevant one:
+
+| When you're about to… | Read |
+|---|---|
+| Orient to the project stack or pick a library | `STACK.md` |
+| Place a new file, create a feature, or touch an existing structure | `ARCHITECTURE.md` |
+| Write any frontend or backend code | `CONVENTIONS.md` |
+| Write or plan any tests | `TESTING.md` |
+
+`frontend/CLAUDE.md` and `backend/CLAUDE.md` are loaded automatically — they contain critical constraints for each side that override common defaults.
 
 
 ## Decision Boundaries
