@@ -158,6 +158,73 @@ func TestCreateSavedFilter_WithThumbnail_ResponseHasThumbnailURL(t *testing.T) {
 	require.NotNil(t, got["thumbnail_url"])
 }
 
+func TestCreateSavedFilter_NonObjectPayload_Returns422(t *testing.T) {
+	spy := &spySavedFilterUsecase{}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/saved_filters", h.CreateSavedFilter)
+
+	body := `{"name":"My Filter","filter_payload":[1,2,3]}`
+	req := httptest.NewRequest(http.MethodPost, "/saved_filters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errs, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	require.Equal(t, "filter_payload", errs[0].(map[string]interface{})["field"])
+}
+
+func TestCreateSavedFilter_NullPayload_Returns422(t *testing.T) {
+	spy := &spySavedFilterUsecase{}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/saved_filters", h.CreateSavedFilter)
+
+	body := `{"name":"My Filter","filter_payload":null}`
+	req := httptest.NewRequest(http.MethodPost, "/saved_filters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errs, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	require.Equal(t, "filter_payload", errs[0].(map[string]interface{})["field"])
+}
+
+func TestCreateSavedFilter_OversizedPayload_Returns422(t *testing.T) {
+	spy := &spySavedFilterUsecase{}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/saved_filters", h.CreateSavedFilter)
+
+	// build a payload object > 4096 bytes
+	large := `{"name":"My Filter","filter_payload":{"k":"` + strings.Repeat("x", 4100) + `"}}`
+	req := httptest.NewRequest(http.MethodPost, "/saved_filters", strings.NewReader(large))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errs, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	require.Equal(t, "filter_payload", errs[0].(map[string]interface{})["field"])
+}
+
 // --- ListSavedFilters ---
 
 func TestListSavedFilters_ResponseHasThumbnailURL(t *testing.T) {
@@ -281,6 +348,50 @@ func TestPatchSavedFilter_WithThumbnailArtpieceID_ArtpieceHasNoThumbnail_Returns
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Contains(t, got, "thumbnail_url")
 	require.Nil(t, got["thumbnail_url"])
+}
+
+func TestPatchSavedFilter_NonObjectPayload_Returns422(t *testing.T) {
+	spy := &spySavedFilterUsecase{}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/saved_filters/:id", h.PatchSavedFilter)
+
+	body := `{"filter_payload":"not an object"}`
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/saved_filters/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errs, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	require.Equal(t, "filter_payload", errs[0].(map[string]interface{})["field"])
+}
+
+func TestPatchSavedFilter_OversizedPayload_Returns422(t *testing.T) {
+	spy := &spySavedFilterUsecase{}
+	h := handler.NewSavedFilterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PATCH("/saved_filters/:id", h.PatchSavedFilter)
+
+	large := `{"filter_payload":{"k":"` + strings.Repeat("x", 4100) + `"}}`
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/saved_filters/%s", uuid.New()), strings.NewReader(large))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	errs, ok := got["errors"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, errs, 1)
+	require.Equal(t, "filter_payload", errs[0].(map[string]interface{})["field"])
 }
 
 // --- DeleteSavedFilter ---
