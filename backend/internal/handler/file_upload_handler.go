@@ -31,11 +31,12 @@ func NewFileUploadHandler(fileUploadUsecase FileUploadUsecase, presigner Presign
 }
 
 type initiateFileUploadRequest struct {
-	MimeType   string     `json:"mime_type" validate:"required"`
-	ArtpieceID *uuid.UUID `json:"artpiece_id"`
-	Name       *string    `json:"name"`
-	Notes      *string    `json:"notes"`
-	Extension  *string    `json:"extension"`
+	MimeType      string     `json:"mime_type" validate:"required"`
+	ArtpieceID    *uuid.UUID `json:"artpiece_id"`
+	Name          *string    `json:"name"`
+	Notes         *string    `json:"notes"`
+	Extension     *string    `json:"extension"`
+	FileSizeBytes int64      `json:"file_size" validate:"required,min=1"`
 }
 
 type initiateFileUploadResponse struct {
@@ -76,16 +77,20 @@ func (h *FileUploadHandler) InitiateUpload(c echo.Context) error {
 	}
 
 	result, err := h.fileUploadUsecase.InitiateUpload(ctx, usecase.InitiateFileUploadParams{
-		UserID:     userID,
-		MimeType:   req.MimeType,
-		ArtpieceID: req.ArtpieceID,
-		Name:       req.Name,
-		Notes:      req.Notes,
-		Extension:  req.Extension,
+		UserID:        userID,
+		MimeType:      req.MimeType,
+		ArtpieceID:    req.ArtpieceID,
+		Name:          req.Name,
+		Notes:         req.Notes,
+		Extension:     req.Extension,
+		FileSizeBytes: req.FileSizeBytes,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtpieceNotOwned) {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, "artpiece_id does not exist or does not belong to the user")
+		}
+		if errors.Is(err, usecase.ErrFileTooLarge) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "file size exceeds the limit for this file type")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initiate upload")
 	}

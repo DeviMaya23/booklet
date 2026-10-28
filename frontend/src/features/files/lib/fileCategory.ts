@@ -72,3 +72,28 @@ export function getFileCategory(extension: string | null): FileCategoryResult {
   const label = ext ? ext.toUpperCase() : null
   return { ...meta, label }
 }
+
+// Keep in sync with backend/pkg/filesize/filesize.go — limits must agree or
+// BE will reject files that passed FE validation.
+export const FILE_SIZE_LIMITS: Record<FileCategory, number> = {
+  video:    2 * 1024 * 1024 * 1024,
+  layered:  800 * 1024 * 1024,
+  '3d':     500 * 1024 * 1024,
+  audio:    100 * 1024 * 1024,
+  archive:  500 * 1024 * 1024,
+  document: 25 * 1024 * 1024,
+  image:    50 * 1024 * 1024,
+  fallback: 100 * 1024 * 1024,
+}
+
+export function getFileSizeLimit(extension: string | null): number {
+  const ext = extension?.toLowerCase() ?? null
+  const category: FileCategory = (ext ? EXTENSION_CATEGORY[ext] : undefined) ?? 'fallback'
+  return FILE_SIZE_LIMITS[category]
+}
+
+export function getFileCategoryName(extension: string | null): string {
+  const ext = extension?.toLowerCase() ?? null
+  const category: FileCategory = (ext ? EXTENSION_CATEGORY[ext] : undefined) ?? 'fallback'
+  return category === 'fallback' ? 'other' : category
+}

@@ -65,6 +65,9 @@ func (h *SavedFilterHandler) CreateSavedFilter(c echo.Context) error {
 	if err := c.Validate(&req); err != nil {
 		return c.JSON(http.StatusUnprocessableEntity, validationErrResponse(err))
 	}
+	if errBody := validateFilterPayload(req.FilterPayload); errBody != nil {
+		return c.JSON(http.StatusUnprocessableEntity, errBody)
+	}
 
 	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
 	if !ok {
@@ -175,6 +178,11 @@ func (h *SavedFilterHandler) PatchSavedFilter(c echo.Context) error {
 	if req.Name.Set && req.Name.Value != nil && *req.Name.Value == "" {
 		return c.JSON(http.StatusUnprocessableEntity, validationErrBody{Errors: []validationFieldError{{Field: "name", Message: "name must not be empty"}}})
 	}
+	if req.FilterPayload != nil {
+		if errBody := validateFilterPayload(*req.FilterPayload); errBody != nil {
+			return c.JSON(http.StatusUnprocessableEntity, errBody)
+		}
+	}
 
 	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
 	if !ok {
@@ -233,6 +241,19 @@ func (h *SavedFilterHandler) DeleteSavedFilter(c echo.Context) error {
 	}
 
 	return c.NoContent(http.StatusNoContent)
+}
+
+const maxFilterPayloadBytes = 4096
+
+func validateFilterPayload(p json.RawMessage) *validationErrBody {
+	if len(p) > maxFilterPayloadBytes {
+		return &validationErrBody{Errors: []validationFieldError{{Field: "filter_payload", Message: "filter_payload must not exceed 4096 bytes"}}}
+	}
+	var m map[string]any
+	if err := json.Unmarshal(p, &m); err != nil || m == nil {
+		return &validationErrBody{Errors: []validationFieldError{{Field: "filter_payload", Message: "filter_payload must be a JSON object"}}}
+	}
+	return nil
 }
 
 func (h *SavedFilterHandler) toSavedFilterResponse(ctx context.Context, sf *domain.SavedFilter) (savedFilterResponse, error) {

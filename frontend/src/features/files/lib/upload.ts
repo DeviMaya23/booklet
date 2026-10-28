@@ -1,6 +1,23 @@
 import { generateThumbnail } from './thumbnail'
 import { stripFileExtension } from './files'
+import { getFileSizeLimit, getFileCategoryName } from './fileCategory'
 import type { InitFileUploadResult } from '../api/useInitFileUpload'
+
+export function filterBySize(files: File[]): { accepted: File[]; rejected: { file: File; limitBytes: number; categoryName: string }[] } {
+  const accepted: File[] = []
+  const rejected: { file: File; limitBytes: number; categoryName: string }[] = []
+  for (const file of files) {
+    const dotIdx = file.name.lastIndexOf('.')
+    const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : null
+    const limitBytes = getFileSizeLimit(extension)
+    if (file.size <= limitBytes) {
+      accepted.push(file)
+    } else {
+      rejected.push({ file, limitBytes, categoryName: getFileCategoryName(extension) })
+    }
+  }
+  return { accepted, rejected }
+}
 
 export interface UploadFileResult {
   fileId: string
@@ -11,7 +28,7 @@ export interface UploadFileResult {
   height: number | undefined
 }
 
-type InitMutate = (params: { mimeType: string; name?: string; extension?: string }) => Promise<InitFileUploadResult>
+type InitMutate = (params: { mimeType: string; name?: string; extension?: string; fileSizeBytes: number }) => Promise<InitFileUploadResult>
 type CompleteMutate = (params: { pendingId: string; width?: number; height?: number; thumbnailUploaded: boolean }) => Promise<unknown>
 
 export async function uploadFile(
@@ -24,7 +41,7 @@ export async function uploadFile(
   const extension = dotIdx > 0 ? file.name.slice(dotIdx + 1).toLowerCase() : null
   const name = stripFileExtension(file.name)
 
-  const init = await initMutate({ mimeType, name, extension: extension ?? undefined })
+  const init = await initMutate({ mimeType, name, extension: extension ?? undefined, fileSizeBytes: file.size })
 
   const isImage = mimeType.startsWith('image/')
   let width: number | undefined

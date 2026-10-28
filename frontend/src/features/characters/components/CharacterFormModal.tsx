@@ -31,6 +31,7 @@ import { useCreateCharacter } from '../api/useCreateCharacter'
 import { useUpdateCharacter } from '../api/useUpdateCharacter'
 import { useDeleteCharacter } from '../api/useDeleteCharacter'
 import { useInitAvatarUpload } from '../api/useInitAvatarUpload'
+import { FILE_SIZE_LIMITS } from '@/features/files/lib/fileCategory'
 import { useCompleteAvatarUpload } from '../api/useCompleteAvatarUpload'
 import { usePublicFolders } from '../api/usePublicFolders'
 import { useFolderDiff } from '../api/useFolderDiff'
@@ -139,6 +140,11 @@ export default function CharacterFormModal({
   }
 
   function stageFileForCrop(file: File) {
+    const imageLimit = FILE_SIZE_LIMITS['image']
+    if (file.size > imageLimit) {
+      toast.error(`Image exceeds the ${Math.round(imageLimit / (1024 * 1024))} MB limit`)
+      return
+    }
     if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
     setCropSourceUrl(URL.createObjectURL(file))
   }
@@ -185,7 +191,7 @@ export default function CharacterFormModal({
   }
 
   async function runAvatarUpload(characterId: string, file: File) {
-    const initResult = await initUploadMutation.mutateAsync({ characterId, mimeType: file.type })
+    const initResult = await initUploadMutation.mutateAsync({ characterId, mimeType: file.type, fileSizeBytes: file.size })
     const r2Res = await fetch(initResult.upload_url, {
       method: 'PUT',
       headers: { 'Content-Type': file.type },

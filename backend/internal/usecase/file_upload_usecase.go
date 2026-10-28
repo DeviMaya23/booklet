@@ -3,23 +3,26 @@ package usecase
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
 	bookmime "github.com/devi/booklet/pkg/mime"
+	"github.com/devi/booklet/pkg/filesize"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
 )
 
 type InitiateFileUploadParams struct {
-	UserID     uuid.UUID
-	MimeType   string
-	ArtpieceID *uuid.UUID
-	Name       *string
-	Notes      *string
-	Extension  *string
+	UserID        uuid.UUID
+	MimeType      string
+	ArtpieceID    *uuid.UUID
+	Name          *string
+	Notes         *string
+	Extension     *string
+	FileSizeBytes int64
 }
 
 type InitiateFileUploadResult struct {
@@ -80,12 +83,22 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		}
 	}
 
+	var ext string
+	if params.Extension != nil && *params.Extension != "" {
+		ext = *params.Extension
+	} else {
+		ext = strings.TrimPrefix(bookmime.MimeTypeToExt(params.MimeType), ".")
+	}
+	if params.FileSizeBytes > filesize.MaxBytesForExtension(ext) {
+		return nil, ErrFileTooLarge
+	}
+
 	id := uuid.New()
-	ext := bookmime.MimeTypeToExt(params.MimeType)
-	r2Key := fmt.Sprintf("users/%s/files/%s%s", params.UserID.String(), id.String(), ext)
+	r2Ext := bookmime.MimeTypeToExt(params.MimeType)
+	r2Key := fmt.Sprintf("users/%s/files/%s%s", params.UserID.String(), id.String(), r2Ext)
 	expiresAt := time.Now().Add(PresignTTL)
 
-	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, params.MimeType, PresignTTL)
+	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, params.MimeType, params.FileSizeBytes, PresignTTL)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
@@ -98,7 +111,7 @@ func (u *FileUploadUsecase) InitiateUpload(ctx context.Context, params InitiateF
 		thumbExt := bookmime.ThumbnailExt(params.MimeType)
 		thumbContentType := bookmime.ThumbnailContentType(params.MimeType)
 		thumbKey := fmt.Sprintf("users/%s/thumbnails/%s%s", params.UserID.String(), id.String(), thumbExt)
-		thumbURL, err := u.storage.GeneratePresignedPutURL(ctx, thumbKey, thumbContentType, PresignTTL)
+		thumbURL, err := u.storage.GeneratePresignedPutURL(ctx, thumbKey, thumbContentType, 0, PresignTTL)
 		if err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())

@@ -30,7 +30,7 @@ import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useInitFileUpload } from '@/features/files/api/useInitFileUpload'
 import { useCompleteFileUpload } from '@/features/files/api/useCompleteFileUpload'
 import { apiFetch } from '@/lib/api'
-import { uploadFile } from '@/features/files/lib/upload'
+import { uploadFile, filterBySize } from '@/features/files/lib/upload'
 import ArtpieceDetailFileGrid from './ArtpieceDetailFileGrid'
 import DeleteArtpieceDialog from './DeleteArtpieceDialog'
 
@@ -162,7 +162,12 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   }
 
   async function uploadAndAttach(rawFiles: FileList | File[]) {
-    const list = Array.from(rawFiles)
+    const all = Array.from(rawFiles)
+    const { accepted: list, rejected } = filterBySize(all)
+    for (const { file, limitBytes, categoryName } of rejected) {
+      toast.error(`${file.name} exceeds the ${Math.round(limitBytes / (1024 * 1024))} MB limit for ${categoryName} files`)
+    }
+    if (list.length === 0) return
     const clientIds = list.map(() => crypto.randomUUID())
     setUploadPlaceholders((prev) => [...prev, ...clientIds.map((clientId) => ({ clientId }))])
 

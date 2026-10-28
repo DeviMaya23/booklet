@@ -37,7 +37,7 @@ func TestInitAvatarUpload_CharacterNotOwnedReturnsErrCharacterNotFound(t *testin
 	charRepo := newFakeCharacterRepository()
 	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
-	_, err := uc.InitAvatarUpload(context.Background(), uuid.New(), uuid.New(), "image/jpeg")
+	_, err := uc.InitAvatarUpload(context.Background(), uuid.New(), uuid.New(), "image/jpeg", 1024)
 
 	require.ErrorIs(t, err, usecase.ErrCharacterNotFound)
 }
@@ -50,13 +50,26 @@ func TestInitAvatarUpload_SuccessReturnsResult(t *testing.T) {
 	avatarRepo := newFakeCharacterAvatarUploadRepository()
 	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
-	result, err := uc.InitAvatarUpload(context.Background(), userID, charID, "image/jpeg")
+	result, err := uc.InitAvatarUpload(context.Background(), userID, charID, "image/jpeg", 1024)
 
 	require.NoError(t, err)
 	require.NotEqual(t, uuid.Nil, result.ID)
 	require.NotEmpty(t, result.UploadURL)
 	require.False(t, result.ExpiresAt.IsZero())
 	require.Len(t, avatarRepo.pending, 1)
+}
+
+func TestInitAvatarUpload_FileSizeExceedsImageLimit_ReturnsErrFileTooLarge(t *testing.T) {
+	userID := uuid.New()
+	charID := uuid.New()
+	charRepo := newFakeCharacterRepository()
+	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
+	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	// image limit is 50 MB; 51 MB exceeds it
+	_, err := uc.InitAvatarUpload(context.Background(), userID, charID, "image/jpeg", 51*1024*1024)
+
+	require.ErrorIs(t, err, usecase.ErrFileTooLarge)
 }
 
 // --- CompleteAvatarUpload ---

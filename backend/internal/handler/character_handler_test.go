@@ -130,7 +130,7 @@ func (s *spyCharacterUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID
 	return s.deleteErr
 }
 
-func (s *spyCharacterUsecase) InitAvatarUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string) (*usecase.AvatarUploadResult, error) {
+func (s *spyCharacterUsecase) InitAvatarUpload(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ string, _ int64) (*usecase.AvatarUploadResult, error) {
 	return s.initAvatarUploadResult, s.initAvatarUploadErr
 }
 
@@ -430,8 +430,8 @@ func (s *captureCharacterListSpy) Update(ctx context.Context, id uuid.UUID, user
 func (s *captureCharacterListSpy) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {
 	return s.inner.Delete(ctx, id, userID)
 }
-func (s *captureCharacterListSpy) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*usecase.AvatarUploadResult, error) {
-	return s.inner.InitAvatarUpload(ctx, userID, characterID, mimeType)
+func (s *captureCharacterListSpy) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string, fileSizeBytes int64) (*usecase.AvatarUploadResult, error) {
+	return s.inner.InitAvatarUpload(ctx, userID, characterID, mimeType, fileSizeBytes)
 }
 func (s *captureCharacterListSpy) CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error {
 	return s.inner.CompleteAvatarUpload(ctx, userID, characterID, uploadID)
@@ -645,7 +645,7 @@ func TestInitAvatarUpload_CharacterNotFound(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
 
-	body := `{"mime_type":"image/jpeg"}`
+	body := `{"mime_type":"image/jpeg","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/characters/%s/avatar/init", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -676,7 +676,7 @@ func TestInitAvatarUpload_UnsupportedMimeType(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
 
-	body := `{"mime_type":"image/gif"}`
+	body := `{"mime_type":"image/gif","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/characters/%s/avatar/init", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -699,7 +699,7 @@ func TestInitAvatarUpload_Success(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
 
-	body := `{"mime_type":"image/jpeg"}`
+	body := `{"mime_type":"image/jpeg","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/characters/%s/avatar/init", uuid.New()), strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -720,13 +720,32 @@ func TestInitAvatarUpload_InvalidCharacterUUID(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
 
-	body := `{"mime_type":"image/jpeg"}`
+	body := `{"mime_type":"image/jpeg","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/characters/not-a-uuid/avatar/init", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestInitAvatarUpload_FileSizeExceedsImageLimit_Returns422(t *testing.T) {
+	spy := &spyCharacterUsecase{initAvatarUploadErr: usecase.ErrFileTooLarge}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/characters/:id/avatar/init", h.InitAvatarUpload)
+
+	body := `{"mime_type":"image/jpeg","file_size":99999999}`
+	req := httptest.NewRequest(http.MethodPost, fmt.Sprintf("/characters/%s/avatar/init", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, "file size exceeds the limit for this file type", got["message"])
 }
 
 // --- CompleteAvatarUpload ---

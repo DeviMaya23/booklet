@@ -4,10 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/platform/observability"
+	bookmime "github.com/devi/booklet/pkg/mime"
+	"github.com/devi/booklet/pkg/filesize"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/codes"
 	"go.uber.org/zap"
@@ -191,9 +194,14 @@ func (u *characterUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid
 	return nil
 }
 
-func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*AvatarUploadResult, error) {
+func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string, fileSizeBytes int64) (*AvatarUploadResult, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.InitAvatarUpload")
 	defer span.End()
+
+	ext := strings.TrimPrefix(bookmime.MimeTypeToExt(mimeType), ".")
+	if fileSizeBytes > filesize.MaxBytesForExtension(ext) {
+		return nil, ErrFileTooLarge
+	}
 
 	character, err := u.characterRepo.GetByID(ctx, characterID, userID)
 	if err != nil {
@@ -217,7 +225,7 @@ func (u *characterUsecase) InitAvatarUpload(ctx context.Context, userID uuid.UUI
 		zap.String("r2_key", r2Key),
 	)
 
-	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, mimeType, PresignTTL)
+	uploadURL, err := u.storage.GeneratePresignedPutURL(ctx, r2Key, mimeType, fileSizeBytes, PresignTTL)
 	if err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())

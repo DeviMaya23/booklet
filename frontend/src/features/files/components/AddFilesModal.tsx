@@ -14,7 +14,7 @@ import { useInitFileUpload } from '../api/useInitFileUpload'
 import { useCompleteFileUpload } from '../api/useCompleteFileUpload'
 import { useUpdateFile } from '../api/useUpdateFile'
 import { validateFileName } from '../lib/files'
-import { uploadFile } from '../lib/upload'
+import { uploadFile, filterBySize } from '../lib/upload'
 import FileThumb from './FileThumb'
 
 type DraftFile =
@@ -56,7 +56,12 @@ export default function AddFilesModal({ open, onOpenChange }: AddFilesModalProps
   }, [open])
 
   async function uploadFiles(rawFiles: FileList | File[]) {
-    const list = Array.from(rawFiles)
+    const all = Array.from(rawFiles)
+    const { accepted: list, rejected } = filterBySize(all)
+    for (const { file, limitBytes, categoryName } of rejected) {
+      toast.error(`${file.name} exceeds the ${Math.round(limitBytes / (1024 * 1024))} MB limit for ${categoryName} files`)
+    }
+    if (list.length === 0) return
     const clientIds = list.map(() => crypto.randomUUID())
 
     setFiles((prev) => [

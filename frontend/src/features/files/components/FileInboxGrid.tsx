@@ -10,7 +10,7 @@ import FileDeleteDialog from './FileDeleteDialog'
 import FileTileEditOverlay from './FileTileEditOverlay'
 import { useDeleteFile } from '../api/useDeleteFile'
 import { useBulkDeleteFiles } from '../api/useBulkDeleteFiles'
-import { uploadFile } from '../lib/upload'
+import { uploadFile, filterBySize } from '../lib/upload'
 
 interface PlaceholderTile {
   clientId: string
@@ -73,7 +73,12 @@ export default function FileInboxGrid({ files, selection, onSelectionChange, onN
   }
 
   const uploadFiles = useCallback(async (rawFiles: FileList | globalThis.File[]) => {
-    const list = Array.from(rawFiles) as globalThis.File[]
+    const all = Array.from(rawFiles) as globalThis.File[]
+    const { accepted: list, rejected } = filterBySize(all)
+    for (const { file, limitBytes, categoryName } of rejected) {
+      toast.error(`${file.name} exceeds the ${Math.round(limitBytes / (1024 * 1024))} MB limit for ${categoryName} files`)
+    }
+    if (list.length === 0) return
     const clientIds = list.map(() => crypto.randomUUID())
     setPlaceholders((prev) => [...prev, ...clientIds.map((clientId) => ({ clientId }))])
 
