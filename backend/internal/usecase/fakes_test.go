@@ -155,7 +155,7 @@ type fakeStorageService struct {
 	deleteErr   error
 }
 
-func (f *fakeStorageService) GeneratePresignedPutURL(_ context.Context, key, _ string, _ time.Duration) (string, error) {
+func (f *fakeStorageService) GeneratePresignedPutURL(_ context.Context, key, _ string, _ int64, _ time.Duration) (string, error) {
 	f.lastKey = key
 	if f.presignErr != nil {
 		return "", f.presignErr
@@ -217,7 +217,7 @@ func (s *spyJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river.
 
 type spyStorageService struct{}
 
-func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, _ string, _ string, _ time.Duration) (string, error) {
+func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, _ string, _ string, _ int64, _ time.Duration) (string, error) {
 	return "https://presigned.example.com/put", nil
 }
 

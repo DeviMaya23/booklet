@@ -21,7 +21,7 @@ type CharacterUsecase interface {
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateCharacterParams) (*domain.Character, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
-	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string) (*usecase.AvatarUploadResult, error)
+	InitAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, mimeType string, fileSizeBytes int64) (*usecase.AvatarUploadResult, error)
 	CompleteAvatarUpload(ctx context.Context, userID uuid.UUID, characterID uuid.UUID, uploadID uuid.UUID) error
 	DeleteAvatar(ctx context.Context, userID uuid.UUID, characterID uuid.UUID) error
 }
@@ -67,7 +67,8 @@ type characterResponse struct {
 }
 
 type initAvatarUploadRequest struct {
-	MimeType string `json:"mime_type" validate:"required,oneof=image/jpeg image/png"`
+	MimeType      string `json:"mime_type" validate:"required,oneof=image/jpeg image/png"`
+	FileSizeBytes int64  `json:"file_size" validate:"required,min=1"`
 }
 
 type initAvatarUploadResponse struct {
@@ -260,10 +261,13 @@ func (h *CharacterHandler) InitAvatarUpload(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
 	}
 
-	result, err := h.characterUsecase.InitAvatarUpload(ctx, userID, id, req.MimeType)
+	result, err := h.characterUsecase.InitAvatarUpload(ctx, userID, id, req.MimeType, req.FileSizeBytes)
 	if err != nil {
 		if errors.Is(err, usecase.ErrCharacterNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "character not found")
+		}
+		if errors.Is(err, usecase.ErrFileTooLarge) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, "file size exceeds the limit for this file type")
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to initiate avatar upload")
 	}

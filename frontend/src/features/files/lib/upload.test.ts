@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { uploadFile } from './upload'
+import { uploadFile, filterBySize } from './upload'
 import { generateThumbnail } from './thumbnail'
 
 vi.mock('./thumbnail', () => ({ generateThumbnail: vi.fn() }))
@@ -111,7 +111,7 @@ describe('uploadFile — file metadata', () => {
 
     await uploadFile(makeFile('my_artwork.clip', 'application/octet-stream'), initMutate, completeMutate)
 
-    expect(initMutate).toHaveBeenCalledWith({ mimeType: 'application/octet-stream', name: 'my_artwork', extension: 'clip' })
+    expect(initMutate).toHaveBeenCalledWith({ mimeType: 'application/octet-stream', name: 'my_artwork', extension: 'clip', fileSizeBytes: 4 })
   })
 
   it('returns the stripped name and extension in the result', async () => {
@@ -131,7 +131,7 @@ describe('uploadFile — file metadata', () => {
     const result = await uploadFile(makeFile('README', 'text/plain'), initMutate, completeMutate)
 
     expect(result.extension).toBeNull()
-    expect(initMutate).toHaveBeenCalledWith({ mimeType: 'text/plain', name: 'README', extension: undefined })
+    expect(initMutate).toHaveBeenCalledWith({ mimeType: 'text/plain', name: 'README', extension: undefined, fileSizeBytes: 4 })
   })
 
   it('falls back to application/octet-stream when file.type is empty', async () => {
@@ -150,5 +150,67 @@ describe('uploadFile — file metadata', () => {
     const result = await uploadFile(makeFile('photo.png', 'image/png'), initMutate, completeMutate)
 
     expect(result.fileId).toBe('file-123')
+  })
+})
+
+describe('filterBySize', () => {
+  function makeFileWithSize(name: string, sizeBytes: number): File {
+    const blob = new Blob([new ArrayBuffer(sizeBytes)])
+    return new File([blob], name)
+  }
+
+  it('accepts a file within its category limit', () => {
+    // image limit is 50 MB; 1 MB is well within
+    const file = makeFileWithSize('photo.png', 1 * 1024 * 1024)
+    const { accepted, rejected } = filterBySize([file])
+    expect(accepted).toHaveLength(1)
+    expect(rejected).toHaveLength(0)
+  })
+
+  it('rejects a file exceeding its category limit with the correct limitBytes and categoryName', () => {
+    // image limit is 50 MB; 51 MB exceeds it
+    const limit = 50 * 1024 * 1024
+    const file = makeFileWithSize('photo.png', limit + 1)
+    const { accepted, rejected } = filterBySize([file])
+    expect(accepted).toHaveLength(0)
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].file).toBe(file)
+    expect(rejected[0].limitBytes).toBe(limit)
+    expect(rejected[0].categoryName).toBe('image')
+  })
+
+  it('handles a mixed batch, accepting and rejecting independently', () => {
+    const imageLimit = 50 * 1024 * 1024
+    const small = makeFileWithSize('icon.png', 1024)
+    const large = makeFileWithSize('render.png', imageLimit + 1)
+    const { accepted, rejected } = filterBySize([small, large])
+    expect(accepted).toHaveLength(1)
+    expect(accepted[0]).toBe(small)
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].file).toBe(large)
+  })
+
+  it('returns empty arrays for an empty input', () => {
+    const { accepted, rejected } = filterBySize([])
+    expect(accepted).toHaveLength(0)
+    expect(rejected).toHaveLength(0)
+  })
+
+  it('uses the fallback limit and categoryName "other" for a file with no extension', () => {
+    // fallback limit is 100 MB
+    const fallbackLimit = 100 * 1024 * 1024
+    const file = makeFileWithSize('README', fallbackLimit + 1)
+    const { rejected } = filterBySize([file])
+    expect(rejected).toHaveLength(1)
+    expect(rejected[0].limitBytes).toBe(fallbackLimit)
+    expect(rejected[0].categoryName).toBe('other')
+  })
+
+  it('accepts a file at the exact category limit (boundary is inclusive)', () => {
+    const limit = 50 * 1024 * 1024
+    const file = makeFileWithSize('photo.png', limit)
+    const { accepted, rejected } = filterBySize([file])
+    expect(accepted).toHaveLength(1)
+    expect(rejected).toHaveLength(0)
   })
 })

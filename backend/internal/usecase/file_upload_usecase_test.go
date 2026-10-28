@@ -345,3 +345,27 @@ func TestCompleteFileUpload_ImageType_ThumbnailNotUploaded_NoThumbnailPath(t *te
 	require.NoError(t, err)
 	assert.Nil(t, file.ThumbnailR2Path, "thumbnail path should not be set when thumbnail was not uploaded")
 }
+
+func TestInitiateUpload_FileSizeExceedsLimit_ReturnsErrFileTooLarge(t *testing.T) {
+	userID := uuid.New()
+
+	pendingRepo := newFakeFileUploadPendingRepository()
+	artpieceRepo := newFakeFileUploadArtpieceRepository()
+	fileRepo := newFakeFileUploadFileRepository()
+	metaRepo := &fakeImageMetadataRepository{}
+	coverUpdater := &spyCoverUpdater{}
+	storage := &spyStorageService{}
+
+	uc := newFileUploadTestUsecase(pendingRepo, artpieceRepo, fileRepo, metaRepo, coverUpdater, storage)
+
+	// image limit is 50 MB; 51 MB exceeds it
+	ext := "png"
+	_, err := uc.InitiateUpload(context.Background(), usecase.InitiateFileUploadParams{
+		UserID:        userID,
+		MimeType:      "image/png",
+		Extension:     &ext,
+		FileSizeBytes: 51 * 1024 * 1024,
+	})
+
+	require.ErrorIs(t, err, usecase.ErrFileTooLarge)
+}

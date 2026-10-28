@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { getFileCategory } from './fileCategory'
+import { getFileCategory, getFileCategoryName } from './fileCategory'
 import { Layers, Film, FileImage, File, FileArchive, FileText, Music, Box } from 'lucide-react'
 
 describe('getFileCategory', () => {
@@ -75,5 +75,21 @@ describe('getFileCategory', () => {
     const result = getFileCategory('xyz')
     expect(result.icon).toBe(File)
     expect(result.label).toBe('XYZ')
+  })
+})
+
+describe('getFileCategoryName', () => {
+  it('returns the category name for a known extension', () => {
+    expect(getFileCategoryName('mp4')).toBe('video')
+    expect(getFileCategoryName('png')).toBe('image')
+  })
+
+  it('returns "other" for an unknown extension instead of "fallback"', () => {
+    expect(getFileCategoryName('pptx')).toBe('other')
+    expect(getFileCategoryName('xyz')).toBe('other')
+  })
+
+  it('returns "other" for null extension', () => {
+    expect(getFileCategoryName(null)).toBe('other')
   })
 })

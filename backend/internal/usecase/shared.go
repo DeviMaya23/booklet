@@ -9,7 +9,10 @@ import (
 	rivertype "github.com/riverqueue/river/rivertype"
 )
 
-var ErrCharacterNotOwned = errors.New("one or more character IDs do not belong to the user")
+var (
+	ErrCharacterNotOwned = errors.New("one or more character IDs do not belong to the user")
+	ErrFileTooLarge      = errors.New("file size exceeds the limit for this file type")
+)
 
 const (
 	PresignTTL         = 15 * time.Minute
@@ -18,7 +21,7 @@ const (
 )
 
 type StorageService interface {
-	GeneratePresignedPutURL(ctx context.Context, key, contentType string, ttl time.Duration) (string, error)
+	GeneratePresignedPutURL(ctx context.Context, key, contentType string, contentLength int64, ttl time.Duration) (string, error)
 	DeleteObject(ctx context.Context, key string) error
 }
 

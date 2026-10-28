@@ -64,7 +64,7 @@ func TestInitiateFileUpload_HappyPath(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/files", h.InitiateUpload)
 
-	body := `{"mime_type":"video/mp4"}`
+	body := `{"mime_type":"video/mp4","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -100,7 +100,7 @@ func TestInitiateFileUpload_ArtpieceNotOwned(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/files", h.InitiateUpload)
 
-	body := `{"mime_type":"video/mp4","artpiece_id":"00000000-0000-0000-0000-000000000099"}`
+	body := `{"mime_type":"video/mp4","artpiece_id":"00000000-0000-0000-0000-000000000099","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -175,7 +175,7 @@ func TestInitiateFileUpload_ImageType_ReturnsThumbnailUploadURL(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/files", h.InitiateUpload)
 
-	body := `{"mime_type":"image/jpeg"}`
+	body := `{"mime_type":"image/jpeg","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -201,7 +201,7 @@ func TestInitiateFileUpload_NonImageType_NullThumbnailUploadURL(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/files", h.InitiateUpload)
 
-	body := `{"mime_type":"video/mp4"}`
+	body := `{"mime_type":"video/mp4","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -227,7 +227,7 @@ func TestInitiateFileUpload_ExtensionForwardedToUsecase(t *testing.T) {
 	e := setupEcho(testUserID)
 	e.POST("/files", h.InitiateUpload)
 
-	body := `{"mime_type":"application/octet-stream","extension":"clip"}`
+	body := `{"mime_type":"application/octet-stream","extension":"clip","file_size":1024}`
 	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
 	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 	rec := httptest.NewRecorder()
@@ -257,4 +257,24 @@ func TestCompleteFileUpload_ExtensionInResponse(t *testing.T) {
 	var got map[string]interface{}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, "clip", got["extension"])
+}
+
+func TestInitiateFileUpload_FileSizeExceedsLimit_Returns422(t *testing.T) {
+	spy := &spyFileUploadUsecase{initiateErr: usecase.ErrFileTooLarge}
+	h := handler.NewFileUploadHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/files", h.InitiateUpload)
+
+	// video limit is 2 GB; sending a value that exceeds it
+	body := `{"mime_type":"video/mp4","file_size":99999999999}`
+	req := httptest.NewRequest(http.MethodPost, "/files", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, "file size exceeds the limit for this file type", got["message"])
 }
