@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Plus } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import { Plus, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
@@ -17,14 +17,18 @@ import { useCharacters, type Character } from '@/features/characters/api/useChar
 import { useDeleteCharacter } from '@/features/characters/api/useDeleteCharacter'
 import CharactersGrid from '@/features/characters/components/CharactersGrid'
 import CharacterFormModal from '@/features/characters/components/CharacterFormModal'
+import { useVerses } from '@/features/verses/api/useVerses'
+import VersesModal from '@/features/verses/components/VersesModal'
 
 export default function CharactersPage() {
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
+  const [versesModalOpen, setVersesModalOpen] = useState(false)
   const [selectedCharacter, setSelectedCharacter] = useState<Character | undefined>(undefined)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const { data: characters = [], isLoading } = useCharacters()
+  const { data: verses = [], isLoading: versesLoading } = useVerses()
   const deleteMutation = useDeleteCharacter()
 
   const filtered = search.trim()
@@ -32,6 +36,25 @@ export default function CharactersPage() {
         c.name.toLowerCase().includes(search.toLowerCase())
       )
     : characters
+
+  const verseSet = useMemo(() => new Set(verses.map((v) => v.id)), [verses])
+
+  const groups = useMemo(() => {
+    const result: { id: string; name: string; characters: Character[] }[] = []
+    for (const verse of verses) {
+      const members = filtered.filter((c) => c.verse_id === verse.id)
+      if (members.length > 0) {
+        result.push({ id: verse.id, name: verse.name, characters: members })
+      }
+    }
+    const unsorted = filtered.filter(
+      (c) => c.verse_id === null || !verseSet.has(c.verse_id)
+    )
+    if (unsorted.length > 0) {
+      result.push({ id: '__unsorted__', name: 'Unsorted', characters: unsorted })
+    }
+    return result
+  }, [filtered, verses, verseSet])
 
   function handleNewClick() {
     setSelectedCharacter(undefined)
@@ -72,18 +95,38 @@ export default function CharactersPage() {
           className="max-w-sm"
         />
         <div className="flex-1" />
+        <Button variant="outline" onClick={() => setVersesModalOpen(true)}>
+          <BookOpen className="size-4" />
+          Verses
+        </Button>
         <Button onClick={handleNewClick}>
           <Plus className="size-4" />
           New Character
         </Button>
       </div>
 
-      {isLoading ? null : (
+      {isLoading || versesLoading ? null : verses.length === 0 ? (
         <CharactersGrid
           characters={filtered}
           onDeleteClick={setPendingDeleteId}
           onEditClick={handleEditClick}
         />
+      ) : (
+        <div className="flex flex-col gap-6">
+          {groups.map((group, i) => (
+            <div key={group.id}>
+              {i > 0 && <div className="border-t mb-6" />}
+              <h2 className="text-sm font-semibold text-muted-foreground mb-3">
+                {group.name} <span className="font-normal">({group.characters.length})</span>
+              </h2>
+              <CharactersGrid
+                characters={group.characters}
+                onDeleteClick={setPendingDeleteId}
+                onEditClick={handleEditClick}
+              />
+            </div>
+          ))}
+        </div>
       )}
 
       <CharacterFormModal
@@ -91,6 +134,13 @@ export default function CharactersPage() {
         open={modalOpen}
         onOpenChange={handleModalOpenChange}
         character={selectedCharacter}
+      />
+
+      <VersesModal
+        open={versesModalOpen}
+        onOpenChange={setVersesModalOpen}
+        verses={verses}
+        characters={characters}
       />
 
       <AlertDialog

@@ -22,10 +22,18 @@ func (u *verseUsecase) Create(ctx context.Context, userID uuid.UUID, params Crea
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CreateVerse")
 	defer span.End()
 
+	maxOrder, err := u.verseRepo.GetMaxSortOrder(ctx, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
 	verse := &domain.Verse{
-		ID:     uuid.New(),
-		UserID: userID,
-		Name:   params.Name,
+		ID:        uuid.New(),
+		UserID:    userID,
+		Name:      params.Name,
+		SortOrder: maxOrder + 1,
 	}
 	res, err := u.verseRepo.Create(ctx, verse)
 	if err != nil {
@@ -81,6 +89,38 @@ func (u *verseUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUI
 
 	err := u.verseRepo.Delete(ctx, id, userID)
 	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+	return nil
+}
+
+func (u *verseUsecase) Reorder(ctx context.Context, userID uuid.UUID, orderedIDs []uuid.UUID) error {
+	ctx, span := u.tel.Tracer.Start(ctx, "usecase.ReorderVerses")
+	defer span.End()
+
+	existingIDs, err := u.verseRepo.ListIDs(ctx, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return err
+	}
+
+	if len(orderedIDs) != len(existingIDs) {
+		return ErrVerseReorderIDsMismatch
+	}
+	existing := make(map[uuid.UUID]bool, len(existingIDs))
+	for _, id := range existingIDs {
+		existing[id] = true
+	}
+	for _, id := range orderedIDs {
+		if !existing[id] {
+			return ErrVerseReorderIDsMismatch
+		}
+	}
+
+	if err := u.verseRepo.UpdateSortOrders(ctx, userID, orderedIDs); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return err

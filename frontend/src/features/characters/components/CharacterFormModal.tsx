@@ -37,6 +37,8 @@ import { usePublicFolders } from '../api/usePublicFolders'
 import { useFolderDiff } from '../api/useFolderDiff'
 import { FolderList } from './FolderList'
 import { ChooseFoldersPanel } from './ChooseFoldersPanel'
+import { useVerses, type Verse } from '@/features/verses/api/useVerses'
+import VerseCombobox from '@/features/verses/components/VerseCombobox'
 
 interface CharacterFormModalProps {
   open: boolean
@@ -53,6 +55,7 @@ export default function CharacterFormModal({
 
   const [name, setName] = useState(character?.name ?? '')
   const [notes, setNotes] = useState(character?.notes ?? '')
+  const [verse, setVerse] = useState<Verse | null>(null)
   const [localFile, setLocalFile] = useState<File | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const [avatarCleared, setAvatarCleared] = useState(false)
@@ -66,6 +69,16 @@ export default function CharacterFormModal({
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { getToken } = useKindeAuth()
   const queryClient = useQueryClient()
+
+  const versesQuery = useVerses()
+
+  useEffect(() => {
+    if (!versesQuery.data) return
+    const match = character?.verse_id
+      ? (versesQuery.data.find((v) => v.id === character.verse_id) ?? null)
+      : null
+    setVerse(match)
+  }, [versesQuery.data, character?.verse_id])
 
   const createMutation = useCreateCharacter()
   const updateMutation = useUpdateCharacter()
@@ -100,6 +113,8 @@ export default function CharacterFormModal({
   function resetForm() {
     setName(character?.name ?? '')
     setNotes(character?.notes ?? '')
+    const verses = versesQuery.data ?? []
+    setVerse(character?.verse_id ? (verses.find((v) => v.id === character.verse_id) ?? null) : null)
     setLocalFile(null)
     setLocalPreviewUrl(null)
     setAvatarCleared(false)
@@ -120,6 +135,7 @@ export default function CharacterFormModal({
       return (
         name !== (character?.name ?? '') ||
         notes !== (character?.notes ?? '') ||
+        verse?.id !== (character?.verse_id ?? null) ||
         localFile !== null ||
         avatarCleared ||
         currentFolderIds.length !== originalFolderIds.length ||
@@ -129,6 +145,7 @@ export default function CharacterFormModal({
     return (
       name.trim() !== '' ||
       notes.trim() !== '' ||
+      verse !== null ||
       localFile !== null ||
       selectedFolders.length > 0
     )
@@ -225,6 +242,7 @@ export default function CharacterFormModal({
       name: name.trim(),
       ...(notes.trim() ? { notes: notes.trim() } : {}),
       folder_ids: finalFolderIds,
+      verse_id: verse?.id ?? null,
     })
 
     if (localFile) {
@@ -266,6 +284,7 @@ export default function CharacterFormModal({
       name: name.trim(),
       notes: notes.trim() || null,
       folder_ids: finalFolderIds,
+      verse_id: verse?.id ?? null,
     })
 
     toast.success('Character updated')
@@ -378,6 +397,16 @@ export default function CharacterFormModal({
                       disabled={isPending}
                     />
                   </div>
+                </div>
+
+                <div className="flex flex-col gap-1.5">
+                  <label className="text-sm font-medium" htmlFor="character-verse">Verse</label>
+                  <VerseCombobox
+                    value={verse}
+                    onChange={setVerse}
+                    disabled={isPending}
+                    inputId="character-verse"
+                  />
                 </div>
 
                 <div className="flex flex-col gap-1.5">

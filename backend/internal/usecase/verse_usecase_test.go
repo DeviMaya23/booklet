@@ -14,8 +14,13 @@ import (
 )
 
 type fakeVerseRepository struct {
-	verses       map[uuid.UUID]*domain.Verse
-	conflictName string
+	verses                 map[uuid.UUID]*domain.Verse
+	conflictName           string
+	maxSortOrder           int
+	sortOrderErr           error
+	listIDsErr             error
+	updateOrderErr         error
+	updateLastUsedAtCalled bool
 }
 
 func newFakeVerseRepository() *fakeVerseRepository {
@@ -69,7 +74,29 @@ func (f *fakeVerseRepository) Delete(_ context.Context, id uuid.UUID, _ uuid.UUI
 }
 
 func (f *fakeVerseRepository) UpdateLastUsedAt(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
+	f.updateLastUsedAtCalled = true
 	return nil
+}
+
+func (f *fakeVerseRepository) GetMaxSortOrder(_ context.Context, _ uuid.UUID) (int, error) {
+	return f.maxSortOrder, f.sortOrderErr
+}
+
+func (f *fakeVerseRepository) ListIDs(_ context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	if f.listIDsErr != nil {
+		return nil, f.listIDsErr
+	}
+	var ids []uuid.UUID
+	for id, v := range f.verses {
+		if v.UserID == userID {
+			ids = append(ids, id)
+		}
+	}
+	return ids, nil
+}
+
+func (f *fakeVerseRepository) UpdateSortOrders(_ context.Context, _ uuid.UUID, _ []uuid.UUID) error {
+	return f.updateOrderErr
 }
 
 func newFakeVerseRepositoryWithVerse(repo *fakeVerseRepository, userID uuid.UUID, name string) (*domain.Verse, error) {
@@ -133,4 +160,81 @@ func TestDeleteVerse_NotFound(t *testing.T) {
 	err := uc.Delete(context.Background(), uuid.New(), uuid.New())
 
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestUpdateVerse_DoesNotBumpLastUsedAt(t *testing.T) {
+	repo := newFakeVerseRepository()
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	existing, err := uc.Create(context.Background(), userID, usecase.CreateVerseParams{Name: "Solaris"})
+	require.NoError(t, err)
+
+	repo.updateLastUsedAtCalled = false
+	_, err = uc.Update(context.Background(), existing.ID, userID, usecase.UpdateVerseParams{Name: "Terran"})
+
+	require.NoError(t, err)
+	require.False(t, repo.updateLastUsedAtCalled, "UpdateLastUsedAt must not be called when only the verse name is updated")
+}
+
+func TestCreateVerse_AssignsSortOrder(t *testing.T) {
+	repo := newFakeVerseRepository()
+	repo.maxSortOrder = 2
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	got, err := uc.Create(context.Background(), userID, usecase.CreateVerseParams{Name: "Abyss"})
+
+	require.NoError(t, err)
+	require.Equal(t, 3, got.SortOrder)
+}
+
+func TestCreateVerse_FirstVerse_SortOrderZero(t *testing.T) {
+	repo := newFakeVerseRepository()
+	repo.maxSortOrder = -1
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	got, err := uc.Create(context.Background(), uuid.New(), usecase.CreateVerseParams{Name: "Abyss"})
+
+	require.NoError(t, err)
+	require.Equal(t, 0, got.SortOrder)
+}
+
+func TestReorderVerses_Success(t *testing.T) {
+	repo := newFakeVerseRepository()
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	v1, _ := newFakeVerseRepositoryWithVerse(repo, userID, "Alpha")
+	v2, _ := newFakeVerseRepositoryWithVerse(repo, userID, "Beta")
+	v3, _ := newFakeVerseRepositoryWithVerse(repo, userID, "Gamma")
+
+	err := uc.Reorder(context.Background(), userID, []uuid.UUID{v3.ID, v1.ID, v2.ID})
+
+	require.NoError(t, err)
+}
+
+func TestReorderVerses_PartialList_ReturnsMismatch(t *testing.T) {
+	repo := newFakeVerseRepository()
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	v1, _ := newFakeVerseRepositoryWithVerse(repo, userID, "Alpha")
+	_, _ = newFakeVerseRepositoryWithVerse(repo, userID, "Beta")
+
+	err := uc.Reorder(context.Background(), userID, []uuid.UUID{v1.ID})
+
+	require.ErrorIs(t, err, usecase.ErrVerseReorderIDsMismatch)
+}
+
+func TestReorderVerses_ForeignID_ReturnsMismatch(t *testing.T) {
+	repo := newFakeVerseRepository()
+	uc := usecase.NewVerseUsecase(repo, observability.NewTelemetry(nil, nil, nil))
+
+	userID := uuid.New()
+	v1, _ := newFakeVerseRepositoryWithVerse(repo, userID, "Alpha")
+
+	err := uc.Reorder(context.Background(), userID, []uuid.UUID{v1.ID, uuid.New()})
+
+	require.ErrorIs(t, err, usecase.ErrVerseReorderIDsMismatch)
 }
