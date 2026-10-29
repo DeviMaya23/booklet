@@ -25,15 +25,6 @@ function mockVerses(overrides: Partial<ReturnType<typeof useVerses>> = {}) {
     isError: false,
     isPending: false,
     isSuccess: true,
-  } as ReturnType<typeof useVerses>, ...[] as never[])
-  Object.assign(vi.mocked(useVerses).mock.results[0] ?? {}, overrides)
-
-  // simple override via re-mock
-  vi.mocked(useVerses).mockReturnValue({
-    data: [verse],
-    isError: false,
-    isPending: false,
-    isSuccess: true,
     ...overrides,
   } as ReturnType<typeof useVerses>)
 }
