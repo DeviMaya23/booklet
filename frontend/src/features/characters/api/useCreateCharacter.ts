@@ -7,6 +7,7 @@ export interface CreateCharacterInput {
   name: string
   notes?: string
   folder_ids?: string[]
+  verse_id?: string | null
 }
 
 export function useCreateCharacter() {
@@ -14,10 +15,11 @@ export function useCreateCharacter() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ name, notes, folder_ids }: CreateCharacterInput) => {
+    mutationFn: async ({ name, notes, folder_ids, verse_id }: CreateCharacterInput) => {
       const body: Record<string, unknown> = { name }
       if (notes !== undefined) body.notes = notes
       if (folder_ids !== undefined) body.folder_ids = folder_ids
+      if (verse_id !== undefined) body.verse_id = verse_id
       const res = await apiFetch('/characters', getToken, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

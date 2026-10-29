@@ -43,7 +43,7 @@ func (r *verseRepository) List(ctx context.Context, userID uuid.UUID, _ usecase.
 	var verses []*domain.Verse
 	err := dbFromContext(ctx, r.db).
 		Where("user_id = ?", userID).
-		Order("last_used_at DESC NULLS LAST, name ASC").
+		Order("sort_order ASC").
 		Find(&verses).Error
 	if err != nil {
 		return nil, fmt.Errorf("list verses: %w", err)
@@ -79,6 +79,45 @@ func (r *verseRepository) Delete(ctx context.Context, id uuid.UUID, userID uuid.
 		return gorm.ErrRecordNotFound
 	}
 	return nil
+}
+
+func (r *verseRepository) GetMaxSortOrder(ctx context.Context, userID uuid.UUID) (int, error) {
+	var max int
+	err := dbFromContext(ctx, r.db).
+		Model(&domain.Verse{}).
+		Where("user_id = ?", userID).
+		Select("COALESCE(MAX(sort_order), -1)").
+		Scan(&max).Error
+	if err != nil {
+		return -1, fmt.Errorf("get max sort_order: %w", err)
+	}
+	return max, nil
+}
+
+func (r *verseRepository) ListIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error) {
+	var ids []uuid.UUID
+	err := dbFromContext(ctx, r.db).
+		Model(&domain.Verse{}).
+		Where("user_id = ?", userID).
+		Pluck("id", &ids).Error
+	if err != nil {
+		return nil, fmt.Errorf("list verse ids: %w", err)
+	}
+	return ids, nil
+}
+
+func (r *verseRepository) UpdateSortOrders(ctx context.Context, userID uuid.UUID, orderedIDs []uuid.UUID) error {
+	return dbFromContext(ctx, r.db).Transaction(func(tx *gorm.DB) error {
+		for i, id := range orderedIDs {
+			result := tx.Model(&domain.Verse{}).
+				Where("id = ? AND user_id = ?", id, userID).
+				Update("sort_order", i)
+			if result.Error != nil {
+				return fmt.Errorf("update sort_order for verse %s: %w", id, result.Error)
+			}
+		}
+		return nil
+	})
 }
 
 func (r *verseRepository) UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {

@@ -14,6 +14,7 @@ import (
 	"github.com/devi/booklet/internal/platform/observability"
 	"github.com/devi/booklet/internal/usecase"
 	"github.com/google/uuid"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -39,7 +40,8 @@ type spyVerseUsecase struct {
 	updateResult *domain.Verse
 	updateErr    error
 
-	deleteErr error
+	deleteErr  error
+	reorderErr error
 }
 
 func (s *spyVerseUsecase) Create(_ context.Context, _ uuid.UUID, _ usecase.CreateVerseParams) (*domain.Verse, error) {
@@ -62,6 +64,10 @@ func (s *spyVerseUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) er
 	return s.deleteErr
 }
 
+func (s *spyVerseUsecase) Reorder(_ context.Context, _ uuid.UUID, _ []uuid.UUID) error {
+	return s.reorderErr
+}
+
 func makeVerse() *domain.Verse {
 	return &domain.Verse{
 		ID:        uuid.New(),
@@ -74,6 +80,12 @@ func makeVerse() *domain.Verse {
 
 func newVerseHandler(spy *spyVerseUsecase) *handler.VerseHandler {
 	return handler.NewVerseHandler(spy, observability.NewTelemetry(nil, nil, nil))
+}
+
+func setupEchoUnauthenticated() *echo.Echo {
+	e := echo.New()
+	e.Validator = handler.NewEchoValidator()
+	return e
 }
 
 // --- CreateVerse ---
@@ -317,4 +329,54 @@ func TestDeleteVerse_NotFound(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// --- ReorderVerses ---
+
+func TestReorderVerses_HappyPath(t *testing.T) {
+	spy := &spyVerseUsecase{}
+	h := newVerseHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/verses/reorder", h.ReorderVerses)
+
+	body := `{"ids":["` + uuid.New().String() + `","` + uuid.New().String() + `"]}`
+	req := httptest.NewRequest(http.MethodPost, "/verses/reorder", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusNoContent, rec.Code)
+}
+
+func TestReorderVerses_IDsMismatch_Returns422(t *testing.T) {
+	spy := &spyVerseUsecase{reorderErr: usecase.ErrVerseReorderIDsMismatch}
+	h := newVerseHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/verses/reorder", h.ReorderVerses)
+
+	body := `{"ids":["` + uuid.New().String() + `"]}`
+	req := httptest.NewRequest(http.MethodPost, "/verses/reorder", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+func TestReorderVerses_Unauthorized(t *testing.T) {
+	spy := &spyVerseUsecase{}
+	h := newVerseHandler(spy)
+
+	e := setupEchoUnauthenticated()
+	e.POST("/verses/reorder", h.ReorderVerses)
+
+	body := `{"ids":["` + uuid.New().String() + `"]}`
+	req := httptest.NewRequest(http.MethodPost, "/verses/reorder", strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnauthorized, rec.Code)
 }

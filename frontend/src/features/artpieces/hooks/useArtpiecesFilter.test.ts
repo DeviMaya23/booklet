@@ -13,8 +13,8 @@ const mockArtists: Artist[] = [
 ]
 
 const mockCharacters: Character[] = [
-  { id: 'char-a', name: 'Alpha', avatar_url: null, notes: null, is_public: false, folders: [], created_at: '', updated_at: '' },
-  { id: 'char-b', name: 'Beta', avatar_url: null, notes: null, is_public: false, folders: [], created_at: '', updated_at: '' },
+  { id: 'char-a', name: 'Alpha', avatar_url: null, notes: null, is_public: false, verse_id: null, folders: [], created_at: '', updated_at: '' },
+  { id: 'char-b', name: 'Beta', avatar_url: null, notes: null, is_public: false, verse_id: null, folders: [], created_at: '', updated_at: '' },
 ]
 
 let mockArtistData: Artist[] | undefined = mockArtists

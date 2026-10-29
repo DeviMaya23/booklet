@@ -20,6 +20,7 @@ type VerseUsecase interface {
 	List(ctx context.Context, userID uuid.UUID, filters usecase.ListVerseFilters) ([]*domain.Verse, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateVerseParams) (*domain.Verse, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	Reorder(ctx context.Context, userID uuid.UUID, orderedIDs []uuid.UUID) error
 }
 
 type VerseHandler struct {
@@ -39,9 +40,14 @@ type updateVerseRequest struct {
 	Name string `json:"name" validate:"required,min=1"`
 }
 
+type reorderVerseRequest struct {
+	IDs []uuid.UUID `json:"ids" validate:"required,min=1"`
+}
+
 type verseResponse struct {
 	ID         string  `json:"id"`
 	Name       string  `json:"name"`
+	SortOrder  int     `json:"sort_order"`
 	LastUsedAt *string `json:"last_used_at"`
 	CreatedAt  string  `json:"created_at"`
 	UpdatedAt  string  `json:"updated_at"`
@@ -183,6 +189,33 @@ func (h *VerseHandler) DeleteVerse(c echo.Context) error {
 	return c.NoContent(http.StatusNoContent)
 }
 
+func (h *VerseHandler) ReorderVerses(c echo.Context) error {
+	ctx, span := h.tel.Tracer.Start(c.Request().Context(), "handler.ReorderVerses")
+	defer span.End()
+
+	var req reorderVerseRequest
+	if err := c.Bind(&req); err != nil {
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid request body")
+	}
+	if err := c.Validate(&req); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, validationErrResponse(err))
+	}
+
+	userID, ok := middleware.AuthenticatedUserIDFromContext(c)
+	if !ok {
+		return echo.NewHTTPError(http.StatusUnauthorized, "unauthorized")
+	}
+
+	if err := h.verseUsecase.Reorder(ctx, userID, req.IDs); err != nil {
+		if errors.Is(err, usecase.ErrVerseReorderIDsMismatch) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
+		return echo.NewHTTPError(http.StatusInternalServerError, "failed to reorder verses")
+	}
+
+	return c.NoContent(http.StatusNoContent)
+}
+
 func toVerseResponse(verse *domain.Verse) verseResponse {
 	var lastUsedAt *string
 	if verse.LastUsedAt != nil {
@@ -192,6 +225,7 @@ func toVerseResponse(verse *domain.Verse) verseResponse {
 	return verseResponse{
 		ID:         verse.ID.String(),
 		Name:       verse.Name,
+		SortOrder:  verse.SortOrder,
 		LastUsedAt: lastUsedAt,
 		CreatedAt:  verse.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:  verse.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

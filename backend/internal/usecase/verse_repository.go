@@ -9,8 +9,9 @@ import (
 )
 
 var (
-	ErrVerseNameConflict = errors.New("a verse with that name already exists")
-	ErrVerseNotOwned     = errors.New("verse does not exist or does not belong to the user")
+	ErrVerseNameConflict      = errors.New("a verse with that name already exists")
+	ErrVerseNotOwned          = errors.New("verse does not exist or does not belong to the user")
+	ErrVerseReorderIDsMismatch = errors.New("submitted verse IDs do not match the user's verse set")
 )
 
 type CreateVerseParams struct {
@@ -30,4 +31,7 @@ type VerseRepository interface {
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateVerseParams) (*domain.Verse, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 	UpdateLastUsedAt(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	GetMaxSortOrder(ctx context.Context, userID uuid.UUID) (int, error)
+	ListIDs(ctx context.Context, userID uuid.UUID) ([]uuid.UUID, error)
+	UpdateSortOrders(ctx context.Context, userID uuid.UUID, orderedIDs []uuid.UUID) error
 }

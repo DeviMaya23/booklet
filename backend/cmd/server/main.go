@@ -344,6 +344,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	protected.POST("/verses", verseHandler.CreateVerse)
 	protected.GET("/verses", verseHandler.ListVerses)
+	protected.POST("/verses/reorder", verseHandler.ReorderVerses)
 	protected.GET("/verses/:id", verseHandler.GetVerseByID)
 	protected.PATCH("/verses/:id", verseHandler.UpdateVerse)
 	protected.DELETE("/verses/:id", verseHandler.DeleteVerse)

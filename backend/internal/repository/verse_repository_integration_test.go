@@ -3,7 +3,6 @@ package repository
 import (
 	"context"
 	"testing"
-	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/testutil"
@@ -104,18 +103,15 @@ func TestVerseRepository_GetByID_WrongUser(t *testing.T) {
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 
-func TestVerseRepository_List_OrderedByRecencyThenName(t *testing.T) {
+func TestVerseRepository_List_OrderedBySortOrder(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewVerseRepository(tx)
 
 	user := seedUser(t, tx, "user_1")
 
-	older := time.Now().Add(-2 * time.Hour)
-	newer := time.Now().Add(-1 * time.Hour)
-
-	v1 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Zeta", LastUsedAt: &newer}
-	v2 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Alpha", LastUsedAt: &older}
-	v3 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Beta"}
+	v1 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Zeta", SortOrder: 2}
+	v2 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Alpha", SortOrder: 0}
+	v3 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Beta", SortOrder: 1}
 	require.NoError(t, tx.Create(v1).Error)
 	require.NoError(t, tx.Create(v2).Error)
 	require.NoError(t, tx.Create(v3).Error)
@@ -124,9 +120,9 @@ func TestVerseRepository_List_OrderedByRecencyThenName(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Len(t, got, 3)
-	assert.Equal(t, "Zeta", got[0].Name)  // most recently used
-	assert.Equal(t, "Alpha", got[1].Name) // older last_used_at
-	assert.Equal(t, "Beta", got[2].Name)  // null last_used_at sorts last
+	assert.Equal(t, "Alpha", got[0].Name) // sort_order 0
+	assert.Equal(t, "Beta", got[1].Name)  // sort_order 1
+	assert.Equal(t, "Zeta", got[2].Name)  // sort_order 2
 }
 
 func TestVerseRepository_List_IsolatesByUser(t *testing.T) {
@@ -245,4 +241,68 @@ func TestVerseRepository_UpdateLastUsedAt(t *testing.T) {
 	got, err := repo.GetByID(context.Background(), verse.ID, user.ID)
 	require.NoError(t, err)
 	assert.NotNil(t, got.LastUsedAt)
+}
+
+func TestVerseRepository_GetMaxSortOrder_NoVerses(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewVerseRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+
+	max, err := repo.GetMaxSortOrder(context.Background(), user.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, -1, max)
+}
+
+func TestVerseRepository_GetMaxSortOrder_WithVerses(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewVerseRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	require.NoError(t, tx.Create(&domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "A", SortOrder: 0}).Error)
+	require.NoError(t, tx.Create(&domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "B", SortOrder: 5}).Error)
+
+	max, err := repo.GetMaxSortOrder(context.Background(), user.ID)
+
+	require.NoError(t, err)
+	assert.Equal(t, 5, max)
+}
+
+func TestVerseRepository_Create_AppendsSortOrder(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewVerseRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	require.NoError(t, tx.Create(&domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "First", SortOrder: 0}).Error)
+
+	verse := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Second", SortOrder: 1}
+	got, err := repo.Create(context.Background(), verse)
+
+	require.NoError(t, err)
+	assert.Equal(t, 1, got.SortOrder)
+}
+
+func TestVerseRepository_UpdateSortOrders(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewVerseRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	v1 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Alpha", SortOrder: 0}
+	v2 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Beta", SortOrder: 1}
+	v3 := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Gamma", SortOrder: 2}
+	require.NoError(t, tx.Create(v1).Error)
+	require.NoError(t, tx.Create(v2).Error)
+	require.NoError(t, tx.Create(v3).Error)
+
+	// Reorder: Gamma first, then Alpha, then Beta
+	err := repo.UpdateSortOrders(context.Background(), user.ID, []uuid.UUID{v3.ID, v1.ID, v2.ID})
+	require.NoError(t, err)
+
+	got, err := repo.List(context.Background(), user.ID, usecase.ListVerseFilters{})
+	require.NoError(t, err)
+	require.Len(t, got, 3)
+	assert.Equal(t, "Gamma", got[0].Name) // sort_order 0
+	assert.Equal(t, "Alpha", got[1].Name) // sort_order 1
+	assert.Equal(t, "Beta", got[2].Name)  // sort_order 2
 }

@@ -8,6 +8,7 @@ export interface Character {
   avatar_url: string | null
   notes: string | null
   is_public: boolean
+  verse_id: string | null
   folders: { id: string; name: string }[]
   created_at: string
   updated_at: string
