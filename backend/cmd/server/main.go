@@ -250,7 +250,11 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	artistUsecase := usecase.NewArtistUsecase(artistRepository, tel)
 	artistHandler := httphandler.NewArtistHandler(artistUsecase, tel)
 
-	characterUsecase := usecase.NewCharacterUsecase(characterRepository, r2Storage, characterAvatarRepository, transactor, tel, bookleafClient)
+	verseRepository := repository.NewVerseRepository(db)
+	verseUsecase := usecase.NewVerseUsecase(verseRepository, tel)
+	verseHandler := httphandler.NewVerseHandler(verseUsecase, tel)
+
+	characterUsecase := usecase.NewCharacterUsecase(characterRepository, verseRepository, r2Storage, characterAvatarRepository, transactor, tel, bookleafClient)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, r2Storage, tel)
 
 	fileRepository := repository.NewFileRepository(db)
@@ -337,6 +341,12 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 
 	protected.GET("/folders", folderHandler.ListFolders)
 	protected.GET("/folders/:folderID/images", folderHandler.GetFolderImages)
+
+	protected.POST("/verses", verseHandler.CreateVerse)
+	protected.GET("/verses", verseHandler.ListVerses)
+	protected.GET("/verses/:id", verseHandler.GetVerseByID)
+	protected.PATCH("/verses/:id", verseHandler.UpdateVerse)
+	protected.DELETE("/verses/:id", verseHandler.DeleteVerse)
 
 	protected.POST("/artists", artistHandler.CreateArtist)
 	protected.GET("/artists", artistHandler.ListArtists)

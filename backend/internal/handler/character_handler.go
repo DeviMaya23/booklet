@@ -40,6 +40,7 @@ type createCharacterRequest struct {
 	Name      string       `json:"name" validate:"required"`
 	Notes     *string      `json:"notes"`
 	IsPublic  bool         `json:"is_public"`
+	VerseID   *uuid.UUID   `json:"verse_id"`
 	FolderIDs *[]uuid.UUID `json:"folder_ids"`
 }
 
@@ -47,6 +48,7 @@ type updateCharacterRequest struct {
 	Name      string      `json:"name" validate:"required,min=1"`
 	Notes     *string     `json:"notes"`
 	IsPublic  bool        `json:"is_public"`
+	VerseID   *uuid.UUID  `json:"verse_id"`
 	FolderIDs []uuid.UUID `json:"folder_ids"`
 }
 
@@ -61,6 +63,7 @@ type characterResponse struct {
 	AvatarURL *string          `json:"avatar_url"`
 	Notes     *string          `json:"notes"`
 	IsPublic  bool             `json:"is_public"`
+	VerseID   *string          `json:"verse_id"`
 	Folders   []folderResponse `json:"folders"`
 	CreatedAt string           `json:"created_at"`
 	UpdatedAt string           `json:"updated_at"`
@@ -103,10 +106,14 @@ func (h *CharacterHandler) CreateCharacter(c echo.Context) error {
 		Name:       req.Name,
 		Notes:      req.Notes,
 		IsPublic:   req.IsPublic,
+		VerseID:    req.VerseID,
 		FolderIDs:  req.FolderIDs,
 		IDPSubject: idpSubject,
 	})
 	if err != nil {
+		if errors.Is(err, usecase.ErrVerseNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to create character")
 	}
 
@@ -200,12 +207,16 @@ func (h *CharacterHandler) UpdateCharacter(c echo.Context) error {
 		Name:       req.Name,
 		Notes:      req.Notes,
 		IsPublic:   req.IsPublic,
+		VerseID:    req.VerseID,
 		FolderIDs:  req.FolderIDs,
 		IDPSubject: idpSubject,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return echo.NewHTTPError(http.StatusNotFound, "character not found")
+		}
+		if errors.Is(err, usecase.ErrVerseNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update character")
 	}
@@ -351,12 +362,18 @@ func toCharacterResponse(character *domain.Character, avatarURL *string) charact
 	for i, f := range character.Folders {
 		folders[i] = folderResponse{ID: f.FolderID.String(), Name: f.FolderName}
 	}
+	var verseID *string
+	if character.VerseID != nil {
+		s := character.VerseID.String()
+		verseID = &s
+	}
 	return characterResponse{
 		ID:        character.ID.String(),
 		Name:      character.Name,
 		AvatarURL: avatarURL,
 		Notes:     character.Notes,
 		IsPublic:  character.IsPublic,
+		VerseID:   verseID,
 		Folders:   folders,
 		CreatedAt: character.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt: character.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

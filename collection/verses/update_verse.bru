@@ -1,0 +1,21 @@
+meta {
+  name: Update Verse
+  type: http
+  seq: 4
+}
+
+patch {
+  url: {{baseUrl}}/verses/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{verseId}}
+}
+
+body:json {
+  {
+    "name": "Terran"
+  }
+}

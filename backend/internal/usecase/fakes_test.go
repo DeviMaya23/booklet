@@ -70,6 +70,7 @@ func (f *fakeCharacterRepository) Update(_ context.Context, id uuid.UUID, _ uuid
 		c.AvatarR2Path = params.AvatarR2Path
 	}
 	c.Notes = params.Notes
+	c.VerseID = params.VerseID
 	c.Folders = params.Folders
 	return c, nil
 }
