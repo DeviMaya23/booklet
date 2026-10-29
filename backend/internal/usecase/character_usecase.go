@@ -66,6 +66,7 @@ type CreateCharacterParams struct {
 	Name       string
 	Notes      *string
 	IsPublic   bool
+	VerseID    *uuid.UUID
 	FolderIDs  *[]uuid.UUID
 	IDPSubject string
 }
@@ -78,6 +79,7 @@ type AvatarUploadResult struct {
 
 type characterUsecase struct {
 	characterRepo    CharacterRepository
+	verseRepo        VerseRepository
 	storage          StorageService
 	avatarUploadRepo CharacterAvatarUploadRepository
 	transactor       Transactor
@@ -87,6 +89,7 @@ type characterUsecase struct {
 
 func NewCharacterUsecase(
 	characterRepo CharacterRepository,
+	verseRepo VerseRepository,
 	storage StorageService,
 	avatarUploadRepo CharacterAvatarUploadRepository,
 	transactor Transactor,
@@ -95,6 +98,7 @@ func NewCharacterUsecase(
 ) *characterUsecase {
 	return &characterUsecase{
 		characterRepo:    characterRepo,
+		verseRepo:        verseRepo,
 		storage:          storage,
 		avatarUploadRepo: avatarUploadRepo,
 		transactor:       transactor,
@@ -107,12 +111,21 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.CreateCharacter")
 	defer span.End()
 
+	if params.VerseID != nil {
+		if _, err := u.verseRepo.GetByID(ctx, *params.VerseID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, ErrVerseNotOwned
+		}
+	}
+
 	character := &domain.Character{
 		ID:       uuid.New(),
 		UserID:   userID,
 		Name:     params.Name,
 		Notes:    params.Notes,
 		IsPublic: params.IsPublic,
+		VerseID:  params.VerseID,
 	}
 	if params.FolderIDs != nil && len(*params.FolderIDs) > 0 {
 		enriched, err := u.validateAndEnrichFolders(ctx, character.ID, *params.FolderIDs, params.IDPSubject)
@@ -127,6 +140,9 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
+	}
+	if params.VerseID != nil {
+		_ = u.verseRepo.UpdateLastUsedAt(ctx, *params.VerseID, userID)
 	}
 	return character, nil
 }
@@ -161,6 +177,14 @@ func (u *characterUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateCharacter")
 	defer span.End()
 
+	if params.VerseID != nil {
+		if _, err := u.verseRepo.GetByID(ctx, *params.VerseID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, ErrVerseNotOwned
+		}
+	}
+
 	if len(params.FolderIDs) > 0 {
 		enriched, err := u.validateAndEnrichFolders(ctx, id, params.FolderIDs, params.IDPSubject)
 		if err != nil {
@@ -177,6 +201,9 @@ func (u *characterUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
+	}
+	if params.VerseID != nil {
+		_ = u.verseRepo.UpdateLastUsedAt(ctx, *params.VerseID, userID)
 	}
 	return res, nil
 }

@@ -74,7 +74,6 @@ If, while implementing a task, you discover that something not covered by the de
 
 - Prefer `c.Bind` + `c.Validate` over manual parsing and validation for body and query params
 - Use `uuid.Parse` manually only for path params, where `c.Bind` does not apply
-- Before converting a field to a typed value (e.g. `uuid.UUID`), check whether the code actually needs that type. If nothing downstream requires the typed form, keep the field as `string` and validate with a govalidator tag instead — this preserves `c.Bind` compatibility and avoids unnecessary conversion
 
 ### Others to keep in mind during proposals
 - Every surface listed in the Impact section must have at least one corresponding spec scenario. The scenario must name the specific data path (e.g. "commission list returns Artist.Links preloaded and surfaces the primary link"), not just the surface. Impact without a scenario is documentation; Impact with a scenario is a contract.

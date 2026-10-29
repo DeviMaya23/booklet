@@ -1,0 +1,2 @@
+ALTER TABLE characters
+    ADD COLUMN verse_id UUID NULL REFERENCES verses(id) ON DELETE SET NULL;

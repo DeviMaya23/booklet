@@ -13,13 +13,15 @@ type UpdateCharacterParams struct {
 	AvatarR2Path *string
 	Notes        *string
 	IsPublic     bool
+	VerseID      *uuid.UUID
 	FolderIDs    []uuid.UUID
 	IDPSubject   string
 	Folders      []domain.CharacterFolder
 }
 
 type ListCharacterFilters struct {
-	Q *string `query:"q"`
+	Q       *string    `query:"q"`
+	VerseID *uuid.UUID `query:"verse_id"`
 }
 
 type CharacterRepository interface {

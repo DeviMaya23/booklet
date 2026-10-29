@@ -51,6 +51,9 @@ func (r *characterRepository) List(ctx context.Context, userID uuid.UUID, filter
 	if filters.Q != nil {
 		q = q.Where("LOWER(name) LIKE ?", "%"+strings.ToLower(*filters.Q)+"%")
 	}
+	if filters.VerseID != nil {
+		q = q.Where("verse_id = ?", *filters.VerseID)
+	}
 	err := q.Order("created_at DESC").Find(&characters).Error
 	if err != nil {
 		return nil, fmt.Errorf("list characters: %w", err)
@@ -63,10 +66,15 @@ func (r *characterRepository) Update(ctx context.Context, id uuid.UUID, userID u
 	if params.Notes != nil {
 		notes = *params.Notes
 	}
+	var verseID interface{}
+	if params.VerseID != nil {
+		verseID = *params.VerseID
+	}
 	updates := map[string]interface{}{
 		"name":      params.Name,
 		"notes":     notes,
 		"is_public": params.IsPublic,
+		"verse_id":  verseID,
 	}
 	if params.AvatarR2Path != nil {
 		updates["avatar_r2_path"] = *params.AvatarR2Path

@@ -106,6 +106,7 @@ type spyCharacterUsecase struct {
 
 	lastCreateParams usecase.CreateCharacterParams
 	lastUpdateParams usecase.UpdateCharacterParams
+	lastListFilters  usecase.ListCharacterFilters
 }
 
 func (s *spyCharacterUsecase) Create(_ context.Context, _ uuid.UUID, params usecase.CreateCharacterParams) (*domain.Character, error) {
@@ -117,7 +118,8 @@ func (s *spyCharacterUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUI
 	return s.getByIDResult, s.getByIDErr
 }
 
-func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListCharacterFilters) ([]*domain.Character, error) {
+func (s *spyCharacterUsecase) List(_ context.Context, _ uuid.UUID, filters usecase.ListCharacterFilters) ([]*domain.Character, error) {
+	s.lastListFilters = filters
 	return s.listResult, s.listErr
 }
 
@@ -903,4 +905,99 @@ func TestUpdateCharacter_BookleafFailurePropagates_Returns500(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusInternalServerError, rec.Code)
+}
+
+// --- Verse ID: Create ---
+
+func TestCreateCharacter_WithVerseID_PassesVerseIDToUsecase(t *testing.T) {
+	verseID := uuid.New()
+	character := &domain.Character{ID: uuid.New(), UserID: testUserID, Name: "Aria", VerseID: &verseID}
+	spy := &spyCharacterUsecase{createResult: character}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/characters", h.CreateCharacter)
+
+	body := fmt.Sprintf(`{"name":"Aria","verse_id":"%s"}`, verseID)
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.NotNil(t, spy.lastCreateParams.VerseID)
+	require.Equal(t, verseID, *spy.lastCreateParams.VerseID)
+}
+
+func TestCreateCharacter_UnownedVerseID_Returns422(t *testing.T) {
+	spy := &spyCharacterUsecase{createErr: usecase.ErrVerseNotOwned}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.POST("/characters", h.CreateCharacter)
+
+	body := fmt.Sprintf(`{"name":"Aria","verse_id":"%s"}`, uuid.New())
+	req := httptest.NewRequest(http.MethodPost, "/characters", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+// --- Verse ID: List filter ---
+
+func TestListCharacters_VerseIDQueryParam_PassesFilterToUsecase(t *testing.T) {
+	verseID := uuid.New()
+	spy := &spyCharacterUsecase{listResult: []*domain.Character{}}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.GET("/characters", h.ListCharacters)
+
+	req := httptest.NewRequest(http.MethodGet, "/characters?verse_id="+verseID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.lastListFilters.VerseID)
+	require.Equal(t, verseID, *spy.lastListFilters.VerseID)
+}
+
+// --- Verse ID: Update ---
+
+func TestUpdateCharacter_WithVerseID_PassesVerseIDToUsecase(t *testing.T) {
+	verseID := uuid.New()
+	character := &domain.Character{ID: uuid.New(), UserID: testUserID, Name: "Aria", VerseID: &verseID}
+	spy := &spyCharacterUsecase{updateResult: character}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.PATCH("/characters/:id", h.UpdateCharacter)
+
+	body := fmt.Sprintf(`{"name":"Aria","verse_id":"%s"}`, verseID)
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.lastUpdateParams.VerseID)
+	require.Equal(t, verseID, *spy.lastUpdateParams.VerseID)
+}
+
+func TestUpdateCharacter_UnownedVerseID_Returns422(t *testing.T) {
+	spy := &spyCharacterUsecase{updateErr: usecase.ErrVerseNotOwned}
+	h := newCharacterHandler(spy)
+
+	e := setupEcho(testUserID)
+	e.PATCH("/characters/:id", h.UpdateCharacter)
+
+	body := fmt.Sprintf(`{"name":"Aria","verse_id":"%s"}`, uuid.New())
+	req := httptest.NewRequest(http.MethodPatch, fmt.Sprintf("/characters/%s", uuid.New()), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
 }

@@ -302,3 +302,24 @@ func TestCharacterRepository_Delete_CascadesFolders(t *testing.T) {
 	require.NoError(t, tx.Model(&domain.CharacterFolder{}).Where("character_id = ?", c.ID).Count(&count).Error)
 	assert.Equal(t, int64(0), count)
 }
+
+func TestCharacterRepository_List_VerseIDFilter(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewCharacterRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	verse := seedVerse(t, tx, user.ID, "Solaris")
+
+	withVerse := &domain.Character{ID: uuid.New(), UserID: user.ID, Name: "With Verse", VerseID: &verse.ID}
+	withoutVerse := &domain.Character{ID: uuid.New(), UserID: user.ID, Name: "Without Verse"}
+	require.NoError(t, tx.Create(withVerse).Error)
+	require.NoError(t, tx.Create(withoutVerse).Error)
+
+	got, err := repo.List(context.Background(), user.ID, usecase.ListCharacterFilters{VerseID: &verse.ID})
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, withVerse.ID, got[0].ID)
+	require.NotNil(t, got[0].VerseID)
+	assert.Equal(t, verse.ID, *got[0].VerseID)
+}

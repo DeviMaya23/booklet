@@ -1,0 +1,23 @@
+meta {
+  name: Create Verse
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/verses
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "Solaris"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("verseId", res.body.id);
+  }
+}

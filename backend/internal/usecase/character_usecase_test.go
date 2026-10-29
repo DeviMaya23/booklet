@@ -16,7 +16,7 @@ import (
 func TestCreate_AssemblesCharacter(t *testing.T) {
 	repo := newFakeCharacterRepository()
 	bl := &fakeBookleafClient{}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	userID := uuid.New()
 	got, err := uc.Create(context.Background(), userID, usecase.CreateCharacterParams{
@@ -35,7 +35,7 @@ func TestCreate_AssemblesCharacter(t *testing.T) {
 
 func TestInitAvatarUpload_CharacterNotOwnedReturnsErrCharacterNotFound(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	_, err := uc.InitAvatarUpload(context.Background(), uuid.New(), uuid.New(), "image/jpeg", 1024)
 
@@ -48,7 +48,7 @@ func TestInitAvatarUpload_SuccessReturnsResult(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
 	avatarRepo := newFakeCharacterAvatarUploadRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), &fakeStorageService{}, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	result, err := uc.InitAvatarUpload(context.Background(), userID, charID, "image/jpeg", 1024)
 
@@ -64,7 +64,7 @@ func TestInitAvatarUpload_FileSizeExceedsImageLimit_ReturnsErrFileTooLarge(t *te
 	charID := uuid.New()
 	charRepo := newFakeCharacterRepository()
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	// image limit is 50 MB; 51 MB exceeds it
 	_, err := uc.InitAvatarUpload(context.Background(), userID, charID, "image/jpeg", 51*1024*1024)
@@ -79,7 +79,7 @@ func TestCompleteAvatarUpload_PendingNotFoundReturnsError(t *testing.T) {
 	charID := uuid.New()
 	charRepo := newFakeCharacterRepository()
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID, uuid.New())
 
@@ -104,7 +104,7 @@ func TestCompleteAvatarUpload_SuccessNoPriorAvatar(t *testing.T) {
 	}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID, uploadID)
 
@@ -118,7 +118,7 @@ func TestCompleteAvatarUpload_SuccessNoPriorAvatar(t *testing.T) {
 
 func TestDeleteAvatar_CharacterNotFoundReturnsErrCharacterNotFound(t *testing.T) {
 	charRepo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(charRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.DeleteAvatar(context.Background(), uuid.New(), uuid.New())
 
@@ -132,7 +132,7 @@ func TestDeleteAvatar_NoAvatarReturnsNilWithoutR2Call(t *testing.T) {
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.DeleteAvatar(context.Background(), userID, charID)
 
@@ -148,7 +148,7 @@ func TestDeleteAvatar_ExistingAvatarClearsPathAndDeletesR2Object(t *testing.T) {
 	charRepo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria", AvatarR2Path: &oldKey}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), storage, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.DeleteAvatar(context.Background(), userID, charID)
 
@@ -176,7 +176,7 @@ func TestCompleteAvatarUpload_SuccessReplacingExistingAvatar(t *testing.T) {
 	}
 
 	storage := &fakeStorageService{}
-	uc := usecase.NewCharacterUsecase(charRepo, storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(charRepo, newFakeVerseRepository(), storage, avatarRepo, &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	err := uc.CompleteAvatarUpload(context.Background(), userID, charID, uploadID)
 
@@ -188,7 +188,7 @@ func TestCompleteAvatarUpload_SuccessReplacingExistingAvatar(t *testing.T) {
 
 func TestListCharacters_PassesFiltersToRepo(t *testing.T) {
 	repo := newFakeCharacterRepository()
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
 
 	userID := uuid.New()
 	q := "aria"
@@ -212,7 +212,7 @@ func TestCreate_BookleafAllValid_EnrichesAndPersists(t *testing.T) {
 			},
 		},
 	}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	userID := uuid.New()
 	folderIDs := []uuid.UUID{folderID}
@@ -240,7 +240,7 @@ func TestCreate_BookleafSomeAbsent_DropsAbsentIDs(t *testing.T) {
 			},
 		},
 	}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	folderIDs := []uuid.UUID{validID, unknownID}
 	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateCharacterParams{
@@ -260,7 +260,7 @@ func TestCreate_BookleafFails_ReturnsError(t *testing.T) {
 	folderID := uuid.New()
 	bookleafErr := errors.New("bookleaf unavailable")
 	bl := &fakeBookleafClient{err: bookleafErr}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	folderIDs := []uuid.UUID{folderID}
 	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateCharacterParams{
@@ -277,7 +277,7 @@ func TestCreate_BookleafFails_ReturnsError(t *testing.T) {
 func TestCreate_EmptyFolderIDs_SkipsBookleafAndPersists(t *testing.T) {
 	repo := newFakeCharacterRepository()
 	bl := &fakeBookleafClient{}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	emptyFolders := []uuid.UUID{}
 	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateCharacterParams{
@@ -307,7 +307,7 @@ func TestUpdate_BookleafAllValid_EnrichesAndPersists(t *testing.T) {
 			},
 		},
 	}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	got, err := uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
 		Name:       "Aria",
@@ -336,7 +336,7 @@ func TestUpdate_BookleafSomeAbsent_DropsAbsentIDs(t *testing.T) {
 			},
 		},
 	}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	got, err := uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
 		Name:       "Aria",
@@ -357,7 +357,7 @@ func TestUpdate_BookleafFails_ReturnsError(t *testing.T) {
 
 	bookleafErr := errors.New("bookleaf unavailable")
 	bl := &fakeBookleafClient{err: bookleafErr}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	_, err := uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
 		Name:       "Aria",
@@ -384,7 +384,7 @@ func TestUpdate_EmptyFolderIDs_SkipsBookleafAndClearsAssignments(t *testing.T) {
 	}
 
 	bl := &fakeBookleafClient{}
-	uc := usecase.NewCharacterUsecase(repo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), bl)
 
 	got, err := uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
 		Name:       "Aria",
@@ -395,4 +395,97 @@ func TestUpdate_EmptyFolderIDs_SkipsBookleafAndClearsAssignments(t *testing.T) {
 	require.NoError(t, err)
 	require.Empty(t, got.Folders)
 	require.False(t, bl.called, "Bookleaf should not be called for empty folder_ids")
+}
+
+// --- Verse ownership: Create ---
+
+func TestCreate_ValidVerseID_PersistsAndBumpsLastUsedAt(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	verseRepo := newFakeVerseRepository()
+	userID := uuid.New()
+	verse, err := newFakeVerseRepositoryWithVerse(verseRepo, userID, "Solaris")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.NewCharacterUsecase(repo, verseRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	got, err := uc.Create(context.Background(), userID, usecase.CreateCharacterParams{
+		Name:    "Aria",
+		VerseID: &verse.ID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.VerseID)
+	require.Equal(t, verse.ID, *got.VerseID)
+}
+
+func TestCreate_UnownedVerseID_ReturnsErrVerseNotOwned(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	verseRepo := newFakeVerseRepository()
+	otherUserID := uuid.New()
+	verse, err := newFakeVerseRepositoryWithVerse(verseRepo, otherUserID, "Solaris")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.NewCharacterUsecase(repo, verseRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	thisUserID := uuid.New()
+	_, err = uc.Create(context.Background(), thisUserID, usecase.CreateCharacterParams{
+		Name:    "Aria",
+		VerseID: &verse.ID,
+	})
+
+	require.ErrorIs(t, err, usecase.ErrVerseNotOwned)
+	require.Nil(t, repo.lastCreated, "character should not have been persisted")
+}
+
+// --- Verse ownership: Update ---
+
+func TestUpdate_ValidVerseID_PersistsAndBumpsLastUsedAt(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	verseRepo := newFakeVerseRepository()
+	userID := uuid.New()
+	charID := uuid.New()
+	repo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
+
+	verse, err := newFakeVerseRepositoryWithVerse(verseRepo, userID, "Solaris")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.NewCharacterUsecase(repo, verseRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	got, err := uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
+		Name:    "Aria",
+		VerseID: &verse.ID,
+	})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.VerseID)
+	require.Equal(t, verse.ID, *got.VerseID)
+}
+
+func TestUpdate_UnownedVerseID_ReturnsErrVerseNotOwned(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	verseRepo := newFakeVerseRepository()
+	userID := uuid.New()
+	charID := uuid.New()
+	repo.characters[charID] = &domain.Character{ID: charID, UserID: userID, Name: "Aria"}
+
+	otherUserID := uuid.New()
+	verse, err := newFakeVerseRepositoryWithVerse(verseRepo, otherUserID, "Solaris")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	uc := usecase.NewCharacterUsecase(repo, verseRepo, &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	_, err = uc.Update(context.Background(), charID, userID, usecase.UpdateCharacterParams{
+		Name:    "Aria",
+		VerseID: &verse.ID,
+	})
+
+	require.ErrorIs(t, err, usecase.ErrVerseNotOwned)
 }

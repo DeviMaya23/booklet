@@ -16,6 +16,7 @@ The `characters` table SHALL use the following schema:
 - `avatar_r2_path` — `text`, nullable — R2 key of the character's avatar image; set exclusively via the avatar upload flow
 - `notes` — `text`, nullable
 - `is_public` — `boolean`, not null, default `false`
+- `verse_id` — `uuid`, nullable, foreign key referencing `verses(id)` `ON DELETE SET NULL`
 - `created_at`, `updated_at` — `timestamptz`, not null
 - `deleted_at` — `timestamptz`, nullable; used for soft deletes
 
@@ -51,14 +52,20 @@ The `avatar_r2_path` column is stored in the database but SHALL NOT be exposed i
 - **WHEN** any character read endpoint returns a character
 - **THEN** the response does not contain an `avatar_r2_path` field
 
+#### Scenario: verse_id is null when no verse is assigned
+- **WHEN** a character with no verse assignment is returned by any read endpoint
+- **THEN** the response includes `verse_id: null`
+
 ---
 
 ### Requirement: Create character
-An authenticated user SHALL be able to create a character with a required name and optional notes, public visibility flag, and folder IDs. The system SHALL assign a UUID and associate the character with the authenticated user.
+An authenticated user SHALL be able to create a character with a required name and optional notes, public visibility flag, folder IDs, and verse ID. The system SHALL assign a UUID and associate the character with the authenticated user.
 
 The `avatar_r2_path` field is NOT accepted in the create request body. Avatar images are set exclusively via the avatar upload flow.
 
 If `folder_ids` is provided and non-empty, each value SHALL be a valid UUID (format validation) and the system SHALL validate the IDs against Bookleaf's `GetPublicFolders` for the authenticated user. IDs absent from Bookleaf's response are silently dropped. If the Bookleaf call fails, the entire create is aborted with 500. If `folder_ids` is absent, null, or empty, no folder assignments are created and Bookleaf is not called.
+
+If `verse_id` is provided and non-null, the system SHALL verify the verse exists and belongs to the authenticated user. If it does not, the create SHALL be rejected with 422. If validation passes, `verses.last_used_at` is bumped to now.
 
 #### Scenario: Successful creation
 - **WHEN** an authenticated user sends `POST /characters` with a valid name
@@ -88,6 +95,15 @@ If `folder_ids` is provided and non-empty, each value SHALL be a valid UUID (for
 - **WHEN** an authenticated user sends `POST /characters` with invalid JSON
 - **THEN** the system returns 400
 
+#### Scenario: Create with valid verse_id
+- **WHEN** an authenticated user creates a character with a `verse_id` they own
+- **THEN** the system returns 201 with the character and `verse_id` set to the provided value
+- **AND** the verse's `last_used_at` is bumped to approximately now
+
+#### Scenario: Create with unowned verse_id returns 422
+- **WHEN** an authenticated user creates a character with a `verse_id` that does not exist or belongs to another user
+- **THEN** the system returns 422 with a structured validation error referencing `verse_id`
+
 ---
 
 ### Requirement: Get character by ID
@@ -108,10 +124,11 @@ An authenticated user SHALL be able to retrieve a single character by ID, provid
 ---
 
 ### Requirement: List characters
-An authenticated user SHALL be able to retrieve all non-deleted characters they own. Each character in the response SHALL include its `folders` array with `id` and `name` per entry. The endpoint SHALL accept an optional `q` query parameter for freetext name filtering; when absent, all characters owned by the user are returned.
+An authenticated user SHALL be able to retrieve all non-deleted characters they own. Each character in the response SHALL include its `folders` array with `id` and `name` per entry. The endpoint SHALL accept an optional `q` query parameter for freetext name filtering and an optional `verse_id` parameter to filter by assigned verse; when absent, all characters owned by the user are returned.
 
 Optional query parameters:
 - `q` — freetext substring search against `name` (case-insensitive); absent means no filter
+- `verse_id` — UUID string; when provided, only characters with that `verse_id` are returned
 
 #### Scenario: Successful listing with no filters
 - **WHEN** an authenticated user sends `GET /characters`
@@ -125,6 +142,14 @@ Optional query parameters:
 - **WHEN** an authenticated user sends `GET /characters?q=aria`
 - **THEN** the system returns only characters whose name contains "aria" case-insensitively
 
+#### Scenario: Filter by verse_id returns matching characters
+- **WHEN** an authenticated user sends `GET /characters?verse_id=<uuid>`
+- **THEN** the system returns only characters whose `verse_id` matches the provided UUID
+
+#### Scenario: verse_id filter with no matches returns empty array
+- **WHEN** an authenticated user sends `GET /characters?verse_id=<uuid>` and no characters have that verse
+- **THEN** the system returns 200 with an empty array
+
 ---
 
 ### Requirement: Partial update character
@@ -132,12 +157,13 @@ An authenticated user SHALL be able to fully replace the editable fields of a ch
 
 The `avatar_r2_path` field is NOT accepted in the update request body. Avatar images are set exclusively via the avatar upload flow.
 
-Updatable fields: `name`, `notes`, `is_public`, `folder_ids`.
+Updatable fields: `name`, `notes`, `is_public`, `folder_ids`, `verse_id`.
 
 - `name` — required, non-empty string
 - `notes` — nullable string; `null` clears the value
 - `is_public` — required boolean
 - `folder_ids` — required array of UUIDs; an empty array `[]` removes all folder assignments and does not call Bookleaf; each value SHALL be a valid UUID (format validation). If non-empty, the system SHALL validate the IDs against Bookleaf's `GetPublicFolders` for the authenticated user — IDs absent from Bookleaf are silently dropped, Bookleaf unavailability fails the entire update with 500.
+- `verse_id` — nullable UUID string; `null` clears the assignment. When non-null, the system SHALL verify the verse exists and belongs to the authenticated user; if it does not, the update SHALL be rejected with 422. If validation passes, `verses.last_used_at` is bumped to now.
 
 #### Scenario: Successful full update
 - **WHEN** an authenticated user sends `PUT /characters/:id` with all updatable fields
@@ -179,6 +205,18 @@ Updatable fields: `name`, `notes`, `is_public`, `folder_ids`.
 - **WHEN** an authenticated user sends `PUT /characters/:id` with invalid JSON
 - **THEN** the system returns 400
 
+#### Scenario: Update with valid verse_id bumps last_used_at
+- **WHEN** an authenticated user updates a character with a `verse_id` they own
+- **THEN** the system returns 200 and the verse's `last_used_at` is bumped to approximately now
+
+#### Scenario: Update with unowned verse_id returns 422
+- **WHEN** an authenticated user updates a character with a `verse_id` that does not exist or belongs to another user
+- **THEN** the system returns 422 with a structured validation error referencing `verse_id`
+
+#### Scenario: Clearing verse_id sets it to null
+- **WHEN** an authenticated user sends `PUT /characters/:id` with `"verse_id": null`
+- **THEN** the system returns 200 and the character's `verse_id` is null
+
 ---
 
 ### Requirement: Update character name must not be empty if provided
@@ -211,3 +249,16 @@ The system SHALL ensure that a user cannot read or modify characters belonging t
 #### Scenario: Cross-user access attempt
 - **WHEN** user B attempts to get, update, or delete a character owned by user A
 - **THEN** the system returns 404 (indistinguishable from not found)
+
+---
+
+### Requirement: Character response includes verse_id
+Every character response SHALL include a `verse_id` field: a UUID string when a verse is assigned, or `null` when none is.
+
+#### Scenario: Character with verse returns verse_id
+- **WHEN** a character with a verse assigned is returned by any read endpoint
+- **THEN** the response includes `verse_id` as a UUID string matching the assigned verse
+
+#### Scenario: Character without verse returns null verse_id
+- **WHEN** a character with no verse is returned by any read endpoint
+- **THEN** the response includes `verse_id: null`
