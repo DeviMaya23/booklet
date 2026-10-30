@@ -23,6 +23,7 @@ import (
 type spyArtpieceUsecase struct {
 	createResult *domain.Artpiece
 	createErr    error
+	lastCreate   usecase.CreateArtpieceParams
 
 	getByIDResult *domain.Artpiece
 	getByIDErr    error
@@ -32,6 +33,7 @@ type spyArtpieceUsecase struct {
 
 	updateResult *domain.Artpiece
 	updateErr    error
+	lastUpdate   usecase.UpdateArtpieceParams
 
 	deleteErr error
 
@@ -45,7 +47,8 @@ type spyArtpieceUsecase struct {
 	setCoverErr    error
 }
 
-func (s *spyArtpieceUsecase) Create(_ context.Context, _ uuid.UUID, _ usecase.CreateArtpieceParams) (*domain.Artpiece, error) {
+func (s *spyArtpieceUsecase) Create(_ context.Context, _ uuid.UUID, p usecase.CreateArtpieceParams) (*domain.Artpiece, error) {
+	s.lastCreate = p
 	return s.createResult, s.createErr
 }
 func (s *spyArtpieceUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artpiece, error) {
@@ -54,7 +57,8 @@ func (s *spyArtpieceUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID
 func (s *spyArtpieceUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListArtpieceFilters) ([]*domain.Artpiece, error) {
 	return s.listResult, s.listErr
 }
-func (s *spyArtpieceUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ usecase.UpdateArtpieceParams) (*domain.Artpiece, error) {
+func (s *spyArtpieceUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, p usecase.UpdateArtpieceParams) (*domain.Artpiece, error) {
+	s.lastUpdate = p
 	return s.updateResult, s.updateErr
 }
 func (s *spyArtpieceUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ bool) error {
@@ -467,6 +471,86 @@ func TestSetCover_FileNotInArtpiece(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+}
+
+// --- is_reference ---
+
+func TestCreateArtpiece_IsReferenceTrue_ResponseIncludesField(t *testing.T) {
+	a := makeArtpiece()
+	a.IsReference = true
+	spy := &spyArtpieceUsecase{createResult: a}
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/artpieces", h.CreateArtpiece)
+
+	body := `{"is_reference":true}`
+	req := httptest.NewRequest(http.MethodPost, "/artpieces", strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.True(t, spy.lastCreate.IsReference, "handler must pass IsReference=true to usecase")
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, true, got["is_reference"])
+}
+
+func TestCreateArtpiece_IsReferenceAbsent_ResponseFalse(t *testing.T) {
+	a := makeArtpiece()
+	spy := &spyArtpieceUsecase{createResult: a}
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.POST("/artpieces", h.CreateArtpiece)
+
+	req := httptest.NewRequest(http.MethodPost, "/artpieces", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.False(t, spy.lastCreate.IsReference)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Equal(t, false, got["is_reference"])
+}
+
+func TestUpdateArtpiece_IsReferenceFalse_PassedToUsecase(t *testing.T) {
+	a := makeArtpiece()
+	spy := &spyArtpieceUsecase{updateResult: a}
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PUT("/artpieces/:id", h.UpdateArtpiece)
+
+	body := `{"is_reference":false}`
+	req := httptest.NewRequest(http.MethodPut, "/artpieces/"+a.ID.String(), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.lastUpdate.IsReference, "IsReference must be set (not nil) when explicitly sent as false")
+	require.False(t, *spy.lastUpdate.IsReference)
+}
+
+func TestUpdateArtpiece_IsReferenceOmitted_NilInParams(t *testing.T) {
+	a := makeArtpiece()
+	spy := &spyArtpieceUsecase{updateResult: a}
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+
+	e := setupEcho(testUserID)
+	e.PUT("/artpieces/:id", h.UpdateArtpiece)
+
+	req := httptest.NewRequest(http.MethodPut, "/artpieces/"+a.ID.String(), strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Nil(t, spy.lastUpdate.IsReference, "omitting is_reference must produce nil — leave field unchanged")
 }
 
 // --- GetArtpieceByID file refs ---

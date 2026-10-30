@@ -12,14 +12,20 @@ interface FilterParams {
   selectedArtist: Artist | null
   selectedCharacters: { id: string; name: string }[]
   characterMatch: 'all' | 'any'
+  isReference: boolean
 }
 
 export function filterAndSortArtpieces(
   artpieces: ArtpieceSummary[],
-  { search, sort, selectedArtist, selectedCharacters, characterMatch }: FilterParams,
+  { search, sort, selectedArtist, selectedCharacters, characterMatch, isReference }: FilterParams,
 ): ArtpieceSummary[] {
   return artpieces
     .filter((a) => {
+      if (isReference) {
+        if (!a.is_reference) return false
+      } else {
+        if (a.is_reference) return false
+      }
       if (search.trim()) {
         if (a.title === null) return false
         if (!a.title.toLowerCase().includes(search.toLowerCase())) return false
@@ -72,6 +78,21 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   const matchParam = searchParams.get('match')
   const characterMatch: 'all' | 'any' = matchParam === 'any' ? 'any' : 'all'
 
+  const refParam = searchParams.get('ref')
+  const isReference = refParam === 'true'
+
+  function setIsReference(value: boolean) {
+    setSearchParams(
+      (prev) => {
+        const next = new URLSearchParams(prev)
+        if (value) next.set('ref', 'true')
+        else next.delete('ref')
+        return next
+      },
+      { replace: true },
+    )
+  }
+
   function setSelectedArtist(artist: Artist | null) {
     setSearchParams(
       (prev) => {
@@ -114,6 +135,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedArtist,
     selectedCharacters,
     characterMatch,
+    isReference,
   })
 
   return {
@@ -122,6 +144,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedArtist, setSelectedArtist,
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
+    isReference, setIsReference,
     filtered,
   }
 }

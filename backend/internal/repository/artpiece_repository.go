@@ -56,6 +56,9 @@ func (r *artpieceRepository) List(ctx context.Context, userID uuid.UUID, filters
 	if len(filters.ArtistIDs) > 0 {
 		q = q.Where("artpieces.artist_id::text IN ?", filters.ArtistIDs)
 	}
+	if filters.IsReference != nil {
+		q = q.Where("artpieces.is_reference = ?", *filters.IsReference)
+	}
 
 	err := q.Order("artpieces.created_at DESC").Find(&artpieces).Error
 	if err != nil {
@@ -83,6 +86,10 @@ func (r *artpieceRepository) Update(ctx context.Context, id uuid.UUID, userID uu
 	updates := map[string]interface{}{
 		"title": title,
 		"notes": notes,
+	}
+
+	if params.IsReference != nil {
+		updates["is_reference"] = *params.IsReference
 	}
 
 	if params.ArtistID == nil {

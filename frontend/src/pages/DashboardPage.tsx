@@ -50,6 +50,7 @@ function filterToHref(filter: SavedFilter): string {
   if (payload.artist_id) params.set('artist', payload.artist_id)
   if (payload.character_ids.length > 0) params.set('characters', payload.character_ids.join(','))
   if (payload.match_mode === 'any') params.set('match', 'any')
+  if (payload.is_reference) params.set('ref', 'true')
   const qs = params.toString()
   return qs ? `/app/artpieces?${qs}` : '/app/artpieces'
 }

@@ -9,6 +9,7 @@ export interface CreateSavedFilterParams {
     artist_id: string | null
     character_ids: string[]
     match_mode: 'all' | 'any'
+    is_reference: boolean
   }
 }
 
@@ -20,6 +21,7 @@ export interface SavedFilter {
     artist_id: string | null
     character_ids: string[]
     match_mode: 'all' | 'any'
+    is_reference: boolean
   }
   created_at: string
   updated_at: string

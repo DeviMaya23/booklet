@@ -8,6 +8,7 @@ export interface CreateArtpieceParams {
   artistId?: string | null
   characterIds: string[]
   fileIds: string[]
+  isReference?: boolean
 }
 
 export interface Artpiece {
@@ -33,6 +34,7 @@ export function useCreateArtpiece() {
           artist_id: params.artistId ?? null,
           character_ids: params.characterIds,
           file_ids: params.fileIds,
+          is_reference: params.isReference ?? false,
         }),
       })
       if (!res.ok) throw new Error('Failed to create artpiece')

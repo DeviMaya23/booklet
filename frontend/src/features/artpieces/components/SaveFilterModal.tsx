@@ -22,6 +22,7 @@ interface SaveFilterModalProps {
     artist: Artist | null
     characters: { id: string; name: string }[]
     matchMode: 'all' | 'any'
+    isReference: boolean
   }
   onSuccess: (savedFilter: SavedFilter) => void
 }
@@ -32,6 +33,7 @@ function buildFilterSummary(filterState: SaveFilterModalProps['filterState']): s
   if (filterState.characters.length > 0) {
     parts.push(`Characters: ${filterState.characters.map((c) => c.name).join(', ')} (${filterState.matchMode})`)
   }
+  if (filterState.isReference) parts.push('References only')
   return parts.length > 0 ? parts.join(' · ') : 'No filters'
 }
 
@@ -71,6 +73,7 @@ export default function SaveFilterModal({
           artist_id: filterState.artist?.id ?? null,
           character_ids: filterState.characters.map((c) => c.id),
           match_mode: filterState.matchMode,
+          is_reference: filterState.isReference,
         },
       })
       toast.success(`Filter "${result.name}" saved`)

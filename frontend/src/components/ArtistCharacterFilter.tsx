@@ -1,6 +1,7 @@
 import { type ReactNode } from 'react'
 import { Filter } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover'
 import TokenInput from '@/components/TokenInput'
 import { type Artist } from '@/features/artists/api/useArtists'
@@ -16,6 +17,8 @@ interface ArtistCharacterFilterProps {
   onCharactersChange: (chars: CharacterToken[]) => void
   characterMatch?: 'all' | 'any'
   onCharacterMatchChange?: (mode: 'all' | 'any') => void
+  isReference?: boolean
+  onIsReferenceChange?: (value: boolean) => void
   footerAction?: ReactNode
 }
 
@@ -23,6 +26,7 @@ function buildSummaryLabel(
   artist: Artist | null,
   characters: CharacterToken[],
   characterMatch?: 'all' | 'any',
+  isReference?: boolean,
 ): string {
   const parts: string[] = []
   if (artist) parts.push('1 artist')
@@ -30,6 +34,7 @@ function buildSummaryLabel(
     const charLabel = `${characters.length} character${characters.length > 1 ? 's' : ''}`
     parts.push(characterMatch ? `${charLabel}, ${characterMatch}` : charLabel)
   }
+  if (isReference) parts.push('references')
   return parts.length === 0 ? 'Filter' : parts.join(' · ')
 }
 
@@ -40,13 +45,15 @@ export default function ArtistCharacterFilter({
   onCharactersChange,
   characterMatch,
   onCharacterMatchChange,
+  isReference,
+  onIsReferenceChange,
   footerAction,
 }: ArtistCharacterFilterProps) {
   const charactersQuery = useCharacters()
   const allCharacters = (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
   const availableCharacters = allCharacters.filter((c) => !characters.some((sc) => sc.id === c.id))
 
-  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch)
+  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch, isReference)
   const showToggle = characterMatch !== undefined && onCharacterMatchChange !== undefined && characters.length >= 2
 
   return (
@@ -98,13 +105,28 @@ export default function ArtistCharacterFilter({
           )}
         </div>
 
-        {(artist !== null || characters.length > 0 || footerAction) && (
+        {isReference !== undefined && onIsReferenceChange !== undefined && (
           <div className="flex items-center justify-between">
-            {(artist !== null || characters.length > 0) ? (
+            <label htmlFor="filter-is-reference" className="text-sm font-medium cursor-pointer">References only</label>
+            <Checkbox
+              id="filter-is-reference"
+              checked={isReference}
+              onCheckedChange={(v) => onIsReferenceChange(v === true)}
+            />
+          </div>
+        )}
+
+        {(artist !== null || characters.length > 0 || isReference || footerAction) && (
+          <div className="flex items-center justify-between">
+            {(artist !== null || characters.length > 0 || isReference) ? (
               <button
                 type="button"
                 className="text-sm underline text-muted-foreground hover:text-foreground"
-                onClick={() => { onArtistChange(null); onCharactersChange([]) }}
+                onClick={() => {
+                  onArtistChange(null)
+                  onCharactersChange([])
+                  onIsReferenceChange?.(false)
+                }}
               >
                 Clear all
               </button>

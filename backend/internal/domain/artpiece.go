@@ -14,6 +14,7 @@ type Artpiece struct {
 	CoverFileID  *uuid.UUID  `gorm:"type:uuid;column:cover_file_id"`
 	CommissionID *uuid.UUID  `gorm:"type:uuid;column:commission_id"`
 	Notes        *string     `gorm:"type:text;column:notes"`
+	IsReference  bool        `gorm:"column:is_reference;not null;default:false"`
 	Artist       *Artist     `gorm:"foreignKey:ArtistID"`
 	CoverFile    *File       `gorm:"foreignKey:CoverFileID"`
 	Files        []File      `gorm:"foreignKey:ArtpieceID"`

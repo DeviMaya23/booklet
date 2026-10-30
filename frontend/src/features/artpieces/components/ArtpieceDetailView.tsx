@@ -6,6 +6,7 @@ import { useBlocker } from 'react-router-dom'
 import { ArrowLeft, Download, ExternalLink } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -56,6 +57,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [editNotes, setEditNotes] = useState('')
   const [editArtist, setEditArtist] = useState<Artist | null>(null)
   const [editCharacters, setEditCharacters] = useState<CharacterToken[]>([])
+  const [editIsReference, setEditIsReference] = useState(false)
   const [locallyRemovedIds, setLocallyRemovedIds] = useState<Set<string>>(new Set())
   const [pendingCoverFileId, setPendingCoverFileId] = useState<string | null>(null)
   const [uploadPlaceholders, setUploadPlaceholders] = useState<{ clientId: string }[]>([])
@@ -88,6 +90,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
     setEditArtist(cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null)
     setEditCharacters(artpiece.characters.map((c) => ({ id: c.id, name: c.name })))
+    setEditIsReference(artpiece.is_reference)
     setLocallyRemovedIds(new Set())
     setPendingCoverFileId(null)
     setMode('edit')
@@ -139,6 +142,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         notes: editNotes.trim() || null,
         artistId: editArtist?.id ?? null,
         characterIds: editCharacters.map((c) => c.id),
+        isReference: editIsReference,
       })
 
       if (locallyRemovedIds.size > 0) {
@@ -223,6 +227,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     if (charsChanged) parts.push('characters changed')
     if ((editTitle.trim() || null) !== artpiece.title) parts.push('title changed')
     if ((editNotes.trim() || null) !== artpiece.notes) parts.push('notes changed')
+    if (editIsReference !== artpiece.is_reference) parts.push('reference changed')
     return parts.length > 0 ? `Unsaved changes: ${parts.join(', ')}` : null
   }
 
@@ -384,6 +389,17 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                   rows={4}
                   disabled={isSaving}
                 />
+              </div>
+              <div className="flex items-center gap-2">
+                <Checkbox
+                  id="detail-is-reference"
+                  checked={editIsReference}
+                  onCheckedChange={(v) => setEditIsReference(v === true)}
+                  disabled={isSaving}
+                />
+                <label className="text-sm font-medium cursor-pointer" htmlFor="detail-is-reference">
+                  This is a reference
+                </label>
               </div>
             </div>
           )}

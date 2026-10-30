@@ -99,12 +99,13 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 	}
 
 	artpiece := &domain.Artpiece{
-		ID:         uuid.New(),
-		UserID:     userID,
-		Title:      params.Title,
-		ArtistID:   params.ArtistID,
-		Notes:      params.Notes,
-		Characters: characters,
+		ID:          uuid.New(),
+		UserID:      userID,
+		Title:       params.Title,
+		ArtistID:    params.ArtistID,
+		Notes:       params.Notes,
+		IsReference: params.IsReference,
+		Characters:  characters,
 	}
 
 	created, err := u.artpieceRepo.Create(ctx, artpiece)

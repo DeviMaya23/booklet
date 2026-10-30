@@ -126,6 +126,105 @@ func TestArtpieceRepository_List_CoverFileFieldsAccessible(t *testing.T) {
 	assert.Equal(t, "cover.jpg", *results[0].CoverFile.Name)
 }
 
+func TestArtpieceRepository_Create_IsReferencePersisted(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	a := &domain.Artpiece{
+		ID:          uuid.New(),
+		UserID:      user.ID,
+		IsReference: true,
+	}
+	created, err := repo.Create(context.Background(), a)
+
+	require.NoError(t, err)
+	assert.True(t, created.IsReference)
+}
+
+func TestArtpieceRepository_Update_IsReferenceFromTrueToFalse(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	a := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: true}
+	require.NoError(t, tx.Create(a).Error)
+
+	f := false
+	updated, err := repo.Update(context.Background(), a.ID, user.ID, usecase.UpdateArtpieceParams{
+		IsReference: &f,
+	})
+
+	require.NoError(t, err)
+	assert.False(t, updated.IsReference)
+}
+
+func TestArtpieceRepository_Update_IsReferenceOmittedLeavesUnchanged(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	a := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: true}
+	require.NoError(t, tx.Create(a).Error)
+
+	updated, err := repo.Update(context.Background(), a.ID, user.ID, usecase.UpdateArtpieceParams{})
+
+	require.NoError(t, err)
+	assert.True(t, updated.IsReference, "omitting IsReference must leave the field unchanged")
+}
+
+func TestArtpieceRepository_List_NoFilterReturnsBothKinds(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	ref := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: true}
+	normal := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: false}
+	require.NoError(t, tx.Create(ref).Error)
+	require.NoError(t, tx.Create(normal).Error)
+
+	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{})
+
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+}
+
+func TestArtpieceRepository_List_IsReferenceTrue_ReturnsOnlyReferences(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	ref := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: true}
+	normal := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: false}
+	require.NoError(t, tx.Create(ref).Error)
+	require.NoError(t, tx.Create(normal).Error)
+
+	v := true
+	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{IsReference: &v})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, ref.ID, results[0].ID)
+}
+
+func TestArtpieceRepository_List_IsReferenceFalse_ReturnsOnlyNonReferences(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	ref := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: true}
+	normal := &domain.Artpiece{ID: uuid.New(), UserID: user.ID, IsReference: false}
+	require.NoError(t, tx.Create(ref).Error)
+	require.NoError(t, tx.Create(normal).Error)
+
+	v := false
+	results, err := repo.List(context.Background(), user.ID, usecase.ListArtpieceFilters{IsReference: &v})
+
+	require.NoError(t, err)
+	require.Len(t, results, 1)
+	assert.Equal(t, normal.ID, results[0].ID)
+}
+
 func TestArtpieceRepository_Delete_DoesNotCascadeToFiles(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	artpieceRepo := NewArtpieceRepository(tx)

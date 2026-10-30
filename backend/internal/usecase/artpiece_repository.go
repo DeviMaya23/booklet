@@ -48,6 +48,7 @@ type ArtpieceFileRepository interface {
 type ListArtpieceFilters struct {
 	CharacterIDs []uuid.UUID `query:"character_ids"`
 	ArtistIDs    []uuid.UUID `query:"artist_ids"`
+	IsReference  *bool       `query:"is_reference"`
 }
 
 type CreateArtpieceParams struct {
@@ -56,6 +57,7 @@ type CreateArtpieceParams struct {
 	Notes        *string
 	CharacterIDs []uuid.UUID
 	FileIDs      []uuid.UUID
+	IsReference  bool
 }
 
 type UpdateArtpieceParams struct {
@@ -63,6 +65,7 @@ type UpdateArtpieceParams struct {
 	ArtistID     *uuid.UUID
 	Notes        *string
 	CharacterIDs []uuid.UUID
+	IsReference  *bool
 }
 
 var (
