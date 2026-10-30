@@ -39,6 +39,10 @@ Read these before the work type they cover — not all at once, only the relevan
 
 `frontend/CLAUDE.md` and `backend/CLAUDE.md` are loaded automatically — they contain critical constraints for each side that override common defaults.
 
+## OpenSpec Proposals
+
+- Before starting a new proposal, pull the latest main branch and checkout from there
+- Branch name format: `feat/<spec-name-here>`
 
 ## Decision Boundaries
 
