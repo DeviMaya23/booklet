@@ -20,6 +20,7 @@ export interface ArtpieceSummary {
   cover_file_mime_type: string | null
   cover_file_name: string | null
   notes: string | null
+  is_reference: boolean
   characters: ArtpieceCharacter[]
   created_at: string
   updated_at: string

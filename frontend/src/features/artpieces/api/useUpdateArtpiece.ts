@@ -10,6 +10,7 @@ export interface UpdateArtpieceParams {
   notes: string | null
   artistId: string | null
   characterIds: string[]
+  isReference?: boolean
 }
 
 export function useUpdateArtpiece() {
@@ -17,7 +18,7 @@ export function useUpdateArtpiece() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, title, notes, artistId, characterIds }: UpdateArtpieceParams) => {
+    mutationFn: async ({ id, title, notes, artistId, characterIds, isReference }: UpdateArtpieceParams) => {
       const res = await apiFetch(`/artpieces/${id}`, getToken, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -26,6 +27,7 @@ export function useUpdateArtpiece() {
           notes,
           artist_id: artistId,
           character_ids: characterIds,
+          ...(isReference !== undefined && { is_reference: isReference }),
         }),
       })
       if (!res.ok) throw new Error('Failed to update artpiece')

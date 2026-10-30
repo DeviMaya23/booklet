@@ -1,5 +1,6 @@
 import { render, screen } from '@testing-library/react'
-import { vi, describe, it, expect } from 'vitest'
+import userEvent from '@testing-library/user-event'
+import { vi, describe, it, expect, beforeEach } from 'vitest'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import ArtpieceDetailView from './ArtpieceDetailView'
@@ -14,8 +15,10 @@ vi.mock('../api/useArtpiece', () => ({
   artpieceQueryKey: (id: string) => ['artpieces', id],
 }))
 
+const mockMutateAsync = vi.fn().mockResolvedValue({})
+
 vi.mock('../api/useUpdateArtpiece', () => ({
-  useUpdateArtpiece: () => ({ mutateAsync: vi.fn(), isPending: false }),
+  useUpdateArtpiece: () => ({ mutateAsync: mockMutateAsync, isPending: false }),
 }))
 vi.mock('../api/useSetCover', () => ({
   useSetCover: () => ({ mutateAsync: vi.fn(), isPending: false }),
@@ -49,6 +52,11 @@ vi.mock('@/features/files/components/FileViewer', () => ({
 }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
 
+beforeEach(() => {
+  vi.clearAllMocks()
+  mockMutateAsync.mockResolvedValue({})
+})
+
 let mockArtpiece: ArtpieceDetail
 
 const baseArtpiece: ArtpieceDetail = {
@@ -60,6 +68,7 @@ const baseArtpiece: ArtpieceDetail = {
   cover_file_id: null,
   thumbnail_url: null,
   notes: null,
+  is_reference: false,
   characters: [],
   files: [],
   created_at: '2024-01-01T00:00:00Z',
@@ -93,5 +102,52 @@ describe('ArtpieceDetailView — artist link', () => {
     mockArtpiece = { ...baseArtpiece, artist_name: 'Alice' }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
     expect(screen.getByText('Alice')).toBeInTheDocument()
+  })
+})
+
+describe('ArtpieceDetailView — is_reference checkbox', () => {
+  it('initializes checkbox unchecked when artpiece.is_reference is false', async () => {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece, is_reference: false }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    expect(screen.getByRole('checkbox', { name: /this is a reference/i })).not.toBeChecked()
+  })
+
+  it('initializes checkbox checked when artpiece.is_reference is true', async () => {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece, is_reference: true }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    expect(screen.getByRole('checkbox', { name: /this is a reference/i })).toBeChecked()
+  })
+
+  it('passes isReference: true to mutateAsync when checkbox is checked on save', async () => {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece, is_reference: false }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ isReference: true }))
+  })
+
+  it('passes isReference: false to mutateAsync when checkbox is unchecked on save', async () => {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece, is_reference: true }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ isReference: false }))
+  })
+
+  it('toggling checkbox alone makes unsaved changes summary non-null', async () => {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece, is_reference: false }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
+    expect(screen.getByText(/reference changed/i)).toBeInTheDocument()
   })
 })

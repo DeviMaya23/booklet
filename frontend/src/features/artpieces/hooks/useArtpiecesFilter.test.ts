@@ -58,6 +58,7 @@ function makeArtpiece(overrides: Partial<ArtpieceSummary>): ArtpieceSummary {
     cover_file_mime_type: null,
     cover_file_name: null,
     notes: null,
+    is_reference: false,
     characters: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -75,6 +76,7 @@ const defaults = {
   selectedArtist: null,
   selectedCharacters: [],
   characterMatch: 'all' as const,
+  isReference: false,
 }
 
 beforeEach(() => {
@@ -142,6 +144,32 @@ describe('filterAndSortArtpieces — character filter', () => {
   })
 })
 
+describe('filterAndSortArtpieces — isReference filter', () => {
+  const apNormal = makeArtpiece({ id: 'ap-normal', title: 'Normal', is_reference: false })
+  const apRef = makeArtpiece({ id: 'ap-ref', title: 'Ref', is_reference: true })
+
+  it('toggle off (default) hides references', () => {
+    const result = filterAndSortArtpieces([apNormal, apRef], { ...defaults, isReference: false })
+    expect(result).toEqual([apNormal])
+  })
+
+  it('toggle on shows only references', () => {
+    const result = filterAndSortArtpieces([apNormal, apRef], { ...defaults, isReference: true })
+    expect(result).toEqual([apRef])
+  })
+
+  it('other filters still apply when toggle is on', () => {
+    const apRefAlice = makeArtpiece({ id: 'ap-ref-alice', title: 'Ref Alice', is_reference: true, artist_id: artist1.id })
+    const apRefBob = makeArtpiece({ id: 'ap-ref-bob', title: 'Ref Bob', is_reference: true, artist_id: artist2.id })
+    const result = filterAndSortArtpieces([apRefAlice, apRefBob], {
+      ...defaults,
+      isReference: true,
+      selectedArtist: artist1,
+    })
+    expect(result).toEqual([apRefAlice])
+  })
+})
+
 describe('filterAndSortArtpieces — combined filters', () => {
   it('artist and character filters are AND-combined', () => {
     const apAliceWithChar = makeArtpiece({ id: 'ap-alice-char', title: 'X', artist_id: artist1.id, characters: [charA] })
@@ -202,6 +230,17 @@ describe('useArtpiecesFilter — URL param hydration', () => {
     expect(result.current.selectedCharacters).toHaveLength(0)
     expect(result.current.characterMatch).toBe('all')
   })
+
+  it('absent ref param defaults isReference to false', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.isReference).toBe(false)
+  })
+
+  it('ref=true restores isReference to true', () => {
+    mockSearchParams = new URLSearchParams({ ref: 'true' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.isReference).toBe(true)
+  })
 })
 
 describe('useArtpiecesFilter — filter changes update URL', () => {
@@ -243,5 +282,18 @@ describe('useArtpiecesFilter — filter changes update URL', () => {
     const { result } = renderHook(() => useArtpiecesFilter([]))
     act(() => result.current.setCharacterMatch('all'))
     expect(mockSearchParams.has('match')).toBe(false)
+  })
+
+  it('setIsReference(true) sets ref param', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setIsReference(true))
+    expect(mockSearchParams.get('ref')).toBe('true')
+  })
+
+  it('setIsReference(false) removes ref param', () => {
+    mockSearchParams = new URLSearchParams({ ref: 'true' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setIsReference(false))
+    expect(mockSearchParams.has('ref')).toBe(false)
   })
 })

@@ -2,6 +2,7 @@ export interface FilterPayload {
   artist_id: string | null
   character_ids: string[]
   match_mode: 'all' | 'any'
+  is_reference: boolean
 }
 
 export function parseFilterPayload(raw: unknown): FilterPayload | null {
@@ -13,6 +14,7 @@ export function parseFilterPayload(raw: unknown): FilterPayload | null {
     ? p.character_ids.filter((id): id is string => typeof id === 'string')
     : []
   const match_mode: 'all' | 'any' = p.match_mode === 'any' ? 'any' : 'all'
+  const is_reference = p.is_reference === true
 
-  return { artist_id, character_ids, match_mode }
+  return { artist_id, character_ids, match_mode, is_reference }
 }

@@ -31,6 +31,7 @@ function makeArtpiece(id: string, title: string, thumbnailUrl: string | null = n
     cover_file_mime_type: null,
     cover_file_name: null,
     notes: null,
+    is_reference: false,
     characters: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
@@ -41,6 +42,7 @@ const baseFilter = {
   artist: null,
   characters: [] as { id: string; name: string }[],
   matchMode: 'all' as const,
+  isReference: false,
 }
 
 const onOpenChange = vi.fn()
@@ -143,7 +145,7 @@ describe('SaveFilterModal — successful save', () => {
       id: 'sf-1',
       name: 'My Filter',
       thumbnail_url: null,
-      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all' },
+      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false },
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     }

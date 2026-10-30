@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Input } from '@/components/ui/input'
 import { Textarea } from '@/components/ui/textarea'
 import {
@@ -49,6 +50,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
   const [fileIds, setFileIds] = useState<string[]>([])
+  const [isReference, setIsReference] = useState(false)
   const [hasUploading, setHasUploading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [artistModalOpen, setArtistModalOpen] = useState(false)
@@ -76,6 +78,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
     setSelectedArtist(null)
     setSelectedCharacters([])
     setFileIds([])
+    setIsReference(false)
     setHasUploading(false)
   }
 
@@ -90,6 +93,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
       selectedArtist !== null ||
       selectedCharacters.length > 0 ||
       fileIds.length > 0 ||
+      isReference ||
       hasUploading
     )
   }
@@ -114,6 +118,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
         artistId: selectedArtist?.id ?? null,
         characterIds: selectedCharacters.map((c) => c.id),
         fileIds,
+        isReference,
       })
       await queryClient.invalidateQueries({ queryKey: FILES_QUERY_KEY })
       toast.success('Artpiece created')
@@ -173,6 +178,19 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
                 rows={3}
                 disabled={isSubmitting}
               />
+            </div>
+
+            {/* Reference */}
+            <div className="flex items-center gap-2">
+              <Checkbox
+                id="artpiece-is-reference"
+                checked={isReference}
+                onCheckedChange={(v) => setIsReference(v === true)}
+                disabled={isSubmitting}
+              />
+              <label className="text-sm font-medium cursor-pointer" htmlFor="artpiece-is-reference">
+                This is a reference
+              </label>
             </div>
 
             {/* Artist */}

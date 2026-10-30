@@ -45,6 +45,7 @@ interface SavedFilterSnapshot {
   artistId: string | null
   characterIds: string[]
   matchMode: 'all' | 'any'
+  isReference: boolean
 }
 
 function snapshotMatchesCurrent(
@@ -52,8 +53,10 @@ function snapshotMatchesCurrent(
   artistId: string | null,
   characterIds: string[],
   matchMode: 'all' | 'any',
+  isReference: boolean,
 ): boolean {
   if (snapshot.artistId !== artistId || snapshot.matchMode !== matchMode) return false
+  if (snapshot.isReference !== isReference) return false
   if (snapshot.characterIds.length !== characterIds.length) return false
   const current = new Set(characterIds)
   return snapshot.characterIds.every((id) => current.has(id))
@@ -109,10 +112,11 @@ export default function ArtpiecesPage() {
     selectedArtist, setSelectedArtist,
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
+    isReference, setIsReference,
     filtered,
   } = useArtpiecesFilter(artpieces ?? [])
 
-  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0
+  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0 || isReference
   const currentCharacterIds = selectedCharacters.map((c) => c.id)
 
   const snapshotMatches = savedFilterSnapshot !== null && snapshotMatchesCurrent(
@@ -120,6 +124,7 @@ export default function ArtpiecesPage() {
     selectedArtist?.id ?? null,
     currentCharacterIds,
     characterMatch,
+    isReference,
   )
 
   function handleTileSizeChange(size: TileSize) {
@@ -138,6 +143,7 @@ export default function ArtpiecesPage() {
       artistId: selectedArtist?.id ?? null,
       characterIds: currentCharacterIds,
       matchMode: characterMatch,
+      isReference,
     })
   }
 
@@ -155,6 +161,11 @@ export default function ArtpiecesPage() {
   function handleMatchChange(mode: 'all' | 'any') {
     setSavedFilterSnapshot(null)
     setCharacterMatch(mode)
+  }
+
+  function handleIsReferenceChange(value: boolean) {
+    setSavedFilterSnapshot(null)
+    setIsReference(value)
   }
 
   const saveButton = hasActiveFilter ? (
@@ -217,6 +228,8 @@ export default function ArtpiecesPage() {
             onCharactersChange={handleCharactersChange}
             characterMatch={characterMatch}
             onCharacterMatchChange={handleMatchChange}
+            isReference={isReference}
+            onIsReferenceChange={handleIsReferenceChange}
             footerAction={saveButton}
           />
 
@@ -323,6 +336,7 @@ export default function ArtpiecesPage() {
             artist: selectedArtist,
             characters: selectedCharacters,
             matchMode: characterMatch,
+            isReference,
           }}
           onSuccess={handleSaveFilterSuccess}
         />

@@ -23,6 +23,7 @@ export interface ArtpieceDetail {
   cover_file_id: string | null
   thumbnail_url: string | null
   notes: string | null
+  is_reference: boolean
   characters: ArtpieceCharacter[]
   files: ArtpieceFile[]
   created_at: string

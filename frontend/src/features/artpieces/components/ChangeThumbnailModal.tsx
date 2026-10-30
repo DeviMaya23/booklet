@@ -43,6 +43,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
       selectedArtist: artist,
       selectedCharacters: payload.character_ids.map((id) => ({ id, name: '' })),
       characterMatch: payload.match_mode,
+      isReference: payload.is_reference,
     }).slice(0, MAX_PICKER_ITEMS)
   }, [artpiecesQuery.data, artistsQuery.data, payload])
 
@@ -54,6 +55,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
     const parts: string[] = []
     if (payload.artist_id) parts.push('by artist')
     if (payload.character_ids.length > 0) parts.push(`${payload.character_ids.length} character${payload.character_ids.length > 1 ? 's' : ''}`)
+    if (payload.is_reference) parts.push('references only')
     return parts.length > 0 ? parts.join(', ') : 'All artpieces'
   }, [payload, filter.name])
 

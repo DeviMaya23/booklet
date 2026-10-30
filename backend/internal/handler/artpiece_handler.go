@@ -47,6 +47,7 @@ type createArtpieceRequest struct {
 	Notes        *string     `json:"notes"`
 	CharacterIDs []uuid.UUID `json:"character_ids"`
 	FileIDs      []uuid.UUID `json:"file_ids"`
+	IsReference  bool        `json:"is_reference"`
 }
 
 type replaceFilesRequest struct {
@@ -58,6 +59,7 @@ type updateArtpieceRequest struct {
 	ArtistID     *uuid.UUID  `json:"artist_id"`
 	Notes        *string     `json:"notes"`
 	CharacterIDs []uuid.UUID `json:"character_ids"`
+	IsReference  *bool       `json:"is_reference"`
 }
 
 type setCoverRequest struct {
@@ -93,6 +95,7 @@ type artpieceResponse struct {
 	CoverFileMimeType *string        `json:"cover_file_mime_type"`
 	CoverFileName     *string        `json:"cover_file_name"`
 	Notes             *string        `json:"notes"`
+	IsReference       bool           `json:"is_reference"`
 	Characters        []characterRef `json:"characters"`
 	Files             []fileRef      `json:"files"`
 	CreatedAt         string         `json:"created_at"`
@@ -122,6 +125,7 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
 		FileIDs:      req.FileIDs,
+		IsReference:  req.IsReference,
 	})
 	if err != nil {
 		if errors.Is(err, usecase.ErrArtistNotOwned) {
@@ -257,6 +261,7 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
+		IsReference:  req.IsReference,
 	})
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
@@ -542,6 +547,7 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, coverFileURL *
 		CoverFileMimeType: coverFileMimeType,
 		CoverFileName:     coverFileName,
 		Notes:             a.Notes,
+		IsReference:       a.IsReference,
 		Characters:        chars,
 		Files:             files,
 		CreatedAt:         a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
