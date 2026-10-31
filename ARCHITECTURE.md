@@ -112,3 +112,24 @@ top level of `internal/`.
 
 `repository/` may contain ORM infrastructure files (e.g. a custom GORM logger)
 alongside repository implementations. These do not need to move to `platform/`.
+
+### Database Migrations
+
+Migrations live in `backend/migration/` as numbered SQL pairs, applied with
+`golang-migrate`.
+
+- **Numbering**: the next migration number is the highest existing one + 1,
+  zero-padded to 6 digits (check with `ls backend/migration | tail -1`).
+  Example: `000037_<description>.up.sql` / `000037_<description>.down.sql`.
+- **Every migration needs both files.** The `.down.sql` must actually reverse
+  the `.up.sql` (drop what was added, restore what was dropped) — not a
+  no-op stub.
+- **Migrations and GORM structs change together.** This codebase does not use
+  `AutoMigrate`; the struct tags in `internal/domain/*.go` are the
+  hand-maintained mirror of the schema. A migration that adds, renames, or
+  drops a column must update the corresponding domain struct in the same
+  change — and a new or changed domain field needs a migration. Column names
+  in the migration must match the struct's `column:` tag exactly.
+- **Migrations auto-apply on merge to `main`** via
+  `.github/workflows/migrate.yml` — there is no manual `migrate up` step in
+  deployment. A bad `down.sql` is a production risk, not just local cleanup.
