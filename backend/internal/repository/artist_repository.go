@@ -95,18 +95,24 @@ func (r *artistRepository) Update(ctx context.Context, id uuid.UUID, userID uuid
 		return nil, gorm.ErrRecordNotFound
 	}
 
-	links := make([]domain.ArtistLink, len(params.Links))
-	for i, l := range params.Links {
-		links[i] = domain.ArtistLink{
-			ID:        uuid.New(),
-			ArtistID:  id,
-			URL:       l.URL,
-			IsPrimary: l.IsPrimary,
-		}
+	// Delete + insert rather than Association.Replace: Replace nulls the FK of
+	// removed rows, which violates artist_links.artist_id NOT NULL.
+	if err := db.Where("artist_id = ?", id).Delete(&domain.ArtistLink{}).Error; err != nil {
+		return nil, fmt.Errorf("delete artist links: %w", err)
 	}
-	artist := domain.Artist{ID: id}
-	if err := db.Model(&artist).Association("Links").Replace(links); err != nil {
-		return nil, fmt.Errorf("replace artist links: %w", err)
+	if len(params.Links) > 0 {
+		links := make([]domain.ArtistLink, len(params.Links))
+		for i, l := range params.Links {
+			links[i] = domain.ArtistLink{
+				ID:        uuid.New(),
+				ArtistID:  id,
+				URL:       l.URL,
+				IsPrimary: l.IsPrimary,
+			}
+		}
+		if err := db.Create(&links).Error; err != nil {
+			return nil, fmt.Errorf("insert artist links: %w", err)
+		}
 	}
 
 	return r.GetByID(ctx, id, userID)
