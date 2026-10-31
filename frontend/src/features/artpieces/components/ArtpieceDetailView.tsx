@@ -3,7 +3,7 @@ import FileViewer, { type ViewerFile } from '@/features/files/components/FileVie
 import { useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { useBlocker } from 'react-router-dom'
-import { ArrowLeft, Download, ExternalLink } from 'lucide-react'
+import { ArrowLeft, Download, ExternalLink, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -27,6 +27,7 @@ import { useSetCover } from '../api/useSetCover'
 import { useAttachFilesToArtpiece } from '../api/useAttachFilesToArtpiece'
 import { ARTISTS_QUERY_KEY, type Artist } from '@/features/artists/api/useArtists'
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
+import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
 import { useCharacters } from '@/features/characters/api/useCharacters'
 import { useInitFileUpload } from '@/features/files/api/useInitFileUpload'
 import { useCompleteFileUpload } from '@/features/files/api/useCompleteFileUpload'
@@ -56,6 +57,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [editTitle, setEditTitle] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editArtist, setEditArtist] = useState<Artist | null>(null)
+  const [artistModalOpen, setArtistModalOpen] = useState(false)
   const [editCharacters, setEditCharacters] = useState<CharacterToken[]>([])
   const [editIsReference, setEditIsReference] = useState(false)
   const [locallyRemovedIds, setLocallyRemovedIds] = useState<Set<string>>(new Set())
@@ -367,7 +369,21 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               <div className="grid grid-cols-2 gap-3">
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Artist</label>
-                  <ArtistCombobox value={editArtist} onChange={setEditArtist} disabled={isSaving} />
+                  <div className="flex gap-2">
+                    <div className="flex-1">
+                      <ArtistCombobox value={editArtist} onChange={setEditArtist} disabled={isSaving} />
+                    </div>
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="icon"
+                      aria-label="Add artist"
+                      onClick={() => setArtistModalOpen(true)}
+                      disabled={isSaving}
+                    >
+                      <Plus className="size-4" />
+                    </Button>
+                  </div>
                 </div>
                 <div className="flex flex-col gap-1.5">
                   <label className="text-sm font-medium">Characters</label>
@@ -528,6 +544,12 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
           Delete artpiece
         </button>
       )}
+
+      <ArtistFormModal
+        open={artistModalOpen}
+        onOpenChange={setArtistModalOpen}
+        onCreated={(artist) => setEditArtist(artist)}
+      />
 
       <DeleteArtpieceDialog
         artpieceId={artpieceId}

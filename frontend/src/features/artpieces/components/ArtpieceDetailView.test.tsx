@@ -39,7 +39,36 @@ vi.mock('@/features/characters/api/useCharacters', () => ({
   useCharacters: () => ({ data: [], isPending: false }),
 }))
 vi.mock('@/features/artists/components/ArtistCombobox', () => ({
-  default: () => null,
+  default: ({ value }: { value: { name: string } | null }) => (
+    <div data-testid="artist-combobox">{value?.name ?? 'no artist'}</div>
+  ),
+}))
+vi.mock('@/features/artists/components/ArtistFormModal', () => ({
+  default: ({
+    open,
+    onOpenChange,
+    onCreated,
+  }: {
+    open: boolean
+    onOpenChange: (open: boolean) => void
+    onCreated?: (artist: { id: string; name: string }) => void
+  }) =>
+    open ? (
+      <div role="dialog" aria-label="Artist form">
+        <button
+          type="button"
+          onClick={() => {
+            onCreated?.({ id: 'a2', name: 'Bob' })
+            onOpenChange(false)
+          }}
+        >
+          Create artist
+        </button>
+        <button type="button" onClick={() => onOpenChange(false)}>
+          Close artist form
+        </button>
+      </div>
+    ) : null,
 }))
 vi.mock('./ArtpieceDetailFileGrid', () => ({
   default: () => null,
@@ -149,5 +178,58 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     await user.click(screen.getByRole('button', { name: /edit/i }))
     await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
     expect(screen.getByText(/reference changed/i)).toBeInTheDocument()
+  })
+})
+
+describe('ArtpieceDetailView — add artist from edit mode', () => {
+  async function enterEdit() {
+    const user = userEvent.setup()
+    mockArtpiece = { ...baseArtpiece }
+    renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
+    await user.click(screen.getByRole('button', { name: /edit/i }))
+    return user
+  }
+
+  it('opens the artist-creation modal and keeps unsaved form values', async () => {
+    const user = await enterEdit()
+    const title = screen.getByDisplayValue('Sunrise')
+    await user.clear(title)
+    await user.type(title, 'Sunset')
+    await user.click(screen.getByRole('button', { name: /add artist/i }))
+    expect(screen.getByRole('dialog', { name: /artist form/i })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: /close artist form/i }))
+    expect(screen.getByDisplayValue('Sunset')).toBeInTheDocument()
+  })
+
+  it('selects the created artist and reports it as an unsaved change', async () => {
+    const user = await enterEdit()
+    await user.click(screen.getByRole('button', { name: /add artist/i }))
+    await user.click(screen.getByRole('button', { name: /create artist/i }))
+    expect(screen.getByTestId('artist-combobox')).toHaveTextContent('Bob')
+    expect(screen.getByText(/artist changed/i)).toBeInTheDocument()
+    expect(mockMutateAsync).not.toHaveBeenCalled()
+  })
+
+  it('saves the created artist id', async () => {
+    const user = await enterEdit()
+    await user.click(screen.getByRole('button', { name: /add artist/i }))
+    await user.click(screen.getByRole('button', { name: /create artist/i }))
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ artistId: 'a2' }))
+  })
+
+  it('keeps the selected artist when the modal is closed without creating', async () => {
+    const user = await enterEdit()
+    await user.click(screen.getByRole('button', { name: /add artist/i }))
+    await user.click(screen.getByRole('button', { name: /close artist form/i }))
+    expect(screen.getByTestId('artist-combobox')).toHaveTextContent('no artist')
+    expect(screen.queryByText(/unsaved changes/i)).toBeNull()
+  })
+
+  it('disables the add button while saving', async () => {
+    mockMutateAsync.mockReturnValue(new Promise(() => {}))
+    const user = await enterEdit()
+    await user.click(screen.getByRole('button', { name: /^save$/i }))
+    expect(screen.getByRole('button', { name: /add artist/i })).toBeDisabled()
   })
 })
