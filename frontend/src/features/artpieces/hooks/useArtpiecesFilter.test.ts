@@ -29,12 +29,23 @@ vi.mock('@/features/characters/api/useCharacters', () => ({
 }))
 
 let mockSearchParams = new URLSearchParams()
-const setSearchParamsMock = vi.fn((updater: (prev: URLSearchParams) => URLSearchParams) => {
-  mockSearchParams = updater(mockSearchParams)
+// Params handed to the hook on its last render. React Router's setSearchParams
+// closes over these, so the updater form never sees the result of an earlier
+// call in the same event — the mock has to behave the same way or it hides
+// setters that undo each other.
+let renderedSearchParams = mockSearchParams
+type SearchParamsInit = URLSearchParams | ((prev: URLSearchParams) => URLSearchParams)
+const setSearchParamsMock = vi.fn((next: SearchParamsInit) => {
+  mockSearchParams = typeof next === 'function'
+    ? next(new URLSearchParams(renderedSearchParams))
+    : new URLSearchParams(next)
 })
 
 vi.mock('react-router-dom', () => ({
-  useSearchParams: () => [mockSearchParams, setSearchParamsMock],
+  useSearchParams: () => {
+    renderedSearchParams = mockSearchParams
+    return [mockSearchParams, setSearchParamsMock]
+  },
 }))
 
 // --- Test data ---
@@ -79,9 +90,22 @@ const defaults = {
   isReference: false,
 }
 
+let localStore: Record<string, string> = {}
+const localStorageMock = {
+  getItem: vi.fn((key: string) => localStore[key] ?? null),
+  setItem: vi.fn((key: string, value: string) => { localStore[key] = value }),
+  removeItem: vi.fn((key: string) => { delete localStore[key] }),
+  clear: vi.fn(() => { localStore = {} }),
+}
+vi.stubGlobal('localStorage', localStorageMock)
+
 beforeEach(() => {
+  localStore = {}
   mockSearchParams = new URLSearchParams()
+  renderedSearchParams = mockSearchParams
   setSearchParamsMock.mockClear()
+  localStorageMock.getItem.mockClear()
+  localStorageMock.setItem.mockClear()
   mockArtistData = mockArtists
   mockCharacterData = mockCharacters
 })
@@ -295,5 +319,157 @@ describe('useArtpiecesFilter — filter changes update URL', () => {
     const { result } = renderHook(() => useArtpiecesFilter([]))
     act(() => result.current.setIsReference(false))
     expect(mockSearchParams.has('ref')).toBe(false)
+  })
+})
+
+// --- localStorage persistence tests ---
+
+const FILTER_KEY = 'artpieces.filterState'
+
+describe('useArtpiecesFilter — mount with no URL params restores from localStorage', () => {
+  it('calls setSearchParams to restore stored artist when URL has no filter params', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(setSearchParamsMock).toHaveBeenCalled()
+    expect(mockSearchParams.get('artist')).toBe('artist-1')
+  })
+
+  it('calls setSearchParams to restore stored characters when URL has no filter params', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'any', isReference: false })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(mockSearchParams.get('characters')).toBe('char-a,char-b')
+    expect(mockSearchParams.get('match')).toBe('any')
+  })
+
+  it('calls setSearchParams to restore isReference when URL has no filter params', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(mockSearchParams.get('ref')).toBe('true')
+  })
+})
+
+describe('useArtpiecesFilter — mount with URL params writes to localStorage', () => {
+  it('writes URL-derived state to localStorage when arriving with filter params', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1', characters: 'char-a', match: 'any' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: 'artist-1', characterIds: ['char-a'], matchMode: 'any', isReference: false }),
+    )
+  })
+
+  it('writes isReference state to localStorage when ref param is present', () => {
+    mockSearchParams = new URLSearchParams({ ref: 'true' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true }),
+    )
+  })
+})
+
+describe('useArtpiecesFilter — setters write to localStorage', () => {
+  it('setSelectedArtist writes full filter state to localStorage', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedArtist(artist1))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false }),
+    )
+  })
+
+  it('setSelectedCharacters writes full filter state to localStorage', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedCharacters([charA, charB]))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'all', isReference: false }),
+    )
+  })
+
+  it('setCharacterMatch writes full filter state to localStorage', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setCharacterMatch('any'))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'any', isReference: false }),
+    )
+  })
+
+  it('setIsReference writes full filter state to localStorage', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setIsReference(true))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true }),
+    )
+  })
+})
+
+describe('useArtpiecesFilter — mount with no params and no localStorage', () => {
+  it('does not call setSearchParams when localStorage is empty and URL has no filter params', () => {
+    renderHook(() => useArtpiecesFilter([]))
+    expect(setSearchParamsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('useArtpiecesFilter — clearing filter writes empty state to localStorage', () => {
+  it('setSelectedArtist(null) with no other filters writes empty state', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedArtist(null))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false }),
+    )
+  })
+})
+
+describe('useArtpiecesFilter — several setters in one event', () => {
+  // "Clear all" calls setSelectedArtist, setSelectedCharacters and setIsReference
+  // in a single click handler; each one has to survive the others.
+  it('"Clear all" removes the artist, characters and ref params together', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1', characters: 'char-a,char-b', ref: 'true' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => {
+      result.current.setSelectedArtist(null)
+      result.current.setSelectedCharacters([])
+      result.current.setIsReference(false)
+    })
+    expect(mockSearchParams.toString()).toBe('')
+  })
+
+  it('"Clear all" writes empty state to localStorage when several filters were active', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1', characters: 'char-a', ref: 'true' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => {
+      result.current.setSelectedArtist(null)
+      result.current.setSelectedCharacters([])
+      result.current.setIsReference(false)
+    })
+    expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false }),
+    )
+  })
+
+  it('two setters in one event both take effect', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => {
+      result.current.setSelectedArtist(artist1)
+      result.current.setSelectedCharacters([charA])
+    })
+    expect(mockSearchParams.get('artist')).toBe('artist-1')
+    expect(mockSearchParams.get('characters')).toBe('char-a')
+  })
+})
+
+describe('useArtpiecesFilter — non-filter params', () => {
+  it('preserves unrelated search params when a filter changes', () => {
+    mockSearchParams = new URLSearchParams({ view: 'grid' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedArtist(artist1))
+    expect(mockSearchParams.get('view')).toBe('grid')
+    expect(mockSearchParams.get('artist')).toBe('artist-1')
   })
 })
