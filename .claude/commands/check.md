@@ -1,39 +1,15 @@
 ---
-description: Run OpenSpec verify and the FE review in parallel subagents, then report one merged summary. Flags only, no edits.
+description: Run OpenSpec verify and the FE review on parallel subagents and report what each found. Flags only, no edits.
 argument-hint: [optional: OpenSpec change name]
 allowed-tools: Agent, Bash(git status:*), Bash(git diff:*), Read, Glob, Grep
 ---
 
 Arguments: $ARGUMENTS (an optional OpenSpec change name; if empty, verify the active change).
 
-Run two independent checks as parallel subagents, then merge their findings. Do not edit, create, or delete any file.
+Run openspec verify and fe-reviewer on subagents, in parallel, and come back with their findings. Nothing gets edited, created, or deleted.
 
-## Step 1: decide what to run
+**Verify subagent** (general-purpose). Tell it to read `.claude/skills/openspec-verify-change/SKILL.md` and follow it for the change "$ARGUMENTS" (the active change if empty). It cannot ask questions: if the skill would ask something, it picks the most reasonable reading, says which at the top of its report, and carries on.
 
-Run `git status` and `git diff --name-only` (and `git diff --staged --name-only`).
+**FE subagent** (`fe-reviewer`). Tell it to review the current uncommitted changes under `frontend/` in diff mode, following `.claude/review/fe-review-rubric.md`. First check `git diff --name-only` and `git diff --staged --name-only`: if no changed file is under `frontend/`, skip it and say so.
 
-- The OpenSpec verify always runs.
-- The FE review runs only if at least one changed file is under `frontend/`. If none are, skip it and say so in the report.
-
-## Step 2: launch the subagents in the same turn
-
-Launch both at once so they run in parallel. Each starts with a fresh context.
-
-**OpenSpec verify subagent** (general-purpose). Prompt it with:
-
-> Read `.claude/skills/openspec-verify-change/SKILL.md` and follow it exactly to verify an OpenSpec change. The change to verify: "$ARGUMENTS" (if empty, use the active change, i.e. the one the current branch or most recently modified change under `openspec/changes/` refers to). You cannot ask questions. If the skill would ask which change to use or ask anything else, pick the most reasonable reading, state which one you picked at the top of your report, and carry on. Do not edit, create, or delete any file. Return the full verification report, including every issue with its severity and any file references.
-
-**FE review subagent** (`fe-reviewer`, diff mode). Prompt it with:
-
-> Review the current uncommitted changes under `frontend/` in diff mode, following `.claude/review/fe-review-rubric.md`. Return the full report in the rubric's diff-mode output format.
-
-## Step 3: report one merged summary
-
-Prefix IDs by source so they don't collide: `V-` for verify (`V-W1`, `V-S1`) and `FE-` for the FE review (`FE-B1`, `FE-D2`). Every finding appears exactly once in the whole report.
-
-1. **Scope**: one line each. Which OpenSpec change was verified (and whether the subagent had to guess), and whether the FE review ran or was skipped.
-2. **Must fix**: every verify Critical or Warning, every FE Bug, and any finding that both reports flagged independently (list it once with both IDs, e.g. `V-S1 + FE-U1`). Each entry keeps its ID, `file:line`, tags, and consequence.
-3. **Your call**: every other finding, in the order the reports gave them, with the same detail. Do not add your own ranking or opinions.
-4. **Clean checks**: one line for each check that found nothing (e.g. "OpenSpec verify: no issues"). If verify found only suggestions, say so in this line and put the suggestions under Your call.
-
-Do not write a separate overlaps section. Do not paraphrase away file references, IDs, or severities. Do not fix anything. If a subagent fails or returns nothing useful, say so plainly instead of filling the gap.
+When both are back, report what each found, short and plain, one section per report. Keep each finding's own ID (verify's C/W/S, the FE review's B/D/S) and file reference, and say which report it came from. Do not add your own ranking, must-fix list, or overlap section. If a subagent fails or returns nothing useful, say so.
