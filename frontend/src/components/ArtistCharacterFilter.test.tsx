@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, afterEach } from 'vitest'
 import ArtistCharacterFilter from './ArtistCharacterFilter'
 import { type Artist } from '@/features/artists/api/useArtists'
+import { type Verse } from '@/features/verses/api/useVerses'
 
 vi.mock('@/features/artists/api/useArtists', () => ({
   useArtists: () => ({ data: [], isError: false }),
@@ -18,6 +19,10 @@ vi.mock('@/features/characters/api/useCharacters', () => ({
   }),
 }))
 
+vi.mock('@/features/verses/api/useVerses', () => ({
+  useVerses: () => ({ data: [verse], isError: false }),
+}))
+
 const noop = () => {}
 
 const artist: Artist = {
@@ -25,6 +30,15 @@ const artist: Artist = {
   name: 'Chevira',
   notes: null,
   links: [],
+  created_at: '',
+  updated_at: '',
+}
+
+const verse: Verse = {
+  id: 'v1',
+  name: 'Elowen',
+  sort_order: 0,
+  last_used_at: null,
   created_at: '',
   updated_at: '',
 }
@@ -128,6 +142,47 @@ describe('ArtistCharacterFilter — Clear all', () => {
     await userEvent.click(screen.getByRole('button', { name: /clear all/i }))
     expect(onArtistChange).toHaveBeenCalledWith(null)
     expect(onCharactersChange).toHaveBeenCalledWith([])
+  })
+
+  it('calls onVerseChange(null) when provided and clicked', async () => {
+    const onArtistChange = vi.fn()
+    const onCharactersChange = vi.fn()
+    const onVerseChange = vi.fn()
+    renderFilter({
+      selectedVerse: verse,
+      onVerseChange,
+      onArtistChange,
+      onCharactersChange,
+    })
+    await userEvent.click(screen.getByRole('button', { name: /1 verse/i }))
+    await userEvent.click(screen.getByRole('button', { name: /clear all/i }))
+    expect(onVerseChange).toHaveBeenCalledWith(null)
+    expect(onArtistChange).toHaveBeenCalledWith(null)
+    expect(onCharactersChange).toHaveBeenCalledWith([])
+  })
+})
+
+describe('ArtistCharacterFilter — Verse field', () => {
+  it('does not render a Verse field when selectedVerse/onVerseChange are omitted', async () => {
+    renderFilter()
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    expect(screen.queryByText('Verse')).not.toBeInTheDocument()
+  })
+
+  it('renders a Verse field when selectedVerse and onVerseChange are provided', async () => {
+    renderFilter({ selectedVerse: null, onVerseChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    expect(screen.getByText('Verse')).toBeInTheDocument()
+  })
+
+  it('shows "1 verse" in the trigger label when a verse is selected', () => {
+    renderFilter({ selectedVerse: verse, onVerseChange: noop })
+    expect(screen.getByRole('button', { name: '1 verse' })).toBeInTheDocument()
+  })
+
+  it('combines verse with artist and characters in the label', () => {
+    renderFilter({ artist, selectedVerse: verse, onVerseChange: noop })
+    expect(screen.getByRole('button', { name: '1 artist · 1 verse' })).toBeInTheDocument()
   })
 })
 

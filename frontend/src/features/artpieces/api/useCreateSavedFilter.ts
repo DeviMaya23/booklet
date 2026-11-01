@@ -10,6 +10,7 @@ export interface CreateSavedFilterParams {
     character_ids: string[]
     match_mode: 'all' | 'any'
     is_reference: boolean
+    verse_id: string | null
   }
 }
 
@@ -22,6 +23,7 @@ export interface SavedFilter {
     character_ids: string[]
     match_mode: 'all' | 'any'
     is_reference: boolean
+    verse_id: string | null
   }
   created_at: string
   updated_at: string

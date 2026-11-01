@@ -74,6 +74,52 @@ func TestArtistRepository_Update_ReplacesLinks(t *testing.T) {
 	assert.Equal(t, 1, primaryCount)
 }
 
+// Regression: Association.Replace nulled artist_id on existing links, violating NOT NULL.
+func TestArtistRepository_Update_ArtistWithExistingLinks(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtistRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	artist := seedArtist(t, tx, user.ID, "Jane Doe")
+	require.NoError(t, tx.Create(&domain.ArtistLink{
+		ID: uuid.New(), ArtistID: artist.ID, URL: "https://old.example.com", IsPrimary: true,
+	}).Error)
+
+	updated, err := repo.Update(context.Background(), artist.ID, user.ID, usecase.UpdateArtistParams{
+		Name: "Jane Renamed",
+		Links: []usecase.ArtistLinkInput{
+			{URL: "https://new.example.com", IsPrimary: true},
+		},
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, "Jane Renamed", updated.Name)
+	require.Len(t, updated.Links, 1)
+	assert.Equal(t, "https://new.example.com", updated.Links[0].URL)
+}
+
+func TestArtistRepository_Update_RemovesAllExistingLinks(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtistRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	artist := seedArtist(t, tx, user.ID, "Jane Doe")
+	require.NoError(t, tx.Create(&domain.ArtistLink{
+		ID: uuid.New(), ArtistID: artist.ID, URL: "https://old.example.com", IsPrimary: true,
+	}).Error)
+
+	updated, err := repo.Update(context.Background(), artist.ID, user.ID, usecase.UpdateArtistParams{
+		Name:  "Jane Doe",
+		Links: nil,
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, updated.Links)
+	var count int64
+	require.NoError(t, tx.Model(&domain.ArtistLink{}).Where("artist_id = ?", artist.ID).Count(&count).Error)
+	assert.Zero(t, count)
+}
+
 func TestArtistRepository_Create_DuplicateNameSameUser(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewArtistRepository(tx)

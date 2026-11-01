@@ -7,6 +7,8 @@ import TokenInput from '@/components/TokenInput'
 import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { type Verse } from '@/features/verses/api/useVerses'
+import VerseCombobox from '@/features/verses/components/VerseCombobox'
 
 type CharacterToken = { id: string; name: string }
 
@@ -19,6 +21,8 @@ interface ArtistCharacterFilterProps {
   onCharacterMatchChange?: (mode: 'all' | 'any') => void
   isReference?: boolean
   onIsReferenceChange?: (value: boolean) => void
+  selectedVerse?: Verse | null
+  onVerseChange?: (verse: Verse | null) => void
   footerAction?: ReactNode
 }
 
@@ -27,6 +31,7 @@ function buildSummaryLabel(
   characters: CharacterToken[],
   characterMatch?: 'all' | 'any',
   isReference?: boolean,
+  selectedVerse?: Verse | null,
 ): string {
   const parts: string[] = []
   if (artist) parts.push('1 artist')
@@ -34,6 +39,7 @@ function buildSummaryLabel(
     const charLabel = `${characters.length} character${characters.length > 1 ? 's' : ''}`
     parts.push(characterMatch ? `${charLabel}, ${characterMatch}` : charLabel)
   }
+  if (selectedVerse) parts.push('1 verse')
   if (isReference) parts.push('references')
   return parts.length === 0 ? 'Filter' : parts.join(' · ')
 }
@@ -47,14 +53,17 @@ export default function ArtistCharacterFilter({
   onCharacterMatchChange,
   isReference,
   onIsReferenceChange,
+  selectedVerse,
+  onVerseChange,
   footerAction,
 }: ArtistCharacterFilterProps) {
   const charactersQuery = useCharacters()
   const allCharacters = (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
   const availableCharacters = allCharacters.filter((c) => !characters.some((sc) => sc.id === c.id))
 
-  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch, isReference)
+  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch, isReference, selectedVerse)
   const showToggle = characterMatch !== undefined && onCharacterMatchChange !== undefined && characters.length >= 2
+  const showVerse = selectedVerse !== undefined && onVerseChange !== undefined
 
   return (
     <Popover>
@@ -105,6 +114,13 @@ export default function ArtistCharacterFilter({
           )}
         </div>
 
+        {showVerse && (
+          <div className="flex flex-col gap-1.5">
+            <span className="text-sm font-medium">Verse</span>
+            <VerseCombobox value={selectedVerse ?? null} onChange={onVerseChange!} />
+          </div>
+        )}
+
         {isReference !== undefined && onIsReferenceChange !== undefined && (
           <div className="flex items-center justify-between">
             <label htmlFor="filter-is-reference" className="text-sm font-medium cursor-pointer">References only</label>
@@ -116,9 +132,9 @@ export default function ArtistCharacterFilter({
           </div>
         )}
 
-        {(artist !== null || characters.length > 0 || isReference || footerAction) && (
+        {(artist !== null || characters.length > 0 || isReference || selectedVerse || footerAction) && (
           <div className="flex items-center justify-between">
-            {(artist !== null || characters.length > 0 || isReference) ? (
+            {(artist !== null || characters.length > 0 || isReference || selectedVerse) ? (
               <button
                 type="button"
                 className="text-sm underline text-muted-foreground hover:text-foreground"
@@ -126,6 +142,7 @@ export default function ArtistCharacterFilter({
                   onArtistChange(null)
                   onCharactersChange([])
                   onIsReferenceChange?.(false)
+                  onVerseChange?.(null)
                 }}
               >
                 Clear all

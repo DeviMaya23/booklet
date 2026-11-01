@@ -46,6 +46,7 @@ interface SavedFilterSnapshot {
   characterIds: string[]
   matchMode: 'all' | 'any'
   isReference: boolean
+  verseId: string | null
 }
 
 function snapshotMatchesCurrent(
@@ -54,9 +55,11 @@ function snapshotMatchesCurrent(
   characterIds: string[],
   matchMode: 'all' | 'any',
   isReference: boolean,
+  verseId: string | null,
 ): boolean {
   if (snapshot.artistId !== artistId || snapshot.matchMode !== matchMode) return false
   if (snapshot.isReference !== isReference) return false
+  if (snapshot.verseId !== verseId) return false
   if (snapshot.characterIds.length !== characterIds.length) return false
   const current = new Set(characterIds)
   return snapshot.characterIds.every((id) => current.has(id))
@@ -113,10 +116,11 @@ export default function ArtpiecesPage() {
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
     isReference, setIsReference,
+    selectedVerse, setSelectedVerse,
     filtered,
   } = useArtpiecesFilter(artpieces ?? [])
 
-  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0 || isReference
+  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0 || isReference || selectedVerse !== null
   const currentCharacterIds = selectedCharacters.map((c) => c.id)
 
   const snapshotMatches = savedFilterSnapshot !== null && snapshotMatchesCurrent(
@@ -125,6 +129,7 @@ export default function ArtpiecesPage() {
     currentCharacterIds,
     characterMatch,
     isReference,
+    selectedVerse?.id ?? null,
   )
 
   function handleTileSizeChange(size: TileSize) {
@@ -144,6 +149,7 @@ export default function ArtpiecesPage() {
       characterIds: currentCharacterIds,
       matchMode: characterMatch,
       isReference,
+      verseId: selectedVerse?.id ?? null,
     })
   }
 
@@ -166,6 +172,11 @@ export default function ArtpiecesPage() {
   function handleIsReferenceChange(value: boolean) {
     setSavedFilterSnapshot(null)
     setIsReference(value)
+  }
+
+  function handleVerseChange(verse: typeof selectedVerse) {
+    setSavedFilterSnapshot(null)
+    setSelectedVerse(verse)
   }
 
   const saveButton = hasActiveFilter ? (
@@ -230,6 +241,8 @@ export default function ArtpiecesPage() {
             onCharacterMatchChange={handleMatchChange}
             isReference={isReference}
             onIsReferenceChange={handleIsReferenceChange}
+            selectedVerse={selectedVerse}
+            onVerseChange={handleVerseChange}
             footerAction={saveButton}
           />
 
@@ -337,6 +350,7 @@ export default function ArtpiecesPage() {
             characters: selectedCharacters,
             matchMode: characterMatch,
             isReference,
+            verse: selectedVerse,
           }}
           onSuccess={handleSaveFilterSuccess}
         />

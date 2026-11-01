@@ -4,6 +4,7 @@ import { filterAndSortArtpieces, useArtpiecesFilter } from './useArtpiecesFilter
 import { type ArtpieceSummary } from '../api/useArtpieces'
 import { type Artist } from '@/features/artists/api/useArtists'
 import { type Character } from '@/features/characters/api/useCharacters'
+import { type Verse } from '@/features/verses/api/useVerses'
 
 // --- Mocks ---
 
@@ -17,8 +18,14 @@ const mockCharacters: Character[] = [
   { id: 'char-b', name: 'Beta', avatar_url: null, notes: null, is_public: false, verse_id: null, folders: [], created_at: '', updated_at: '' },
 ]
 
+const mockVerses: Verse[] = [
+  { id: 'verse-1', name: 'Elowen', sort_order: 0, last_used_at: null, created_at: '', updated_at: '' },
+  { id: 'verse-2', name: 'Thalassa', sort_order: 1, last_used_at: null, created_at: '', updated_at: '' },
+]
+
 let mockArtistData: Artist[] | undefined = mockArtists
 let mockCharacterData: Character[] | undefined = mockCharacters
+let mockVerseData: Verse[] | undefined = mockVerses
 
 vi.mock('@/features/artists/api/useArtists', () => ({
   useArtists: () => ({ data: mockArtistData }),
@@ -26,6 +33,10 @@ vi.mock('@/features/artists/api/useArtists', () => ({
 
 vi.mock('@/features/characters/api/useCharacters', () => ({
   useCharacters: () => ({ data: mockCharacterData }),
+}))
+
+vi.mock('@/features/verses/api/useVerses', () => ({
+  useVerses: () => ({ data: mockVerseData }),
 }))
 
 let mockSearchParams = new URLSearchParams()
@@ -54,6 +65,7 @@ const artist1 = mockArtists[0]
 const artist2 = mockArtists[1]
 const charA = { id: 'char-a', name: 'Alpha' }
 const charB = { id: 'char-b', name: 'Beta' }
+const verse1 = mockVerses[0]
 
 function makeArtpiece(overrides: Partial<ArtpieceSummary>): ArtpieceSummary {
   return {
@@ -88,6 +100,8 @@ const defaults = {
   selectedCharacters: [],
   characterMatch: 'all' as const,
   isReference: false,
+  selectedVerse: null,
+  allCharacters: mockCharacters,
 }
 
 let localStore: Record<string, string> = {}
@@ -108,6 +122,7 @@ beforeEach(() => {
   localStorageMock.setItem.mockClear()
   mockArtistData = mockArtists
   mockCharacterData = mockCharacters
+  mockVerseData = mockVerses
 })
 
 // --- Pure function tests ---
@@ -165,6 +180,93 @@ describe('filterAndSortArtpieces — character filter', () => {
       characterMatch: 'all',
     })
     expect(result).toHaveLength(2)
+  })
+})
+
+describe('filterAndSortArtpieces — verse filter', () => {
+  const charactersWithVerses: Character[] = [
+    { ...mockCharacters[0], verse_id: 'verse-1' },
+    { ...mockCharacters[1], verse_id: 'verse-2' },
+  ]
+
+  it('matches an artpiece with a character in the selected verse', () => {
+    const apInVerse = makeArtpiece({ id: 'ap-in-verse', title: 'In verse', characters: [charA] })
+    const result = filterAndSortArtpieces([apInVerse], {
+      ...defaults,
+      allCharacters: charactersWithVerses,
+      selectedVerse: verse1,
+    })
+    expect(result).toEqual([apInVerse])
+  })
+
+  it('excludes an artpiece whose characters are all verse-less or in other verses', () => {
+    const apOtherVerse = makeArtpiece({ id: 'ap-other-verse', title: 'Other verse', characters: [charB] })
+    const apNoVerse = makeArtpiece({ id: 'ap-no-verse', title: 'No verse', characters: [charA] })
+    const charactersNoneInVerse1: Character[] = [
+      { ...mockCharacters[0], verse_id: null },
+      { ...mockCharacters[1], verse_id: 'verse-2' },
+    ]
+    const result = filterAndSortArtpieces([apOtherVerse, apNoVerse], {
+      ...defaults,
+      allCharacters: charactersNoneInVerse1,
+      selectedVerse: verse1,
+    })
+    expect(result).toHaveLength(0)
+  })
+
+  it('matches an artpiece with characters from multiple verses, including the selected one', () => {
+    const apMixed = makeArtpiece({ id: 'ap-mixed', title: 'Mixed', characters: [charA, charB] })
+    const result = filterAndSortArtpieces([apMixed], {
+      ...defaults,
+      allCharacters: charactersWithVerses,
+      selectedVerse: verse1,
+    })
+    expect(result).toEqual([apMixed])
+  })
+
+  it('combines with artist filter (AND)', () => {
+    const apAliceInVerse = makeArtpiece({ id: 'ap-alice-verse', title: 'Alice verse', artist_id: artist1.id, characters: [charA] })
+    const apBobInVerse = makeArtpiece({ id: 'ap-bob-verse', title: 'Bob verse', artist_id: artist2.id, characters: [charA] })
+    const result = filterAndSortArtpieces([apAliceInVerse, apBobInVerse], {
+      ...defaults,
+      allCharacters: charactersWithVerses,
+      selectedVerse: verse1,
+      selectedArtist: artist1,
+    })
+    expect(result).toEqual([apAliceInVerse])
+  })
+
+  it('combines with character filter (AND)', () => {
+    const apBoth = makeArtpiece({ id: 'ap-both', title: 'Both', characters: [charA, charB] })
+    const apVerseOnly = makeArtpiece({ id: 'ap-verse-only', title: 'Verse only', characters: [charA] })
+    const result = filterAndSortArtpieces([apBoth, apVerseOnly], {
+      ...defaults,
+      allCharacters: charactersWithVerses,
+      selectedVerse: verse1,
+      selectedCharacters: [charB],
+      characterMatch: 'all',
+    })
+    expect(result).toEqual([apBoth])
+  })
+
+  it('no verse selected: verse filter has no effect', () => {
+    const result = filterAndSortArtpieces([apAlice, apBob], {
+      ...defaults,
+      allCharacters: charactersWithVerses,
+      selectedVerse: null,
+    })
+    expect(result).toHaveLength(2)
+  })
+
+  it('does not exclude artpieces while characters are still loading', () => {
+    const apOtherVerse = makeArtpiece({ id: 'ap-other-verse', title: 'Other verse', characters: [charB] })
+    const result = filterAndSortArtpieces([apOtherVerse], {
+      ...defaults,
+      allCharacters: [],
+      selectedVerse: verse1,
+      charactersPending: true,
+    })
+    expect(result).toEqual([apOtherVerse])
   })
 })
 
@@ -265,6 +367,24 @@ describe('useArtpiecesFilter — URL param hydration', () => {
     const { result } = renderHook(() => useArtpiecesFilter([]))
     expect(result.current.isReference).toBe(true)
   })
+
+  it('initialises selectedVerse from verse URL param', () => {
+    mockSearchParams = new URLSearchParams({ verse: 'verse-1' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.selectedVerse?.id).toBe('verse-1')
+    expect(result.current.selectedVerse?.name).toBe('Elowen')
+  })
+
+  it('defaults selectedVerse to null when verse param absent', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.selectedVerse).toBeNull()
+  })
+
+  it('resolves selectedVerse to null when the stored verse id does not exist in current verses', () => {
+    mockSearchParams = new URLSearchParams({ verse: 'verse-deleted' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.selectedVerse).toBeNull()
+  })
 })
 
 describe('useArtpiecesFilter — filter changes update URL', () => {
@@ -320,6 +440,19 @@ describe('useArtpiecesFilter — filter changes update URL', () => {
     act(() => result.current.setIsReference(false))
     expect(mockSearchParams.has('ref')).toBe(false)
   })
+
+  it('setSelectedVerse sets verse param', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedVerse(verse1))
+    expect(mockSearchParams.get('verse')).toBe('verse-1')
+  })
+
+  it('setSelectedVerse(null) removes verse param', () => {
+    mockSearchParams = new URLSearchParams({ verse: 'verse-1' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedVerse(null))
+    expect(mockSearchParams.has('verse')).toBe(false)
+  })
 })
 
 // --- localStorage persistence tests ---
@@ -328,23 +461,29 @@ const FILTER_KEY = 'artpieces.filterState'
 
 describe('useArtpiecesFilter — mount with no URL params restores from localStorage', () => {
   it('calls setSearchParams to restore stored artist when URL has no filter params', () => {
-    localStore[FILTER_KEY] = JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false })
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false, verseId: null })
     renderHook(() => useArtpiecesFilter([]))
     expect(setSearchParamsMock).toHaveBeenCalled()
     expect(mockSearchParams.get('artist')).toBe('artist-1')
   })
 
   it('calls setSearchParams to restore stored characters when URL has no filter params', () => {
-    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'any', isReference: false })
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'any', isReference: false, verseId: null })
     renderHook(() => useArtpiecesFilter([]))
     expect(mockSearchParams.get('characters')).toBe('char-a,char-b')
     expect(mockSearchParams.get('match')).toBe('any')
   })
 
   it('calls setSearchParams to restore isReference when URL has no filter params', () => {
-    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true })
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null })
     renderHook(() => useArtpiecesFilter([]))
     expect(mockSearchParams.get('ref')).toBe('true')
+  })
+
+  it('calls setSearchParams to restore stored verse when URL has no filter params', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(mockSearchParams.get('verse')).toBe('verse-1')
   })
 })
 
@@ -354,7 +493,7 @@ describe('useArtpiecesFilter — mount with URL params writes to localStorage', 
     renderHook(() => useArtpiecesFilter([]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: 'artist-1', characterIds: ['char-a'], matchMode: 'any', isReference: false }),
+      JSON.stringify({ artistId: 'artist-1', characterIds: ['char-a'], matchMode: 'any', isReference: false, verseId: null }),
     )
   })
 
@@ -363,7 +502,16 @@ describe('useArtpiecesFilter — mount with URL params writes to localStorage', 
     renderHook(() => useArtpiecesFilter([]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null }),
+    )
+  })
+
+  it('writes verse state to localStorage when verse param is present', () => {
+    mockSearchParams = new URLSearchParams({ verse: 'verse-1' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1' }),
     )
   })
 })
@@ -374,7 +522,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedArtist(artist1))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false }),
+      JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
     )
   })
 
@@ -383,7 +531,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedCharacters([charA, charB]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'all', isReference: false }),
+      JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'all', isReference: false, verseId: null }),
     )
   })
 
@@ -392,7 +540,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setCharacterMatch('any'))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'any', isReference: false }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'any', isReference: false, verseId: null }),
     )
   })
 
@@ -401,7 +549,26 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setIsReference(true))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null }),
+    )
+  })
+
+  it('setSelectedVerse writes full filter state to localStorage', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedVerse(verse1))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1' }),
+    )
+  })
+
+  it('setSelectedVerse(null) removes verseId from stored filter state', () => {
+    mockSearchParams = new URLSearchParams({ verse: 'verse-1' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedVerse(null))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
     )
   })
 })
@@ -420,7 +587,7 @@ describe('useArtpiecesFilter — clearing filter writes empty state to localStor
     act(() => result.current.setSelectedArtist(null))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
     )
   })
 })
@@ -449,7 +616,7 @@ describe('useArtpiecesFilter — several setters in one event', () => {
     })
     expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
     )
   })
 

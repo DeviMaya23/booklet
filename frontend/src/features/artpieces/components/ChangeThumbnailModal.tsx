@@ -14,6 +14,8 @@ import { filterAndSortArtpieces } from '../hooks/useArtpiecesFilter'
 import { parseFilterPayload } from '../lib/parseFilterPayload'
 import { type SavedFilter } from '../api/useCreateSavedFilter'
 import { useArtists } from '@/features/artists/api/useArtists'
+import { useCharacters } from '@/features/characters/api/useCharacters'
+import { useVerses } from '@/features/verses/api/useVerses'
 
 interface ChangeThumbnailModalProps {
   filter: SavedFilter
@@ -27,6 +29,8 @@ const MAX_PICKER_ITEMS = 10
 export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSaved }: ChangeThumbnailModalProps) {
   const artpiecesQuery = useArtpieces()
   const artistsQuery = useArtists()
+  const charactersQuery = useCharacters()
+  const versesQuery = useVerses()
   const updateFilter = useUpdateSavedFilter()
 
   const payload = useMemo(() => parseFilterPayload(filter.filter_payload), [filter.filter_payload])
@@ -37,6 +41,9 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
     const artist = payload.artist_id
       ? (artistsQuery.data?.find((a) => a.id === payload.artist_id) ?? null)
       : null
+    const verse = payload.verse_id
+      ? (versesQuery.data?.find((v) => v.id === payload.verse_id) ?? null)
+      : null
     return filterAndSortArtpieces(artpiecesQuery.data, {
       search: '',
       sort: 'newest',
@@ -44,8 +51,15 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
       selectedCharacters: payload.character_ids.map((id) => ({ id, name: '' })),
       characterMatch: payload.match_mode,
       isReference: payload.is_reference,
+      selectedVerse: verse,
+      allCharacters: charactersQuery.data,
+      charactersPending: charactersQuery.isPending,
     }).slice(0, MAX_PICKER_ITEMS)
-  }, [artpiecesQuery.data, artistsQuery.data, payload])
+  }, [artpiecesQuery.data, artistsQuery.data, charactersQuery.data, charactersQuery.isPending, versesQuery.data, payload])
+
+  // Resolving the verse filter needs characters and verses loaded too, not
+  // just artpieces, or the grid can briefly show "no match" before they land.
+  const isLoading = artpiecesQuery.isPending || charactersQuery.isPending || versesQuery.isPending
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const effectiveSelected = selectedId ?? filtered[0]?.id ?? null
@@ -55,6 +69,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
     const parts: string[] = []
     if (payload.artist_id) parts.push('by artist')
     if (payload.character_ids.length > 0) parts.push(`${payload.character_ids.length} character${payload.character_ids.length > 1 ? 's' : ''}`)
+    if (payload.verse_id) parts.push('verse')
     if (payload.is_reference) parts.push('references only')
     return parts.length > 0 ? parts.join(', ') : 'All artpieces'
   }, [payload, filter.name])
@@ -80,7 +95,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
             <span className="rounded-full bg-muted px-2 py-0.5 text-xs font-medium">{filterChipLabel}</span>
           </div>
 
-          {artpiecesQuery.isPending ? (
+          {isLoading ? (
             <div className="flex justify-center py-6">
               <Loader2 className="size-5 animate-spin text-muted-foreground" />
             </div>
