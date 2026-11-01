@@ -8,12 +8,14 @@ describe('parseFilterPayload', () => {
       character_ids: ['char-1', 'char-2'],
       match_mode: 'any',
       is_reference: true,
+      verse_id: 'verse-uuid',
     })
     expect(result).toEqual({
       artist_id: 'artist-uuid',
       character_ids: ['char-1', 'char-2'],
       match_mode: 'any',
       is_reference: true,
+      verse_id: 'verse-uuid',
     })
   })
 
@@ -85,5 +87,25 @@ describe('parseFilterPayload', () => {
   it('non-boolean is_reference coerces to false', () => {
     const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', is_reference: 'yes' })
     expect(result?.is_reference).toBe(false)
+  })
+
+  it('verse_id round-trips when present', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', verse_id: 'verse-1' })
+    expect(result?.verse_id).toBe('verse-1')
+  })
+
+  it('absent verse_id defaults to null', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all' })
+    expect(result?.verse_id).toBeNull()
+  })
+
+  it('null verse_id round-trips', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', verse_id: null })
+    expect(result?.verse_id).toBeNull()
+  })
+
+  it('non-string non-null verse_id coerces to null', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', verse_id: 123 })
+    expect(result?.verse_id).toBeNull()
   })
 })

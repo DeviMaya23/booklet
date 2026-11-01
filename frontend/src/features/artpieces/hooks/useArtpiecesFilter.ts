@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { type ArtpieceSummary } from '../api/useArtpieces'
 import { type Artist, useArtists } from '@/features/artists/api/useArtists'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { type Verse, useVerses } from '@/features/verses/api/useVerses'
 
 export type SortMode = 'newest' | 'alpha'
 
@@ -13,6 +14,7 @@ interface StoredFilter {
   characterIds: string[]
   matchMode: 'all' | 'any'
   isReference: boolean
+  verseId: string | null
 }
 
 function readStoredFilter(): StoredFilter | null {
@@ -40,12 +42,21 @@ interface FilterParams {
   selectedCharacters: { id: string; name: string }[]
   characterMatch: 'all' | 'any'
   isReference: boolean
+  selectedVerse?: Verse | null
+  allCharacters?: { id: string; verse_id: string | null }[]
+  charactersPending?: boolean
 }
 
 export function filterAndSortArtpieces(
   artpieces: ArtpieceSummary[],
-  { search, sort, selectedArtist, selectedCharacters, characterMatch, isReference }: FilterParams,
+  { search, sort, selectedArtist, selectedCharacters, characterMatch, isReference, selectedVerse, allCharacters, charactersPending }: FilterParams,
 ): ArtpieceSummary[] {
+  // allCharacters is still loading: membership of the verse is unknown, not
+  // empty, so the verse filter must not exclude anything until it resolves.
+  const verseCharacterIds = selectedVerse && !charactersPending
+    ? new Set((allCharacters ?? []).filter((c) => c.verse_id === selectedVerse.id).map((c) => c.id))
+    : null
+
   return artpieces
     .filter((a) => {
       if (isReference) {
@@ -68,6 +79,9 @@ export function filterAndSortArtpieces(
           if (!selectedCharacters.some((sc) => ids.includes(sc.id))) return false
         }
       }
+      if (verseCharacterIds) {
+        if (!a.characters.some((c) => verseCharacterIds.has(c.id))) return false
+      }
       return true
     })
     .sort((a, b) => {
@@ -85,6 +99,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   const [searchParams, setSearchParams] = useSearchParams()
   const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
+  const versesQuery = useVerses()
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortMode>('newest')
@@ -108,7 +123,12 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   const refParam = searchParams.get('ref')
   const isReference = refParam === 'true'
 
-  const hasFilterParams = artistParam !== null || charactersParam !== null || refParam !== null || matchParam !== null
+  const verseParam = searchParams.get('verse')
+  const selectedVerse: Verse | null = verseParam
+    ? (versesQuery.data?.find((v) => v.id === verseParam) ?? null)
+    : null
+
+  const hasFilterParams = artistParam !== null || charactersParam !== null || refParam !== null || matchParam !== null || verseParam !== null
 
   // pendingFilterRef always reflects the current filter state and is mutated
   // eagerly by each setter before it commits. React Router's setSearchParams
@@ -122,6 +142,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     characterIds: characterIdList,
     matchMode: characterMatch,
     isReference,
+    verseId: verseParam,
   })
   // Params not owned by the filter are carried over untouched on each commit.
   const paramsRef = useRef(searchParams)
@@ -129,7 +150,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   // a fresh base. useLayoutEffect (not render-time assignment) keeps the write
   // out of the render phase.
   useLayoutEffect(() => {
-    pendingFilterRef.current = { artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference }
+    pendingFilterRef.current = { artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam }
     paramsRef.current = searchParams
   })
 
@@ -146,6 +167,8 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     else next.delete('match')
     if (filter.isReference) next.set('ref', 'true')
     else next.delete('ref')
+    if (filter.verseId) next.set('verse', filter.verseId)
+    else next.delete('verse')
 
     paramsRef.current = next
     setSearchParams(next, { replace: true })
@@ -155,15 +178,16 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   // the URL-derived state when arriving with params (e.g. from a saved-filter link).
   useEffect(() => {
     if (hasFilterParams) {
-      writeStoredFilter({ artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference })
+      writeStoredFilter({ artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam })
     } else {
       const stored = readStoredFilter()
-      if (!stored || (!stored.artistId && stored.characterIds.length === 0 && !stored.isReference)) return
+      if (!stored || (!stored.artistId && stored.characterIds.length === 0 && !stored.isReference && !stored.verseId)) return
       commitFilter({
         artistId: stored.artistId,
         characterIds: stored.characterIds,
         matchMode: stored.matchMode === 'any' ? 'any' : 'all',
         isReference: stored.isReference,
+        verseId: stored.verseId ?? null,
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -185,6 +209,10 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     commitFilter({ ...pendingFilterRef.current, matchMode: mode })
   }
 
+  function setSelectedVerse(verse: Verse | null) {
+    commitFilter({ ...pendingFilterRef.current, verseId: verse?.id ?? null })
+  }
+
   const filtered = filterAndSortArtpieces(artpieces, {
     search,
     sort,
@@ -192,6 +220,9 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedCharacters,
     characterMatch,
     isReference,
+    selectedVerse,
+    allCharacters: charactersQuery.data,
+    charactersPending: charactersQuery.isPending,
   })
 
   return {
@@ -201,6 +232,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
     isReference, setIsReference,
+    selectedVerse, setSelectedVerse,
     filtered,
   }
 }

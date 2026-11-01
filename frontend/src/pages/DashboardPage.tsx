@@ -25,7 +25,7 @@ import { formatRelativeTime } from '@/features/commissions/utils/relativeTime'
 import ThumbnailTile, { type ThumbnailTileMenuItem } from '@/components/ThumbnailTile'
 import { useSavedFilters, SAVED_FILTERS_QUERY_KEY } from '@/features/artpieces/api/useSavedFilters'
 import { useDeleteSavedFilter } from '@/features/artpieces/api/useDeleteSavedFilter'
-import { parseFilterPayload } from '@/features/artpieces/lib/parseFilterPayload'
+import { filterToHref } from '@/features/artpieces/lib/filterToHref'
 import ChangeThumbnailModal from '@/features/artpieces/components/ChangeThumbnailModal'
 import { type SavedFilter } from '@/features/artpieces/api/useCreateSavedFilter'
 
@@ -42,18 +42,6 @@ function daysElapsed(createdAt: string): number {
 }
 
 // --- Helpers ---
-
-function filterToHref(filter: SavedFilter): string {
-  const payload = parseFilterPayload(filter.filter_payload)
-  if (!payload) return '/app/artpieces'
-  const params = new URLSearchParams()
-  if (payload.artist_id) params.set('artist', payload.artist_id)
-  if (payload.character_ids.length > 0) params.set('characters', payload.character_ids.join(','))
-  if (payload.match_mode === 'any') params.set('match', 'any')
-  if (payload.is_reference) params.set('ref', 'true')
-  const qs = params.toString()
-  return qs ? `/app/artpieces?${qs}` : '/app/artpieces'
-}
 
 function getHiddenFilterIds(): string[] {
   try {

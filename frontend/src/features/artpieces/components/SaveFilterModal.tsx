@@ -13,6 +13,7 @@ import {
 import { type ArtpieceSummary } from '../api/useArtpieces'
 import { useCreateSavedFilter, type SavedFilter, type DuplicateNameError } from '../api/useCreateSavedFilter'
 import { type Artist } from '@/features/artists/api/useArtists'
+import { type Verse } from '@/features/verses/api/useVerses'
 
 interface SaveFilterModalProps {
   open: boolean
@@ -23,6 +24,7 @@ interface SaveFilterModalProps {
     characters: { id: string; name: string }[]
     matchMode: 'all' | 'any'
     isReference: boolean
+    verse: Verse | null
   }
   onSuccess: (savedFilter: SavedFilter) => void
 }
@@ -33,6 +35,7 @@ function buildFilterSummary(filterState: SaveFilterModalProps['filterState']): s
   if (filterState.characters.length > 0) {
     parts.push(`Characters: ${filterState.characters.map((c) => c.name).join(', ')} (${filterState.matchMode})`)
   }
+  if (filterState.verse) parts.push(`Verse: ${filterState.verse.name}`)
   if (filterState.isReference) parts.push('References only')
   return parts.length > 0 ? parts.join(' · ') : 'No filters'
 }
@@ -74,6 +77,7 @@ export default function SaveFilterModal({
           character_ids: filterState.characters.map((c) => c.id),
           match_mode: filterState.matchMode,
           is_reference: filterState.isReference,
+          verse_id: filterState.verse?.id ?? null,
         },
       })
       toast.success(`Filter "${result.name}" saved`)

@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import SaveFilterModal from './SaveFilterModal'
 import { type SavedFilter, type DuplicateNameError } from '../api/useCreateSavedFilter'
 import { type ArtpieceSummary } from '../api/useArtpieces'
+import { type Verse } from '@/features/verses/api/useVerses'
 
 vi.mock('sonner', () => ({
   toast: { success: vi.fn(), error: vi.fn() },
@@ -43,6 +44,16 @@ const baseFilter = {
   characters: [] as { id: string; name: string }[],
   matchMode: 'all' as const,
   isReference: false,
+  verse: null as Verse | null,
+}
+
+const verse: Verse = {
+  id: 'verse-1',
+  name: 'Elowen',
+  sort_order: 0,
+  last_used_at: null,
+  created_at: '',
+  updated_at: '',
 }
 
 const onOpenChange = vi.fn()
@@ -145,7 +156,7 @@ describe('SaveFilterModal — successful save', () => {
       id: 'sf-1',
       name: 'My Filter',
       thumbnail_url: null,
-      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false },
+      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: null },
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     }
@@ -167,5 +178,52 @@ describe('SaveFilterModal — successful save', () => {
     expect(await screen.findByRole('button', { name: 'Save' })).toBeInTheDocument()
     expect(onSuccess).toHaveBeenCalledWith(created)
     expect(toast.success).toHaveBeenCalledWith('Filter "My Filter" saved')
+  })
+})
+
+describe('SaveFilterModal — verse filter', () => {
+  it('includes verse_id in the create request payload when a verse is active', async () => {
+    const created: SavedFilter = {
+      id: 'sf-1',
+      name: 'My Filter',
+      thumbnail_url: null,
+      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: verse.id },
+      created_at: '2024-01-01T00:00:00Z',
+      updated_at: '2024-01-01T00:00:00Z',
+    }
+    mockMutateAsync.mockResolvedValueOnce(created)
+
+    render(
+      <SaveFilterModal
+        open
+        onOpenChange={onOpenChange}
+        filteredArtpieces={[makeArtpiece('ap-1', 'Sunrise')]}
+        filterState={{ ...baseFilter, verse }}
+        onSuccess={onSuccess}
+      />,
+    )
+
+    await userEvent.type(screen.getByRole('textbox', { name: /name/i }), 'My Filter')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+
+    expect(await screen.findByRole('button', { name: 'Save' })).toBeInTheDocument()
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterPayload: expect.objectContaining({ verse_id: verse.id }),
+      }),
+    )
+  })
+
+  it('includes the verse name in the filter summary chip when active', () => {
+    render(
+      <SaveFilterModal
+        open
+        onOpenChange={onOpenChange}
+        filteredArtpieces={[makeArtpiece('ap-1', 'Sunrise')]}
+        filterState={{ ...baseFilter, verse }}
+        onSuccess={onSuccess}
+      />,
+    )
+    expect(screen.getByText(/Verse: Elowen/)).toBeInTheDocument()
   })
 })
