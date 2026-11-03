@@ -119,13 +119,15 @@ func (u *characterUsecase) Create(ctx context.Context, userID uuid.UUID, params 
 		}
 	}
 
+	now := time.Now()
 	character := &domain.Character{
-		ID:       uuid.New(),
-		UserID:   userID,
-		Name:     params.Name,
-		Notes:    params.Notes,
-		IsPublic: params.IsPublic,
-		VerseID:  params.VerseID,
+		ID:         uuid.New(),
+		UserID:     userID,
+		Name:       params.Name,
+		Notes:      params.Notes,
+		IsPublic:   params.IsPublic,
+		VerseID:    params.VerseID,
+		LastUsedAt: &now,
 	}
 	if params.FolderIDs != nil && len(*params.FolderIDs) > 0 {
 		enriched, err := u.validateAndEnrichFolders(ctx, character.ID, *params.FolderIDs, params.IDPSubject)

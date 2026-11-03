@@ -161,6 +161,9 @@ func (h *CharacterHandler) ListCharacters(c echo.Context) error {
 	if err := c.Bind(&filters); err != nil {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params")
 	}
+	if err := c.Validate(&filters); err != nil {
+		return c.JSON(http.StatusUnprocessableEntity, validationErrResponse(err))
+	}
 
 	characters, err := h.characterUsecase.List(ctx, userID, filters)
 	if err != nil {

@@ -34,6 +34,7 @@ type CommissionArtistRepository interface {
 
 type CommissionCharacterRepository interface {
 	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error)
+	UpdateLastUsedAt(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 }
 
 type CommissionArtpieceRepository interface {

@@ -152,10 +152,17 @@ func (f *fakeArtpieceArtistRepository) UpdateLastUsedAt(_ context.Context, id uu
 
 type fakeArtpieceCharacterRepository struct {
 	characters map[uuid.UUID]*domain.Character
+
+	lastUsedAtUpdated [][]uuid.UUID
 }
 
 func newFakeArtpieceCharacterRepository() *fakeArtpieceCharacterRepository {
 	return &fakeArtpieceCharacterRepository{characters: make(map[uuid.UUID]*domain.Character)}
+}
+
+func (f *fakeArtpieceCharacterRepository) UpdateLastUsedAt(_ context.Context, ids []uuid.UUID, _ uuid.UUID) error {
+	f.lastUsedAtUpdated = append(f.lastUsedAtUpdated, ids)
+	return nil
 }
 
 func (f *fakeArtpieceCharacterRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error) {
@@ -302,9 +309,78 @@ func TestCreateArtpiece_CharacterNotOwned(t *testing.T) {
 	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{CharacterIDs: []uuid.UUID{charID}})
 
 	require.ErrorIs(t, err, usecase.ErrCharacterNotOwned)
+	require.Empty(t, charRepo.lastUsedAtUpdated)
+}
+
+func TestCreateArtpiece_BumpsCharacterRecency(t *testing.T) {
+	userID := uuid.New()
+	charRepo := newFakeArtpieceCharacterRepository()
+	c1, c2 := uuid.New(), uuid.New()
+	charRepo.characters[c1] = &domain.Character{ID: c1, UserID: userID}
+	charRepo.characters[c2] = &domain.Character{ID: c2, UserID: userID}
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), charRepo, newFakeArtpieceFileRepository())
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{CharacterIDs: []uuid.UUID{c1, c2}})
+
+	require.NoError(t, err)
+	require.Equal(t, [][]uuid.UUID{{c1, c2}}, charRepo.lastUsedAtUpdated)
+}
+
+func TestCreateArtpiece_NoCharactersDoesNotBump(t *testing.T) {
+	charRepo := newFakeArtpieceCharacterRepository()
+	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), charRepo, newFakeArtpieceFileRepository())
+
+	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateArtpieceParams{})
+
+	require.NoError(t, err)
+	require.Empty(t, charRepo.lastUsedAtUpdated)
 }
 
 // --- update tests ---
+
+func TestUpdateArtpiece_BumpsCharacterRecency(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	charRepo := newFakeArtpieceCharacterRepository()
+	c1 := uuid.New()
+	charRepo.characters[c1] = &domain.Character{ID: c1, UserID: userID}
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), charRepo, newFakeArtpieceFileRepository())
+
+	_, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{CharacterIDs: []uuid.UUID{c1}})
+
+	require.NoError(t, err)
+	require.Equal(t, [][]uuid.UUID{{c1}}, charRepo.lastUsedAtUpdated)
+}
+
+func TestUpdateArtpiece_EmptyCharactersDoesNotBump(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	charRepo := newFakeArtpieceCharacterRepository()
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), charRepo, newFakeArtpieceFileRepository())
+
+	_, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{CharacterIDs: []uuid.UUID{}})
+
+	require.NoError(t, err)
+	require.Empty(t, charRepo.lastUsedAtUpdated)
+}
+
+func TestUpdateArtpiece_CharacterNotOwned(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	charRepo := newFakeArtpieceCharacterRepository()
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), charRepo, newFakeArtpieceFileRepository())
+
+	_, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{CharacterIDs: []uuid.UUID{uuid.New()}})
+
+	require.ErrorIs(t, err, usecase.ErrCharacterNotOwned)
+	require.Empty(t, charRepo.lastUsedAtUpdated)
+}
 
 func TestUpdateArtpiece_ClearArtist(t *testing.T) {
 	userID := uuid.New()

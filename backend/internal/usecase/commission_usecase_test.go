@@ -106,10 +106,17 @@ func (f *fakeCommissionArtistRepository) UpdateLastUsedAt(_ context.Context, id 
 
 type fakeCommissionCharacterRepository struct {
 	characters map[uuid.UUID]*domain.Character
+
+	lastUsedAtUpdated [][]uuid.UUID
 }
 
 func newFakeCommissionCharacterRepository() *fakeCommissionCharacterRepository {
 	return &fakeCommissionCharacterRepository{characters: make(map[uuid.UUID]*domain.Character)}
+}
+
+func (f *fakeCommissionCharacterRepository) UpdateLastUsedAt(_ context.Context, ids []uuid.UUID, _ uuid.UUID) error {
+	f.lastUsedAtUpdated = append(f.lastUsedAtUpdated, ids)
+	return nil
 }
 
 func (f *fakeCommissionCharacterRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Character, error) {
@@ -614,6 +621,86 @@ func TestUpdateCommission_UpdatesArtistLastUsedAt(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Contains(t, artistRepo.lastUsedAtUpdated, artistID)
+}
+
+func TestCreateCommission_CharacterRecency(t *testing.T) {
+	userID := uuid.New()
+	c1, c2 := uuid.New(), uuid.New()
+	seed := func(r *fakeCommissionCharacterRepository) {
+		r.characters[c1] = &domain.Character{ID: c1, UserID: userID}
+		r.characters[c2] = &domain.Character{ID: c2, UserID: userID}
+	}
+
+	t.Run("bumps assigned characters", func(t *testing.T) {
+		charRepo := newFakeCommissionCharacterRepository()
+		seed(charRepo)
+		uc := newCommissionUsecase(newFakeCommissionRepository(), newFakeCommissionArtistRepository(), charRepo, newFakeCommissionArtpieceRepository())
+
+		_, err := uc.Create(context.Background(), userID, usecase.CreateCommissionParams{CharacterIDs: []uuid.UUID{c1, c2}})
+
+		require.NoError(t, err)
+		require.Equal(t, [][]uuid.UUID{{c1, c2}}, charRepo.lastUsedAtUpdated)
+	})
+
+	t.Run("no bump when empty", func(t *testing.T) {
+		charRepo := newFakeCommissionCharacterRepository()
+		uc := newCommissionUsecase(newFakeCommissionRepository(), newFakeCommissionArtistRepository(), charRepo, newFakeCommissionArtpieceRepository())
+
+		_, err := uc.Create(context.Background(), userID, usecase.CreateCommissionParams{})
+
+		require.NoError(t, err)
+		require.Empty(t, charRepo.lastUsedAtUpdated)
+	})
+
+	t.Run("no bump when not owned", func(t *testing.T) {
+		charRepo := newFakeCommissionCharacterRepository()
+		uc := newCommissionUsecase(newFakeCommissionRepository(), newFakeCommissionArtistRepository(), charRepo, newFakeCommissionArtpieceRepository())
+
+		_, err := uc.Create(context.Background(), userID, usecase.CreateCommissionParams{CharacterIDs: []uuid.UUID{c1}})
+
+		require.ErrorIs(t, err, usecase.ErrCharacterNotOwned)
+		require.Empty(t, charRepo.lastUsedAtUpdated)
+	})
+}
+
+func TestUpdateCommission_CharacterRecency(t *testing.T) {
+	userID := uuid.New()
+	c1 := uuid.New()
+	setup := func() (*usecase.CommissionUsecase, *fakeCommissionCharacterRepository, uuid.UUID) {
+		commissionRepo := newFakeCommissionRepository()
+		commission := &domain.Commission{ID: uuid.New(), UserID: userID, Status: usecase.CommissionStatusWaitlist}
+		commissionRepo.commissions[commission.ID] = commission
+		charRepo := newFakeCommissionCharacterRepository()
+		charRepo.characters[c1] = &domain.Character{ID: c1, UserID: userID}
+		return newCommissionUsecase(commissionRepo, newFakeCommissionArtistRepository(), charRepo, newFakeCommissionArtpieceRepository()), charRepo, commission.ID
+	}
+
+	t.Run("bumps characters in request", func(t *testing.T) {
+		uc, charRepo, id := setup()
+
+		_, err := uc.Update(context.Background(), id, userID, usecase.UpdateCommissionParams{Status: usecase.CommissionStatusWaitlist, CharacterIDs: []uuid.UUID{c1}})
+
+		require.NoError(t, err)
+		require.Equal(t, [][]uuid.UUID{{c1}}, charRepo.lastUsedAtUpdated)
+	})
+
+	t.Run("no bump when empty", func(t *testing.T) {
+		uc, charRepo, id := setup()
+
+		_, err := uc.Update(context.Background(), id, userID, usecase.UpdateCommissionParams{Status: usecase.CommissionStatusWaitlist})
+
+		require.NoError(t, err)
+		require.Empty(t, charRepo.lastUsedAtUpdated)
+	})
+
+	t.Run("no bump when not owned", func(t *testing.T) {
+		uc, charRepo, id := setup()
+
+		_, err := uc.Update(context.Background(), id, userID, usecase.UpdateCommissionParams{Status: usecase.CommissionStatusWaitlist, CharacterIDs: []uuid.UUID{uuid.New()}})
+
+		require.ErrorIs(t, err, usecase.ErrCharacterNotOwned)
+		require.Empty(t, charRepo.lastUsedAtUpdated)
+	})
 }
 
 func TestPatchCommission_PatchPaidFalse(t *testing.T) {

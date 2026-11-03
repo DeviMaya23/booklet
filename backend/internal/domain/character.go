@@ -23,6 +23,7 @@ type Character struct {
 	VerseID      *uuid.UUID        `gorm:"type:uuid;column:verse_id"`
 	CreatedAt    time.Time         `gorm:"column:created_at"`
 	UpdatedAt    time.Time         `gorm:"column:updated_at"`
+	LastUsedAt   *time.Time        `gorm:"column:last_used_at"`
 	DeletedAt    gorm.DeletedAt    `gorm:"column:deleted_at;index"`
 	Folders      []CharacterFolder `gorm:"foreignKey:CharacterID"`
 }

@@ -3,6 +3,7 @@ import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
 import { ARTPIECES_QUERY_KEY } from './useArtpieces'
 import { artpieceQueryKey } from './useArtpiece'
+import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
 
 export interface UpdateArtpieceParams {
   id: string
@@ -36,6 +37,7 @@ export function useUpdateArtpiece() {
     onSuccess: (_data, { id }) => {
       queryClient.invalidateQueries({ queryKey: artpieceQueryKey(id) })
       queryClient.invalidateQueries({ queryKey: ARTPIECES_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
     },
   })
 }

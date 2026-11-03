@@ -411,6 +411,62 @@ func TestListCharacters_QFilterBoundToUsecase(t *testing.T) {
 	require.Equal(t, "aria", *capturedFilters.Q)
 }
 
+func TestListCharacters_SortParam(t *testing.T) {
+	t.Run("sort=recent is passed to usecase", func(t *testing.T) {
+		var captured usecase.ListCharacterFilters
+		spy := &captureCharacterListSpy{inner: &spyCharacterUsecase{}, capture: &captured}
+		h := handler.NewCharacterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+		e := setupEcho(testUserID)
+		e.GET("/characters", h.ListCharacters)
+
+		req := httptest.NewRequest(http.MethodGet, "/characters?sort=recent", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.NotNil(t, captured.Sort)
+		require.Equal(t, "recent", *captured.Sort)
+	})
+
+	t.Run("absent sort passes nil", func(t *testing.T) {
+		captured := usecase.ListCharacterFilters{Sort: new(string)}
+		spy := &captureCharacterListSpy{inner: &spyCharacterUsecase{}, capture: &captured}
+		h := handler.NewCharacterHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+		e := setupEcho(testUserID)
+		e.GET("/characters", h.ListCharacters)
+
+		req := httptest.NewRequest(http.MethodGet, "/characters", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		require.Nil(t, captured.Sort)
+	})
+
+	t.Run("invalid sort returns 422", func(t *testing.T) {
+		spy := &spyCharacterUsecase{}
+		h := newCharacterHandler(spy)
+		e := setupEcho(testUserID)
+		e.GET("/characters", h.ListCharacters)
+
+		req := httptest.NewRequest(http.MethodGet, "/characters?sort=bogus", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+		var got struct {
+			Errors []struct {
+				Field   string `json:"field"`
+				Message string `json:"message"`
+			} `json:"errors"`
+		}
+		require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+		require.Len(t, got.Errors, 1)
+		require.Equal(t, "sort", got.Errors[0].Field)
+		require.Equal(t, "sort must be one of: recent", got.Errors[0].Message)
+	})
+}
+
 type captureCharacterListSpy struct {
 	inner   *spyCharacterUsecase
 	capture *usecase.ListCharacterFilters

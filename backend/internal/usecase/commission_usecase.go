@@ -70,6 +70,11 @@ func (u *CommissionUsecase) Create(ctx context.Context, userID uuid.UUID, params
 		if len(chars) != len(params.CharacterIDs) {
 			return nil, ErrCharacterNotOwned
 		}
+		if err := u.characterRepo.UpdateLastUsedAt(ctx, params.CharacterIDs, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
 	}
 
 	artpieceIDs := dedupUUIDs(params.ArtpieceIDs)
@@ -175,6 +180,11 @@ func (u *CommissionUsecase) Update(ctx context.Context, id uuid.UUID, userID uui
 		}
 		if len(chars) != len(params.CharacterIDs) {
 			return nil, ErrCharacterNotOwned
+		}
+		if err := u.characterRepo.UpdateLastUsedAt(ctx, params.CharacterIDs, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
 		}
 	}
 

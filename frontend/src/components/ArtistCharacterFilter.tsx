@@ -57,7 +57,7 @@ export default function ArtistCharacterFilter({
   onVerseChange,
   footerAction,
 }: ArtistCharacterFilterProps) {
-  const charactersQuery = useCharacters()
+  const charactersQuery = useCharacters({ sort: 'recent' })
   const allCharacters = (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
   const availableCharacters = allCharacters.filter((c) => !characters.some((sc) => sc.id === c.id))
 

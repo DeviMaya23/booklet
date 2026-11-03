@@ -16,13 +16,25 @@ export interface Character {
 
 export const CHARACTERS_QUERY_KEY = ['characters'] as const
 
-export function useCharacters() {
+export type CharactersSort = 'recent'
+
+export interface UseCharactersOptions {
+  sort?: CharactersSort
+}
+
+export function charactersQueryKey(sort?: CharactersSort) {
+  return sort ? ([...CHARACTERS_QUERY_KEY, sort] as const) : CHARACTERS_QUERY_KEY
+}
+
+export function useCharacters(options?: UseCharactersOptions) {
   const { getToken } = useKindeAuth()
+  const sort = options?.sort
 
   return useQuery({
-    queryKey: CHARACTERS_QUERY_KEY,
+    queryKey: charactersQueryKey(sort),
     queryFn: async () => {
-      const res = await apiFetch('/characters', getToken)
+      const path = sort ? `/characters?sort=${sort}` : '/characters'
+      const res = await apiFetch(path, getToken)
       if (!res.ok) throw new Error('Failed to fetch characters')
       return res.json() as Promise<Character[]>
     },
