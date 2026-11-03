@@ -1,0 +1,20 @@
+meta {
+  name: List Tags
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/tags
+  body: none
+  auth: inherit
+}
+
+params:query {
+  ~sort: recent
+}
+
+docs {
+  Ordered by name ascending by default. Enable `sort=recent` to order by most recently used
+  (null last, then name). Any other `sort` value returns 422.
+}

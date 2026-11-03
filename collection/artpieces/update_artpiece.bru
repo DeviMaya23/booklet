@@ -16,6 +16,13 @@ body:json {
     "artist_id": null,
     "notes": "Updated notes.",
     "character_ids": [],
+    "tag_ids": [],
     "is_reference": false
   }
+}
+
+docs {
+  tag_ids replaces the full tag set; an empty or omitted tag_ids clears the artpiece's tags
+  (the tags themselves are kept). A tag the user does not own returns 422 and leaves the
+  artpiece unchanged. The response includes `tags` as an array of { id, name }.
 }

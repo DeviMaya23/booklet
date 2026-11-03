@@ -1,0 +1,28 @@
+meta {
+  name: Create Tag
+  type: http
+  seq: 1
+}
+
+post {
+  url: {{baseUrl}}/tags
+  body: json
+  auth: inherit
+}
+
+body:json {
+  {
+    "name": "WIP"
+  }
+}
+
+script:post-response {
+  if (res.status === 201) {
+    bru.setVar("tagId", res.body.id);
+  }
+}
+
+docs {
+  The name is trimmed and stored lowercase. Responds with `id` and `name`.
+  409 if the user already has a tag with that name (case-insensitive); 422 for a blank name.
+}

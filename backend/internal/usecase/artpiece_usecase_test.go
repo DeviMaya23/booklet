@@ -24,8 +24,9 @@ type fakeArtpieceRepository struct {
 	artpieces map[uuid.UUID]*domain.Artpiece
 	files     map[uuid.UUID][]*domain.File
 
-	lastCoverID    *uuid.UUID
-	lastCoverArtID uuid.UUID
+	lastCoverID      *uuid.UUID
+	lastCoverArtID   uuid.UUID
+	lastUpdateParams usecase.UpdateArtpieceParams
 }
 
 func newFakeArtpieceRepository() *fakeArtpieceRepository {
@@ -63,9 +64,14 @@ func (f *fakeArtpieceRepository) Update(_ context.Context, id uuid.UUID, userID 
 	if !ok || a.UserID != userID {
 		return nil, gorm.ErrRecordNotFound
 	}
+	f.lastUpdateParams = params
 	a.Title = params.Title
 	a.Notes = params.Notes
 	a.ArtistID = params.ArtistID
+	a.Tags = make([]domain.Tag, len(params.TagIDs))
+	for i, tid := range params.TagIDs {
+		a.Tags[i] = domain.Tag{ID: tid}
+	}
 	return a, nil
 }
 
@@ -279,7 +285,11 @@ func newArtpieceUsecaseWithStorage(
 	objectStorage *fakeArtpieceObjectGetter,
 	jobInserter *spyJobInserter,
 ) *usecase.ArtpieceUsecase {
-	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, fileRepo, objectStorage, &fakeTransactor{}, jobInserter, observability.NewTelemetry(nil, nil, nil))
+	return usecase.NewArtpieceUsecase(artpieceRepo, artistRepo, charRepo, newFakeTagRepository(), fileRepo, objectStorage, &fakeTransactor{}, jobInserter, observability.NewTelemetry(nil, nil, nil))
+}
+
+func newArtpieceUsecaseWithTags(artpieceRepo *fakeArtpieceRepository, tagRepo *fakeTagRepository) *usecase.ArtpieceUsecase {
+	return usecase.NewArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), tagRepo, newFakeArtpieceFileRepository(), newFakeArtpieceObjectGetter(), &fakeTransactor{}, &spyJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- create tests ---
@@ -395,6 +405,125 @@ func TestUpdateArtpiece_ClearArtist(t *testing.T) {
 
 	require.NoError(t, err)
 	require.Nil(t, updated.ArtistID)
+}
+
+// --- tag tests ---
+
+func TestCreateArtpiece_TagNotOwned(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	otherUsersTag := tagRepo.seed(uuid.New(), "theirs")
+	artpieceRepo := newFakeArtpieceRepository()
+	uc := newArtpieceUsecaseWithTags(artpieceRepo, tagRepo)
+
+	got, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{TagIDs: []uuid.UUID{otherUsersTag.ID}})
+
+	require.ErrorIs(t, err, usecase.ErrTagNotOwned)
+	require.Nil(t, got)
+	require.Empty(t, artpieceRepo.artpieces)
+	require.Nil(t, otherUsersTag.LastUsedAt)
+}
+
+func TestCreateArtpiece_UnknownTagNotOwned(t *testing.T) {
+	uc := newArtpieceUsecaseWithTags(newFakeArtpieceRepository(), newFakeTagRepository())
+
+	_, err := uc.Create(context.Background(), uuid.New(), usecase.CreateArtpieceParams{TagIDs: []uuid.UUID{uuid.New()}})
+
+	require.ErrorIs(t, err, usecase.ErrTagNotOwned)
+}
+
+func TestCreateArtpiece_DuplicateTagIDsDeduplicated(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	tag := tagRepo.seed(userID, "wip")
+	artpieceRepo := newFakeArtpieceRepository()
+	uc := newArtpieceUsecaseWithTags(artpieceRepo, tagRepo)
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{TagIDs: []uuid.UUID{tag.ID, tag.ID}})
+
+	require.NoError(t, err)
+	require.Len(t, artpieceRepo.artpieces, 1)
+	for _, a := range artpieceRepo.artpieces {
+		require.Len(t, a.Tags, 1)
+		require.Equal(t, tag.ID, a.Tags[0].ID)
+	}
+}
+
+func TestCreateArtpiece_BumpsOnlyGivenTags(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	used := tagRepo.seed(userID, "used")
+	untouched := tagRepo.seed(userID, "untouched")
+	uc := newArtpieceUsecaseWithTags(newFakeArtpieceRepository(), tagRepo)
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{TagIDs: []uuid.UUID{used.ID}})
+
+	require.NoError(t, err)
+	require.NotNil(t, used.LastUsedAt)
+	require.Nil(t, untouched.LastUsedAt)
+}
+
+func TestCreateArtpiece_NoTagsDoesNotBump(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	tag := tagRepo.seed(userID, "wip")
+	uc := newArtpieceUsecaseWithTags(newFakeArtpieceRepository(), tagRepo)
+
+	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{})
+
+	require.NoError(t, err)
+	require.Nil(t, tag.LastUsedAt)
+}
+
+func TestUpdateArtpiece_TagNotOwned(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	otherUsersTag := tagRepo.seed(uuid.New(), "theirs")
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	uc := newArtpieceUsecaseWithTags(artpieceRepo, tagRepo)
+
+	got, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{TagIDs: []uuid.UUID{otherUsersTag.ID}})
+
+	require.ErrorIs(t, err, usecase.ErrTagNotOwned)
+	require.Nil(t, got)
+	require.Empty(t, artpieceRepo.lastUpdateParams.TagIDs)
+	require.Nil(t, otherUsersTag.LastUsedAt)
+}
+
+func TestUpdateArtpiece_DuplicateTagIDsDeduplicated(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	tag := tagRepo.seed(userID, "wip")
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	uc := newArtpieceUsecaseWithTags(artpieceRepo, tagRepo)
+
+	got, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{TagIDs: []uuid.UUID{tag.ID, tag.ID}})
+
+	require.NoError(t, err)
+	require.Equal(t, []uuid.UUID{tag.ID}, artpieceRepo.lastUpdateParams.TagIDs)
+	require.Len(t, got.Tags, 1)
+}
+
+func TestUpdateArtpiece_BumpsTagsOnlyWhenNonEmpty(t *testing.T) {
+	userID := uuid.New()
+	tagRepo := newFakeTagRepository()
+	tag := tagRepo.seed(userID, "wip")
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceID := uuid.New()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	uc := newArtpieceUsecaseWithTags(artpieceRepo, tagRepo)
+
+	_, err := uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{TagIDs: []uuid.UUID{}})
+	require.NoError(t, err)
+	require.Nil(t, tag.LastUsedAt)
+
+	_, err = uc.Update(context.Background(), artpieceID, userID, usecase.UpdateArtpieceParams{TagIDs: []uuid.UUID{tag.ID}})
+	require.NoError(t, err)
+	require.NotNil(t, tag.LastUsedAt)
 }
 
 // --- detach tests ---

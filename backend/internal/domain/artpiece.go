@@ -19,6 +19,7 @@ type Artpiece struct {
 	CoverFile    *File       `gorm:"foreignKey:CoverFileID"`
 	Files        []File      `gorm:"foreignKey:ArtpieceID"`
 	Characters   []Character `gorm:"many2many:artpiece_characters;"`
+	Tags         []Tag       `gorm:"many2many:artpiece_tags;"`
 	CreatedAt    time.Time   `gorm:"column:created_at"`
 	UpdatedAt    time.Time   `gorm:"column:updated_at"`
 }

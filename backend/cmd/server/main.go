@@ -254,13 +254,17 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	verseUsecase := usecase.NewVerseUsecase(verseRepository, tel)
 	verseHandler := httphandler.NewVerseHandler(verseUsecase, tel)
 
+	tagRepository := repository.NewTagRepository(db)
+	tagUsecase := usecase.NewTagUsecase(tagRepository, tel)
+	tagHandler := httphandler.NewTagHandler(tagUsecase, tel)
+
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, verseRepository, r2Storage, characterAvatarRepository, transactor, tel, bookleafClient)
 	characterHandler := httphandler.NewCharacterHandler(characterUsecase, r2Storage, tel)
 
 	fileRepository := repository.NewFileRepository(db)
 	pendingFileUploadRepository := repository.NewPendingFileUploadRepository(db)
 	artpieceRepository := repository.NewArtpieceRepository(db)
-	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, fileRepository, r2Storage, transactor, enqueuer, tel)
+	artpieceUsecase := usecase.NewArtpieceUsecase(artpieceRepository, artistRepository, characterRepository, tagRepository, fileRepository, r2Storage, transactor, enqueuer, tel)
 	fileUsecase := usecase.NewFileUsecase(fileRepository, r2Storage, enqueuer, tel)
 	fileHandler := httphandler.NewFileHandler(fileUsecase, r2Storage, tel)
 	fileUploadUsecase := usecase.NewFileUploadUsecase(pendingFileUploadRepository, artpieceRepository, fileRepository, fileRepository, artpieceUsecase, r2Storage, tel)
@@ -348,6 +352,11 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/verses/:id", verseHandler.GetVerseByID)
 	protected.PATCH("/verses/:id", verseHandler.UpdateVerse)
 	protected.DELETE("/verses/:id", verseHandler.DeleteVerse)
+
+	protected.POST("/tags", tagHandler.CreateTag)
+	protected.GET("/tags", tagHandler.ListTags)
+	protected.PATCH("/tags/:id", tagHandler.UpdateTag)
+	protected.DELETE("/tags/:id", tagHandler.DeleteTag)
 
 	protected.POST("/artists", artistHandler.CreateArtist)
 	protected.GET("/artists", artistHandler.ListArtists)

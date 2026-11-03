@@ -16,6 +16,7 @@ body:json {
     "artist_id": null,
     "notes": "Some notes.",
     "character_ids": [],
+    "tag_ids": [],
     "file_ids": [],
     "is_reference": false
   }
@@ -25,4 +26,10 @@ script:post-response {
   if (res.status === 201) {
     bru.setVar("artpieceId", res.body.id);
   }
+}
+
+docs {
+  tag_ids: optional array of tag UUIDs owned by the user (duplicates are ignored).
+  A tag that does not exist or belongs to another user returns 422.
+  The response includes `tags` as an array of { id, name } (empty when none).
 }

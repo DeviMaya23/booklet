@@ -229,3 +229,78 @@ func (s *spyStorageService) GeneratePresignedPutURL(_ context.Context, _ string,
 func (s *spyStorageService) DeleteObject(_ context.Context, _ string) error {
 	return nil
 }
+
+// fakeTagRepository is shared by the tag usecase tests and (through the narrow
+// ArtpieceTagRepository interface) the artpiece usecase tests. State is kept in
+// the tags map so tests assert on the resulting tag rows, not on the call graph.
+type fakeTagRepository struct {
+	tags map[uuid.UUID]*domain.Tag
+}
+
+func newFakeTagRepository() *fakeTagRepository {
+	return &fakeTagRepository{tags: make(map[uuid.UUID]*domain.Tag)}
+}
+
+func (f *fakeTagRepository) seed(userID uuid.UUID, name string) *domain.Tag {
+	t := &domain.Tag{ID: uuid.New(), UserID: userID, Name: name}
+	f.tags[t.ID] = t
+	return t
+}
+
+func (f *fakeTagRepository) Create(_ context.Context, tag *domain.Tag) (*domain.Tag, error) {
+	f.tags[tag.ID] = tag
+	return tag, nil
+}
+
+func (f *fakeTagRepository) List(_ context.Context, userID uuid.UUID, _ usecase.ListTagFilters) ([]*domain.Tag, error) {
+	var result []*domain.Tag
+	for _, t := range f.tags {
+		if t.UserID == userID {
+			result = append(result, t)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeTagRepository) Update(_ context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateTagParams) (*domain.Tag, error) {
+	t, ok := f.tags[id]
+	if !ok || t.UserID != userID {
+		return nil, gorm.ErrRecordNotFound
+	}
+	t.Name = params.Name
+	return t, nil
+}
+
+func (f *fakeTagRepository) Delete(_ context.Context, id uuid.UUID, userID uuid.UUID) error {
+	t, ok := f.tags[id]
+	if !ok || t.UserID != userID {
+		return gorm.ErrRecordNotFound
+	}
+	delete(f.tags, id)
+	return nil
+}
+
+func (f *fakeTagRepository) GetByIDsAndUserID(_ context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Tag, error) {
+	var result []domain.Tag
+	seen := make(map[uuid.UUID]bool, len(ids))
+	for _, id := range ids {
+		if seen[id] {
+			continue
+		}
+		seen[id] = true
+		if t, ok := f.tags[id]; ok && t.UserID == userID {
+			result = append(result, *t)
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeTagRepository) UpdateLastUsedAt(_ context.Context, ids []uuid.UUID, userID uuid.UUID) error {
+	now := time.Now()
+	for _, id := range ids {
+		if t, ok := f.tags[id]; ok && t.UserID == userID {
+			t.LastUsedAt = &now
+		}
+	}
+	return nil
+}

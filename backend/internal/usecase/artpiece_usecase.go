@@ -19,6 +19,7 @@ type ArtpieceUsecase struct {
 	artpieceRepo  ArtpieceRepository
 	artistRepo    ArtpieceArtistRepository
 	characterRepo ArtpieceCharacterRepository
+	tagRepo       ArtpieceTagRepository
 	fileRepo      ArtpieceFileRepository
 	objectStorage ArtpieceObjectGetter
 	transactor    Transactor
@@ -30,6 +31,7 @@ func NewArtpieceUsecase(
 	artpieceRepo ArtpieceRepository,
 	artistRepo ArtpieceArtistRepository,
 	characterRepo ArtpieceCharacterRepository,
+	tagRepo ArtpieceTagRepository,
 	fileRepo ArtpieceFileRepository,
 	objectStorage ArtpieceObjectGetter,
 	transactor Transactor,
@@ -40,6 +42,7 @@ func NewArtpieceUsecase(
 		artpieceRepo:  artpieceRepo,
 		artistRepo:    artistRepo,
 		characterRepo: characterRepo,
+		tagRepo:       tagRepo,
 		fileRepo:      fileRepo,
 		objectStorage: objectStorage,
 		transactor:    transactor,
@@ -80,6 +83,13 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 		}
 	}
 
+	tagIDs, err := u.validateAndBumpTags(ctx, params.TagIDs, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+
 	fileIDs := dedupUUIDs(params.FileIDs)
 	if len(fileIDs) > 0 {
 		files, err := u.fileRepo.GetByIDsAndUserID(ctx, fileIDs, userID)
@@ -103,6 +113,11 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 		characters[i] = domain.Character{ID: cid}
 	}
 
+	tags := make([]domain.Tag, len(tagIDs))
+	for i, tid := range tagIDs {
+		tags[i] = domain.Tag{ID: tid}
+	}
+
 	artpiece := &domain.Artpiece{
 		ID:          uuid.New(),
 		UserID:      userID,
@@ -111,6 +126,7 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 		Notes:       params.Notes,
 		IsReference: params.IsReference,
 		Characters:  characters,
+		Tags:        tags,
 	}
 
 	created, err := u.artpieceRepo.Create(ctx, artpiece)
@@ -139,6 +155,27 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 	}
 
 	return u.artpieceRepo.GetByID(ctx, created.ID, userID)
+}
+
+// validateAndBumpTags de-duplicates the requested tag IDs, verifies the user owns
+// every one of them (ErrTagNotOwned otherwise) and bumps their last_used_at.
+// It returns the de-duplicated IDs; an empty input is a no-op and bumps nothing.
+func (u *ArtpieceUsecase) validateAndBumpTags(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]uuid.UUID, error) {
+	tagIDs := dedupUUIDs(ids)
+	if len(tagIDs) == 0 {
+		return tagIDs, nil
+	}
+	tags, err := u.tagRepo.GetByIDsAndUserID(ctx, tagIDs, userID)
+	if err != nil {
+		return nil, err
+	}
+	if len(tags) != len(tagIDs) {
+		return nil, ErrTagNotOwned
+	}
+	if err := u.tagRepo.UpdateLastUsedAt(ctx, tagIDs, userID); err != nil {
+		return nil, err
+	}
+	return tagIDs, nil
 }
 
 func (u *ArtpieceUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.Artpiece, error) {
@@ -198,6 +235,14 @@ func (u *ArtpieceUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.
 			return nil, err
 		}
 	}
+
+	tagIDs, err := u.validateAndBumpTags(ctx, params.TagIDs, userID)
+	if err != nil {
+		span.RecordError(err)
+		span.SetStatus(codes.Error, err.Error())
+		return nil, err
+	}
+	params.TagIDs = tagIDs
 
 	res, err := u.artpieceRepo.Update(ctx, id, userID, params)
 	if err != nil {

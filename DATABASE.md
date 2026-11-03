@@ -72,6 +72,16 @@ erDiagram
         UUID artpiece_id FK
         UUID character_id FK
     }
+    tags {
+        UUID id PK
+        UUID user_id FK
+        TEXT name
+        TIMESTAMPTZ last_used_at
+    }
+    artpiece_tags {
+        UUID artpiece_id FK
+        UUID tag_id FK
+    }
     commissions {
         UUID id PK
         UUID user_id FK
@@ -108,6 +118,7 @@ erDiagram
     }
 
     users ||--o{ verses : "owns"
+    users ||--o{ tags : "owns"
     users ||--o{ characters : "owns"
     users ||--o{ artists : "owns"
     users ||--o{ artpieces : "owns"
@@ -122,12 +133,15 @@ erDiagram
     characters ||--o{ artpiece_characters : ""
     characters ||--o{ commission_characters : ""
 
+    tags ||--o{ artpiece_tags : ""
+
     artists ||--o{ artist_links : "has"
     artists ||--o{ artpieces : "created"
     artists ||--o{ commissions : "contracted"
 
     artpieces ||--o{ files : "has"
     artpieces ||--o{ artpiece_characters : ""
+    artpieces ||--o{ artpiece_tags : ""
     artpieces }o--o| commissions : "from"
 
     files ||--o| image_metadata : "has"

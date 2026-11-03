@@ -1,0 +1,25 @@
+meta {
+  name: Update Tag
+  type: http
+  seq: 3
+}
+
+patch {
+  url: {{baseUrl}}/tags/:id
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{tagId}}
+}
+
+body:json {
+  {
+    "name": "Finished"
+  }
+}
+
+docs {
+  Renames the tag (trimmed, lowercased). 409 if another of the user's tags has that name; 404 if not found.
+}

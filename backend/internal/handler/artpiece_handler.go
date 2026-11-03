@@ -46,6 +46,7 @@ type createArtpieceRequest struct {
 	ArtistID     *uuid.UUID  `json:"artist_id"`
 	Notes        *string     `json:"notes"`
 	CharacterIDs []uuid.UUID `json:"character_ids"`
+	TagIDs       []uuid.UUID `json:"tag_ids"`
 	FileIDs      []uuid.UUID `json:"file_ids"`
 	IsReference  bool        `json:"is_reference"`
 }
@@ -59,6 +60,7 @@ type updateArtpieceRequest struct {
 	ArtistID     *uuid.UUID  `json:"artist_id"`
 	Notes        *string     `json:"notes"`
 	CharacterIDs []uuid.UUID `json:"character_ids"`
+	TagIDs       []uuid.UUID `json:"tag_ids"`
 	IsReference  *bool       `json:"is_reference"`
 }
 
@@ -67,6 +69,11 @@ type setCoverRequest struct {
 }
 
 type characterRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+}
+
+type tagRef struct {
 	ID   string `json:"id"`
 	Name string `json:"name"`
 }
@@ -97,6 +104,7 @@ type artpieceResponse struct {
 	Notes             *string        `json:"notes"`
 	IsReference       bool           `json:"is_reference"`
 	Characters        []characterRef `json:"characters"`
+	Tags              []tagRef       `json:"tags"`
 	Files             []fileRef      `json:"files"`
 	CreatedAt         string         `json:"created_at"`
 	UpdatedAt         string         `json:"updated_at"`
@@ -124,6 +132,7 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
+		TagIDs:       req.TagIDs,
 		FileIDs:      req.FileIDs,
 		IsReference:  req.IsReference,
 	})
@@ -132,6 +141,9 @@ func (h *ArtpieceHandler) CreateArtpiece(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		if errors.Is(err, usecase.ErrCharacterNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
+		if errors.Is(err, usecase.ErrTagNotOwned) {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		if errors.Is(err, usecase.ErrFileNotOwned) || errors.Is(err, usecase.ErrFileAlreadyAttached) {
@@ -211,7 +223,7 @@ func (h *ArtpieceHandler) ListArtpieces(c echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params")
 	}
 	if err := c.Validate(&filters); err != nil {
-		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params: character_ids and artist_ids must be valid UUIDs")
+		return echo.NewHTTPError(http.StatusBadRequest, "invalid query params: character_ids, artist_ids and tag_ids must be valid UUIDs and tag_match must be any or all")
 	}
 
 	artpieces, err := h.artpieceUsecase.List(ctx, userID, filters)
@@ -261,6 +273,7 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 		ArtistID:     req.ArtistID,
 		Notes:        req.Notes,
 		CharacterIDs: req.CharacterIDs,
+		TagIDs:       req.TagIDs,
 		IsReference:  req.IsReference,
 	})
 	if err != nil {
@@ -271,6 +284,9 @@ func (h *ArtpieceHandler) UpdateArtpiece(c echo.Context) error {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		if errors.Is(err, usecase.ErrCharacterNotOwned) {
+			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
+		}
+		if errors.Is(err, usecase.ErrTagNotOwned) {
 			return echo.NewHTTPError(http.StatusUnprocessableEntity, err.Error())
 		}
 		return echo.NewHTTPError(http.StatusInternalServerError, "failed to update artpiece")
@@ -500,6 +516,11 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, coverFileURL *
 		chars[i] = characterRef{ID: c.ID.String(), Name: c.Name}
 	}
 
+	tags := make([]tagRef, len(a.Tags))
+	for i, t := range a.Tags {
+		tags[i] = tagRef{ID: t.ID.String(), Name: t.Name}
+	}
+
 	var artistID, artistName, artistLink *string
 	if a.ArtistID != nil {
 		s := a.ArtistID.String()
@@ -549,6 +570,7 @@ func toArtpieceResponse(a *domain.Artpiece, thumbnailURL *string, coverFileURL *
 		Notes:             a.Notes,
 		IsReference:       a.IsReference,
 		Characters:        chars,
+		Tags:              tags,
 		Files:             files,
 		CreatedAt:         a.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:         a.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),

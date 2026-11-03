@@ -14,6 +14,8 @@ params:query {
   ~artist_ids: {{artistId}}
   ~character_ids: {{characterId}}
   ~is_reference: true
+  ~tag_ids: {{tagId}}
+  ~tag_match: any
 }
 
 vars:pre-request {
@@ -26,4 +28,11 @@ docs {
     cover_file_mime_type - MIME type of the cover file (e.g. "image/jpeg")
     cover_file_name      - name of the cover file, null if unnamed
   All three are null when the artpiece has no cover.
+
+  Each artpiece includes `tags` as an array of { id, name } (empty when none).
+
+  Tag filter:
+    tag_ids   - repeatable; artpieces carrying the given tags
+    tag_match - "any" (default): has at least one of the tags; "all": has every tag
+  A non-UUID tag_ids or a tag_match other than any/all returns 400.
 }
