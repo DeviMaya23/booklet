@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/devi/booklet/internal/bookleaf"
 	"github.com/devi/booklet/internal/domain"
@@ -29,6 +30,18 @@ func TestCreate_AssemblesCharacter(t *testing.T) {
 	require.Equal(t, "Aria Stormweaver", got.Name)
 	require.Empty(t, repo.lastCreated.Folders)
 	require.False(t, bl.called, "Bookleaf should not be called when no folder IDs")
+}
+
+func TestCreate_SetsLastUsedAt(t *testing.T) {
+	repo := newFakeCharacterRepository()
+	uc := usecase.NewCharacterUsecase(repo, newFakeVerseRepository(), &fakeStorageService{}, newFakeCharacterAvatarUploadRepository(), &fakeTransactor{}, observability.NewTelemetry(nil, nil, nil), &fakeBookleafClient{})
+
+	before := time.Now()
+	got, err := uc.Create(context.Background(), uuid.New(), usecase.CreateCharacterParams{Name: "Aria"})
+
+	require.NoError(t, err)
+	require.NotNil(t, got.LastUsedAt)
+	require.False(t, got.LastUsedAt.Before(before))
 }
 
 // --- InitAvatarUpload ---

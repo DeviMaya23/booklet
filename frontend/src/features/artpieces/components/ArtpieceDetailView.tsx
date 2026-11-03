@@ -71,7 +71,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
-  const charactersQuery = useCharacters()
+  const charactersQuery = useCharacters({ sort: 'recent' })
   const updateArtpiece = useUpdateArtpiece()
   const setCoverMutation = useSetCover()
   const replaceFiles = useAttachFilesToArtpiece()

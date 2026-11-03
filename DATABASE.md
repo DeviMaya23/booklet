@@ -24,6 +24,7 @@ erDiagram
         TEXT hero_image_r2_path
         TEXT notes
         BOOLEAN is_public
+        TIMESTAMPTZ last_used_at
     }
     character_folders {
         UUID character_id FK

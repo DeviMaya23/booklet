@@ -3,6 +3,7 @@ package repository
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/devi/booklet/internal/domain"
 	"github.com/devi/booklet/internal/testutil"
@@ -322,4 +323,116 @@ func TestCharacterRepository_List_VerseIDFilter(t *testing.T) {
 	assert.Equal(t, withVerse.ID, got[0].ID)
 	require.NotNil(t, got[0].VerseID)
 	assert.Equal(t, verse.ID, *got[0].VerseID)
+}
+
+func seedCharacterRecency(t *testing.T, tx *gorm.DB, userID uuid.UUID, name string, createdAt time.Time, lastUsedAt *time.Time) *domain.Character {
+	t.Helper()
+	c := &domain.Character{ID: uuid.New(), UserID: userID, Name: name, CreatedAt: createdAt, LastUsedAt: lastUsedAt}
+	require.NoError(t, tx.Create(c).Error)
+	return c
+}
+
+func charNames(chars []*domain.Character) []string {
+	names := make([]string, len(chars))
+	for i, c := range chars {
+		names[i] = c.Name
+	}
+	return names
+}
+
+func TestCharacterRepository_List_SortRecent(t *testing.T) {
+	recent := "recent"
+	base := time.Now().UTC().Truncate(time.Second)
+	ts := func(d time.Duration) *time.Time { v := base.Add(d); return &v }
+
+	t.Run("orders by last_used_at desc, nulls last, name tiebreak", func(t *testing.T) {
+		tx := testutil.NewTestTx(t, testDB)
+		repo := NewCharacterRepository(tx)
+		user := seedUser(t, tx, "user_1")
+		// created order is the reverse of recency order, so the default order differs
+		seedCharacterRecency(t, tx, user.ID, "NullUsed", base.Add(4*time.Hour), nil)
+		seedCharacterRecency(t, tx, user.ID, "Old", base.Add(3*time.Hour), ts(-2*time.Hour))
+		seedCharacterRecency(t, tx, user.ID, "TieB", base.Add(2*time.Hour), ts(-time.Hour))
+		seedCharacterRecency(t, tx, user.ID, "TieA", base.Add(time.Hour), ts(-time.Hour))
+		seedCharacterRecency(t, tx, user.ID, "Newest", base, ts(0))
+
+		got, err := repo.List(context.Background(), user.ID, usecase.ListCharacterFilters{Sort: &recent})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Newest", "TieA", "TieB", "Old", "NullUsed"}, charNames(got))
+	})
+
+	t.Run("default order ignores last_used_at", func(t *testing.T) {
+		tx := testutil.NewTestTx(t, testDB)
+		repo := NewCharacterRepository(tx)
+		user := seedUser(t, tx, "user_1")
+		seedCharacterRecency(t, tx, user.ID, "CreatedFirst", base, ts(time.Hour))
+		seedCharacterRecency(t, tx, user.ID, "CreatedLast", base.Add(time.Hour), ts(-time.Hour))
+
+		got, err := repo.List(context.Background(), user.ID, usecase.ListCharacterFilters{})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"CreatedLast", "CreatedFirst"}, charNames(got))
+	})
+
+	t.Run("combines with q and verse_id filters", func(t *testing.T) {
+		tx := testutil.NewTestTx(t, testDB)
+		repo := NewCharacterRepository(tx)
+		user := seedUser(t, tx, "user_1")
+		verse := &domain.Verse{ID: uuid.New(), UserID: user.ID, Name: "Verse"}
+		require.NoError(t, tx.Create(verse).Error)
+
+		mk := func(name string, verseID *uuid.UUID, lastUsed time.Duration) {
+			c := &domain.Character{ID: uuid.New(), UserID: user.ID, Name: name, VerseID: verseID, LastUsedAt: ts(lastUsed)}
+			require.NoError(t, tx.Create(c).Error)
+		}
+		mk("Aria Old", &verse.ID, -time.Hour)
+		mk("Aria New", &verse.ID, 0)
+		mk("Aria NoVerse", nil, time.Hour)
+		mk("Bob", &verse.ID, time.Hour)
+
+		q := "aria"
+		got, err := repo.List(context.Background(), user.ID, usecase.ListCharacterFilters{Sort: &recent, Q: &q, VerseID: &verse.ID})
+
+		require.NoError(t, err)
+		assert.Equal(t, []string{"Aria New", "Aria Old"}, charNames(got))
+	})
+}
+
+func TestCharacterRepository_UpdateLastUsedAt(t *testing.T) {
+	t.Run("bumps all given ids", func(t *testing.T) {
+		tx := testutil.NewTestTx(t, testDB)
+		repo := NewCharacterRepository(tx)
+		user := seedUser(t, tx, "user_1")
+		a := seedCharacter(t, tx, user.ID)
+		b := seedCharacter(t, tx, user.ID)
+		untouched := seedCharacter(t, tx, user.ID)
+
+		before := time.Now().Add(-time.Second)
+		require.NoError(t, repo.UpdateLastUsedAt(context.Background(), []uuid.UUID{a.ID, b.ID}, user.ID))
+
+		for _, id := range []uuid.UUID{a.ID, b.ID} {
+			got, err := repo.GetByID(context.Background(), id, user.ID)
+			require.NoError(t, err)
+			require.NotNil(t, got.LastUsedAt)
+			assert.True(t, got.LastUsedAt.After(before))
+		}
+		got, err := repo.GetByID(context.Background(), untouched.ID, user.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.LastUsedAt)
+	})
+
+	t.Run("does not bump another user's characters", func(t *testing.T) {
+		tx := testutil.NewTestTx(t, testDB)
+		repo := NewCharacterRepository(tx)
+		owner := seedUser(t, tx, "user_1")
+		other := seedUser(t, tx, "user_2")
+		c := seedCharacter(t, tx, owner.ID)
+
+		require.NoError(t, repo.UpdateLastUsedAt(context.Background(), []uuid.UUID{c.ID}, other.ID))
+
+		got, err := repo.GetByID(context.Background(), c.ID, owner.ID)
+		require.NoError(t, err)
+		assert.Nil(t, got.LastUsedAt)
+	})
 }

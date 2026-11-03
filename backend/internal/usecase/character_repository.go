@@ -22,6 +22,7 @@ type UpdateCharacterParams struct {
 type ListCharacterFilters struct {
 	Q       *string    `query:"q"`
 	VerseID *uuid.UUID `query:"verse_id"`
+	Sort    *string    `query:"sort" json:"sort" validate:"omitempty,oneof=recent"`
 }
 
 type CharacterRepository interface {
@@ -30,6 +31,7 @@ type CharacterRepository interface {
 	List(ctx context.Context, userID uuid.UUID, filters ListCharacterFilters) ([]*domain.Character, error)
 	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params UpdateCharacterParams) (*domain.Character, error)
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
+	UpdateLastUsedAt(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 	UpdateAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID, r2Key string) error
 	ClearAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID) (oldKey string, err error)
 }

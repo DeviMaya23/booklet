@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
 import { COMMISSIONS_QUERY_KEY } from './useCommissions'
+import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
 
 export interface CreateCommissionParams {
   title?: string | null
@@ -43,6 +44,7 @@ export function useCreateCommission() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: COMMISSIONS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
     },
   })
 }

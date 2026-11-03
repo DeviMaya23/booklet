@@ -54,7 +54,11 @@ func (r *characterRepository) List(ctx context.Context, userID uuid.UUID, filter
 	if filters.VerseID != nil {
 		q = q.Where("verse_id = ?", *filters.VerseID)
 	}
-	err := q.Order("created_at DESC").Find(&characters).Error
+	order := "created_at DESC"
+	if filters.Sort != nil && *filters.Sort == "recent" {
+		order = "last_used_at DESC NULLS LAST, name ASC"
+	}
+	err := q.Order(order).Find(&characters).Error
 	if err != nil {
 		return nil, fmt.Errorf("list characters: %w", err)
 	}
@@ -133,6 +137,20 @@ func (r *characterRepository) GetByIDsAndUserID(ctx context.Context, ids []uuid.
 		return nil, fmt.Errorf("get characters by ids: %w", err)
 	}
 	return characters, nil
+}
+
+func (r *characterRepository) UpdateLastUsedAt(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	result := dbFromContext(ctx, r.db).
+		Model(&domain.Character{}).
+		Where("id IN ? AND user_id = ?", ids, userID).
+		Update("last_used_at", gorm.Expr("NOW()"))
+	if result.Error != nil {
+		return fmt.Errorf("update characters last_used_at: %w", result.Error)
+	}
+	return nil
 }
 
 func (r *characterRepository) UpdateAvatarR2Path(ctx context.Context, id uuid.UUID, userID uuid.UUID, r2Key string) error {

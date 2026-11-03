@@ -56,7 +56,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   const [artistModalOpen, setArtistModalOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
 
-  const charactersQuery = useCharacters()
+  const charactersQuery = useCharacters({ sort: 'recent' })
   const { data: inboxFiles = [] } = useFiles()
   const createArtpiece = useCreateArtpiece()
   const queryClient = useQueryClient()

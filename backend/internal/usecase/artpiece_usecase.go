@@ -73,6 +73,11 @@ func (u *ArtpieceUsecase) Create(ctx context.Context, userID uuid.UUID, params C
 		if len(chars) != len(params.CharacterIDs) {
 			return nil, ErrCharacterNotOwned
 		}
+		if err := u.characterRepo.UpdateLastUsedAt(ctx, params.CharacterIDs, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
 	}
 
 	fileIDs := dedupUUIDs(params.FileIDs)
@@ -171,6 +176,23 @@ func (u *ArtpieceUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.
 			return nil, ErrArtistNotOwned
 		}
 		if err := u.artistRepo.UpdateLastUsedAt(ctx, *params.ArtistID, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+	}
+
+	if len(params.CharacterIDs) > 0 {
+		chars, err := u.characterRepo.GetByIDsAndUserID(ctx, params.CharacterIDs, userID)
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, err
+		}
+		if len(chars) != len(params.CharacterIDs) {
+			return nil, ErrCharacterNotOwned
+		}
+		if err := u.characterRepo.UpdateLastUsedAt(ctx, params.CharacterIDs, userID); err != nil {
 			span.RecordError(err)
 			span.SetStatus(codes.Error, err.Error())
 			return nil, err

@@ -83,6 +83,10 @@ func (f *fakeCharacterRepository) Delete(_ context.Context, id uuid.UUID, _ uuid
 	return nil
 }
 
+func (f *fakeCharacterRepository) UpdateLastUsedAt(_ context.Context, _ []uuid.UUID, _ uuid.UUID) error {
+	return nil
+}
+
 func (f *fakeCharacterRepository) ClearAvatarR2Path(_ context.Context, id uuid.UUID, userID uuid.UUID) (string, error) {
 	c, ok := f.characters[id]
 	if !ok || c.UserID != userID {

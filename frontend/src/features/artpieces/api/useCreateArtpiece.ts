@@ -1,6 +1,7 @@
-import { useMutation } from '@tanstack/react-query'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
+import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
 
 export interface CreateArtpieceParams {
   title: string
@@ -22,6 +23,7 @@ export interface Artpiece {
 
 export function useCreateArtpiece() {
   const { getToken } = useKindeAuth()
+  const queryClient = useQueryClient()
 
   return useMutation({
     mutationFn: async (params: CreateArtpieceParams) => {
@@ -39,6 +41,9 @@ export function useCreateArtpiece() {
       })
       if (!res.ok) throw new Error('Failed to create artpiece')
       return res.json() as Promise<Artpiece>
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
     },
   })
 }
