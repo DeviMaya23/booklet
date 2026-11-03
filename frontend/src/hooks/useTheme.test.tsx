@@ -15,8 +15,17 @@ describe('useTheme', () => {
     expect(document.documentElement.dataset.theme).toBe('warm')
   })
 
-  it('restores a stored theme preference on load', () => {
-    localStorage.setItem('booklet-theme', 'warm')
+  it.each(['warm', 'lumen', 'sunless'] as const)('restores a stored %s preference on load', (stored) => {
+    localStorage.setItem('booklet-theme', stored)
+
+    const { result } = renderHook(() => useTheme(), { wrapper: ThemeProvider })
+
+    expect(result.current.theme).toBe(stored)
+    expect(document.documentElement.dataset.theme).toBe(stored)
+  })
+
+  it('falls back to warm when the stored value is not a supported theme', () => {
+    localStorage.setItem('booklet-theme', 'neon')
 
     const { result } = renderHook(() => useTheme(), { wrapper: ThemeProvider })
 
@@ -27,10 +36,11 @@ describe('useTheme', () => {
   it('setTheme updates the data-theme attribute and localStorage', () => {
     const { result } = renderHook(() => useTheme(), { wrapper: ThemeProvider })
 
-    act(() => result.current.setTheme('warm'))
+    act(() => result.current.setTheme('sunless'))
 
-    expect(document.documentElement.dataset.theme).toBe('warm')
-    expect(localStorage.getItem('booklet-theme')).toBe('warm')
+    expect(result.current.theme).toBe('sunless')
+    expect(document.documentElement.dataset.theme).toBe('sunless')
+    expect(localStorage.getItem('booklet-theme')).toBe('sunless')
   })
 
   it('throws when used outside of ThemeProvider', () => {
