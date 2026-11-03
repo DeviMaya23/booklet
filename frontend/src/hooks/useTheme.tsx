@@ -1,6 +1,8 @@
 import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
 
-export type Theme = 'warm'
+const THEMES = ['warm', 'lumen', 'sunless'] as const
+
+export type Theme = (typeof THEMES)[number]
 
 const STORAGE_KEY = 'booklet-theme'
 
@@ -13,7 +15,7 @@ const ThemeContext = createContext<ThemeContextValue | null>(null)
 
 function readStoredTheme(): Theme {
   const stored = localStorage.getItem(STORAGE_KEY)
-  return stored === 'warm' ? stored : 'warm'
+  return THEMES.find((theme) => theme === stored) ?? 'warm'
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
