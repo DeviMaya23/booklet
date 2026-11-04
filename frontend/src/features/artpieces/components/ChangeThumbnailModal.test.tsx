@@ -35,6 +35,7 @@ function makeArtpiece(id: string, title: string, characters: { id: string; name:
     notes: null,
     is_reference: false,
     characters,
+    tags: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   }
@@ -45,7 +46,7 @@ function makeFilter(overrides: Partial<SavedFilter> = {}): SavedFilter {
     id: 'filter-1',
     name: 'My Filter',
     thumbnail_url: null,
-    filter_payload: { artist_id: 'artist-1', character_ids: [], match_mode: 'all', is_reference: false, verse_id: null },
+    filter_payload: { artist_id: 'artist-1', character_ids: [], match_mode: 'all', is_reference: false, verse_id: null, tag_ids: [], tag_match_mode: 'all' },
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -58,7 +59,12 @@ function okJson(data: unknown) {
 
 type CharacterFixture = { id: string; name: string; verse_id: string | null }
 
-function setupFetch(artpieces: ArtpieceSummary[], characters: CharacterFixture[] = [], verses: { id: string; name: string }[] = []) {
+function setupFetch(
+  artpieces: ArtpieceSummary[],
+  characters: CharacterFixture[] = [],
+  verses: { id: string; name: string }[] = [],
+  tags: { id: string; name: string }[] = [],
+) {
   vi.mocked(apiFetch).mockImplementation((url: string) => {
     if (url === '/artpieces') return okJson(artpieces)
     if (url === '/artists') return okJson([ARTIST])
@@ -75,6 +81,7 @@ function setupFetch(artpieces: ArtpieceSummary[], characters: CharacterFixture[]
         updated_at: '',
       })))
     }
+    if (url === '/tags?sort=recent') return okJson(tags)
     if (url === '/verses') {
       return okJson(verses.map((v) => ({ id: v.id, name: v.name, sort_order: 0, last_used_at: null, created_at: '', updated_at: '' })))
     }
@@ -153,7 +160,7 @@ describe('ChangeThumbnailModal — verse filter', () => {
     )
     render(
       <ChangeThumbnailModal
-        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1' } })}
+        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1', tag_ids: [], tag_match_mode: 'all' } })}
         open
         onOpenChange={onOpenChange}
         onSaved={onSaved}
@@ -172,7 +179,7 @@ describe('ChangeThumbnailModal — verse filter', () => {
     )
     render(
       <ChangeThumbnailModal
-        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1' } })}
+        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1', tag_ids: [], tag_match_mode: 'all' } })}
         open
         onOpenChange={onOpenChange}
         onSaved={onSaved}
@@ -195,7 +202,7 @@ describe('ChangeThumbnailModal — verse filter', () => {
 
     render(
       <ChangeThumbnailModal
-        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1' } })}
+        filter={makeFilter({ filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: 'verse-1', tag_ids: [], tag_match_mode: 'all' } })}
         open
         onOpenChange={onOpenChange}
         onSaved={onSaved}
@@ -211,5 +218,134 @@ describe('ChangeThumbnailModal — verse filter', () => {
 
     resolveCharacters(await okJson([{ id: 'char-1', name: 'Alpha', avatar_url: null, notes: null, is_public: false, verse_id: 'verse-1', folders: [], created_at: '', updated_at: '' }]))
     expect(await screen.findByRole('button', { name: 'In verse' })).toBeInTheDocument()
+  })
+
+  describe('tag filter', () => {
+    const tagA = { id: 'tag-a', name: 'outfit' }
+    const tagB = { id: 'tag-b', name: 'sketch' }
+    const withTags = (overrides: Partial<SavedFilter['filter_payload']>) =>
+      makeFilter({
+        filter_payload: {
+          artist_id: null,
+          character_ids: [],
+          match_mode: 'all',
+          is_reference: false,
+          verse_id: null,
+          tag_ids: [],
+          tag_match_mode: 'all',
+          ...overrides,
+        },
+      })
+    const artpieces = [
+      { ...makeArtpiece('ap-both', 'Both tags'), tags: [tagA, tagB] },
+      { ...makeArtpiece('ap-a', 'Only A'), tags: [tagA] },
+      makeArtpiece('ap-plain', 'Plain'),
+    ]
+
+    function renderModal(filter: SavedFilter) {
+      render(<ChangeThumbnailModal filter={filter} open onOpenChange={onOpenChange} onSaved={onSaved} />, { wrapper })
+    }
+
+    it('All mode only lists artpieces that have every tag', async () => {
+      setupFetch(artpieces, [], [], [tagA, tagB])
+      renderModal(withTags({ tag_ids: ['tag-a', 'tag-b'], tag_match_mode: 'all' }))
+
+      expect(await screen.findByRole('button', { name: 'Both tags' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Only A' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Plain' })).not.toBeInTheDocument()
+    })
+
+    it('Any mode lists artpieces that have at least one tag', async () => {
+      setupFetch(artpieces, [], [], [tagA, tagB])
+      renderModal(withTags({ tag_ids: ['tag-a', 'tag-b'], tag_match_mode: 'any' }))
+
+      expect(await screen.findByRole('button', { name: 'Both tags' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Only A' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Plain' })).not.toBeInTheDocument()
+    })
+
+    it('a deleted tag in All mode does not empty the grid', async () => {
+      setupFetch(artpieces, [], [], [tagA, tagB])
+      renderModal(withTags({ tag_ids: ['tag-a', 'tag-deleted'], tag_match_mode: 'all' }))
+
+      expect(await screen.findByRole('button', { name: 'Only A' })).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Both tags' })).toBeInTheDocument()
+      expect(screen.queryByText(/no artpieces match this filter/i)).not.toBeInTheDocument()
+    })
+
+    it('a deleted character in All mode does not empty the grid', async () => {
+      const withChars = [
+        makeArtpiece('ap-a', 'Has A', [{ id: 'char-a', name: 'Alpha' }]),
+        makeArtpiece('ap-none', 'No chars'),
+      ]
+      setupFetch(withChars, [{ id: 'char-a', name: 'Alpha', verse_id: null }])
+      renderModal(withTags({ character_ids: ['char-a', 'char-deleted'], match_mode: 'all' }))
+
+      expect(await screen.findByRole('button', { name: 'Has A' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'No chars' })).not.toBeInTheDocument()
+      expect(screen.queryByText(/no artpieces match this filter/i)).not.toBeInTheDocument()
+    })
+
+    it('shows the tag count in the filter chip', async () => {
+      setupFetch(artpieces, [], [], [tagA, tagB])
+      renderModal(withTags({ tag_ids: ['tag-a', 'tag-b'] }))
+
+      expect(await screen.findByText('2 tags')).toBeInTheDocument()
+    })
+
+    it('applies the saved tag ids as given when the tag list fails to load', async () => {
+      vi.mocked(apiFetch).mockImplementation((url: string) => {
+        if (url === '/artpieces') return okJson(artpieces)
+        if (url === '/artists') return okJson([ARTIST])
+        if (url === '/characters') return okJson([])
+        if (url === '/verses') return okJson([])
+        if (url === '/tags?sort=recent') return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response)
+        return okJson({})
+      })
+      renderModal(withTags({ tag_ids: ['tag-a', 'tag-b'], tag_match_mode: 'all' }))
+
+      expect(await screen.findByRole('button', { name: 'Both tags' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Only A' })).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Plain' })).not.toBeInTheDocument()
+    })
+
+    it('applies the saved character ids as given when the character list fails to load', async () => {
+      const withChars = [
+        makeArtpiece('ap-a', 'Has A', [{ id: 'char-a', name: 'Alpha' }]),
+        makeArtpiece('ap-none', 'No chars'),
+      ]
+      vi.mocked(apiFetch).mockImplementation((url: string) => {
+        if (url === '/artpieces') return okJson(withChars)
+        if (url === '/artists') return okJson([ARTIST])
+        if (url === '/characters') return Promise.resolve({ ok: false, status: 500, json: async () => ({}) } as Response)
+        if (url === '/verses') return okJson([])
+        if (url === '/tags?sort=recent') return okJson([])
+        return okJson({})
+      })
+      renderModal(withTags({ character_ids: ['char-a'], match_mode: 'all' }))
+
+      expect(await screen.findByRole('button', { name: 'Has A' })).toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'No chars' })).not.toBeInTheDocument()
+    })
+
+    it('shows a loading state, not the empty state, while tags are still loading', async () => {
+      let resolveTags!: (value: Response) => void
+      vi.mocked(apiFetch).mockImplementation((url: string) => {
+        if (url === '/artpieces') return okJson(artpieces)
+        if (url === '/artists') return okJson([ARTIST])
+        if (url === '/characters') return okJson([])
+        if (url === '/verses') return okJson([])
+        if (url === '/tags?sort=recent') return new Promise((resolve) => { resolveTags = resolve })
+        return okJson({})
+      })
+      renderModal(withTags({ tag_ids: ['tag-a'] }))
+
+      await screen.findByText('Filter:')
+      expect(screen.queryByText(/no artpieces match this filter/i)).not.toBeInTheDocument()
+      expect(screen.queryByRole('button', { name: 'Only A' })).not.toBeInTheDocument()
+
+      resolveTags(await okJson([tagA, tagB]))
+      expect(await screen.findByRole('button', { name: 'Only A' })).toBeInTheDocument()
+    })
   })
 })

@@ -3,6 +3,7 @@ import { useSearchParams } from 'react-router-dom'
 import { type ArtpieceSummary } from '../api/useArtpieces'
 import { type Artist, useArtists } from '@/features/artists/api/useArtists'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { useTags } from '@/features/tags/api/useTags'
 import { type Verse, useVerses } from '@/features/verses/api/useVerses'
 
 export type SortMode = 'newest' | 'alpha'
@@ -15,6 +16,8 @@ interface StoredFilter {
   matchMode: 'all' | 'any'
   isReference: boolean
   verseId: string | null
+  tagIds: string[]
+  tagMatch: 'all' | 'any'
 }
 
 function readStoredFilter(): StoredFilter | null {
@@ -41,6 +44,8 @@ interface FilterParams {
   selectedArtist: Artist | null
   selectedCharacters: { id: string; name: string }[]
   characterMatch: 'all' | 'any'
+  selectedTags?: { id: string; name: string }[]
+  tagMatch?: 'all' | 'any'
   isReference: boolean
   selectedVerse?: Verse | null
   allCharacters?: { id: string; verse_id: string | null }[]
@@ -49,7 +54,7 @@ interface FilterParams {
 
 export function filterAndSortArtpieces(
   artpieces: ArtpieceSummary[],
-  { search, sort, selectedArtist, selectedCharacters, characterMatch, isReference, selectedVerse, allCharacters, charactersPending }: FilterParams,
+  { search, sort, selectedArtist, selectedCharacters, characterMatch, selectedTags = [], tagMatch = 'all', isReference, selectedVerse, allCharacters, charactersPending }: FilterParams,
 ): ArtpieceSummary[] {
   // allCharacters is still loading: membership of the verse is unknown, not
   // empty, so the verse filter must not exclude anything until it resolves.
@@ -79,6 +84,14 @@ export function filterAndSortArtpieces(
           if (!selectedCharacters.some((sc) => ids.includes(sc.id))) return false
         }
       }
+      if (selectedTags.length > 0) {
+        const ids = a.tags.map((t) => t.id)
+        if (tagMatch === 'all') {
+          if (!selectedTags.every((st) => ids.includes(st.id))) return false
+        } else {
+          if (!selectedTags.some((st) => ids.includes(st.id))) return false
+        }
+      }
       if (verseCharacterIds) {
         if (!a.characters.some((c) => verseCharacterIds.has(c.id))) return false
       }
@@ -100,6 +113,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
   const versesQuery = useVerses()
+  const tagsQuery = useTags({ sort: 'recent' })
 
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortMode>('newest')
@@ -128,7 +142,30 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     ? (versesQuery.data?.find((v) => v.id === verseParam) ?? null)
     : null
 
-  const hasFilterParams = artistParam !== null || charactersParam !== null || refParam !== null || matchParam !== null || verseParam !== null
+  // Tag ids that no longer resolve (deleted tags) are dropped here, and the
+  // tag filter is not applied until the tag list has loaded. If the list
+  // failed to load nothing can be resolved, so the ids are applied as given
+  // rather than silently showing every artpiece under a "tagged" URL.
+  const tagsParam = searchParams.get('tags')
+  const tagIdList = tagsParam ? tagsParam.split(',').filter(Boolean) : []
+  const selectedTags = tagsQuery.isError
+    ? tagIdList.map((id) => ({ id, name: '' }))
+    : tagIdList
+        .map((id) => tagsQuery.data?.find((t) => t.id === id))
+        .filter((t): t is NonNullable<typeof t> => t != null)
+        .map((t) => ({ id: t.id, name: t.name }))
+
+  const tagMatchParam = searchParams.get('tag_match')
+  const tagMatch: 'all' | 'any' = tagMatchParam === 'any' ? 'any' : 'all'
+
+  const hasFilterParams =
+    artistParam !== null ||
+    charactersParam !== null ||
+    refParam !== null ||
+    matchParam !== null ||
+    verseParam !== null ||
+    tagsParam !== null ||
+    tagMatchParam !== null
 
   // pendingFilterRef always reflects the current filter state and is mutated
   // eagerly by each setter before it commits. React Router's setSearchParams
@@ -143,6 +180,8 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     matchMode: characterMatch,
     isReference,
     verseId: verseParam,
+    tagIds: tagIdList,
+    tagMatch,
   })
   // Params not owned by the filter are carried over untouched on each commit.
   const paramsRef = useRef(searchParams)
@@ -150,7 +189,7 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   // a fresh base. useLayoutEffect (not render-time assignment) keeps the write
   // out of the render phase.
   useLayoutEffect(() => {
-    pendingFilterRef.current = { artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam }
+    pendingFilterRef.current = { artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam, tagIds: tagIdList, tagMatch }
     paramsRef.current = searchParams
   })
 
@@ -169,6 +208,10 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     else next.delete('ref')
     if (filter.verseId) next.set('verse', filter.verseId)
     else next.delete('verse')
+    if (filter.tagIds.length > 0) next.set('tags', filter.tagIds.join(','))
+    else next.delete('tags')
+    if (filter.tagMatch === 'any') next.set('tag_match', 'any')
+    else next.delete('tag_match')
 
     paramsRef.current = next
     setSearchParams(next, { replace: true })
@@ -178,16 +221,20 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
   // the URL-derived state when arriving with params (e.g. from a saved-filter link).
   useEffect(() => {
     if (hasFilterParams) {
-      writeStoredFilter({ artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam })
+      writeStoredFilter({ artistId: artistParam, characterIds: characterIdList, matchMode: characterMatch, isReference, verseId: verseParam, tagIds: tagIdList, tagMatch })
     } else {
       const stored = readStoredFilter()
-      if (!stored || (!stored.artistId && stored.characterIds.length === 0 && !stored.isReference && !stored.verseId)) return
+      // State stored before tags existed has no tag fields.
+      const storedTagIds = Array.isArray(stored?.tagIds) ? stored.tagIds : []
+      if (!stored || (!stored.artistId && stored.characterIds.length === 0 && !stored.isReference && !stored.verseId && storedTagIds.length === 0)) return
       commitFilter({
         artistId: stored.artistId,
         characterIds: stored.characterIds,
         matchMode: stored.matchMode === 'any' ? 'any' : 'all',
         isReference: stored.isReference,
         verseId: stored.verseId ?? null,
+        tagIds: storedTagIds,
+        tagMatch: stored.tagMatch === 'any' ? 'any' : 'all',
       })
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -209,6 +256,20 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     commitFilter({ ...pendingFilterRef.current, matchMode: mode })
   }
 
+  function setSelectedTags(tags: { id: string; name: string }[]) {
+    // Emptying the tags also resets the match mode, so no stale tag_match=any
+    // survives to silently apply Any the next time tags are added.
+    commitFilter({
+      ...pendingFilterRef.current,
+      tagIds: tags.map((t) => t.id),
+      tagMatch: tags.length === 0 ? 'all' : pendingFilterRef.current.tagMatch,
+    })
+  }
+
+  function setTagMatch(mode: 'all' | 'any') {
+    commitFilter({ ...pendingFilterRef.current, tagMatch: mode })
+  }
+
   function setSelectedVerse(verse: Verse | null) {
     commitFilter({ ...pendingFilterRef.current, verseId: verse?.id ?? null })
   }
@@ -219,6 +280,8 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedArtist,
     selectedCharacters,
     characterMatch,
+    selectedTags,
+    tagMatch,
     isReference,
     selectedVerse,
     allCharacters: charactersQuery.data,
@@ -231,6 +294,8 @@ export function useArtpiecesFilter(artpieces: ArtpieceSummary[]) {
     selectedArtist, setSelectedArtist,
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
+    selectedTags, setSelectedTags,
+    tagMatch, setTagMatch,
     isReference, setIsReference,
     selectedVerse, setSelectedVerse,
     filtered,

@@ -4,6 +4,7 @@ import { apiFetch } from '@/lib/api'
 import { ARTPIECES_QUERY_KEY } from './useArtpieces'
 import { artpieceQueryKey } from './useArtpiece'
 import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
+import { TAGS_QUERY_KEY } from '@/features/tags/api/useTags'
 
 export interface UpdateArtpieceParams {
   id: string
@@ -11,6 +12,7 @@ export interface UpdateArtpieceParams {
   notes: string | null
   artistId: string | null
   characterIds: string[]
+  tagIds: string[]
   isReference?: boolean
 }
 
@@ -19,7 +21,7 @@ export function useUpdateArtpiece() {
   const queryClient = useQueryClient()
 
   return useMutation({
-    mutationFn: async ({ id, title, notes, artistId, characterIds, isReference }: UpdateArtpieceParams) => {
+    mutationFn: async ({ id, title, notes, artistId, characterIds, tagIds, isReference }: UpdateArtpieceParams) => {
       const res = await apiFetch(`/artpieces/${id}`, getToken, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
@@ -28,6 +30,7 @@ export function useUpdateArtpiece() {
           notes,
           artist_id: artistId,
           character_ids: characterIds,
+          tag_ids: tagIds,
           ...(isReference !== undefined && { is_reference: isReference }),
         }),
       })
@@ -38,6 +41,7 @@ export function useUpdateArtpiece() {
       queryClient.invalidateQueries({ queryKey: artpieceQueryKey(id) })
       queryClient.invalidateQueries({ queryKey: ARTPIECES_QUERY_KEY })
       queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY })
     },
   })
 }

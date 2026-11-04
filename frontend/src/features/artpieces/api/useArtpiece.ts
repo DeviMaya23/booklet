@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
-import { type ArtpieceCharacter } from './useArtpieces'
+import { type ArtpieceCharacter, type ArtpieceTag } from './useArtpieces'
 
 export interface ArtpieceFile {
   id: string
@@ -25,6 +25,7 @@ export interface ArtpieceDetail {
   notes: string | null
   is_reference: boolean
   characters: ArtpieceCharacter[]
+  tags: ArtpieceTag[]
   files: ArtpieceFile[]
   created_at: string
   updated_at: string

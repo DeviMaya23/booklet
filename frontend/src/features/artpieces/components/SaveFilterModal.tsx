@@ -25,6 +25,8 @@ interface SaveFilterModalProps {
     matchMode: 'all' | 'any'
     isReference: boolean
     verse: Verse | null
+    tags: { id: string; name: string }[]
+    tagMatch: 'all' | 'any'
   }
   onSuccess: (savedFilter: SavedFilter) => void
 }
@@ -34,6 +36,9 @@ function buildFilterSummary(filterState: SaveFilterModalProps['filterState']): s
   if (filterState.artist) parts.push(`Artist: ${filterState.artist.name}`)
   if (filterState.characters.length > 0) {
     parts.push(`Characters: ${filterState.characters.map((c) => c.name).join(', ')} (${filterState.matchMode})`)
+  }
+  if (filterState.tags.length > 0) {
+    parts.push(`Tags: ${filterState.tags.map((t) => t.name).join(', ')} (${filterState.tagMatch})`)
   }
   if (filterState.verse) parts.push(`Verse: ${filterState.verse.name}`)
   if (filterState.isReference) parts.push('References only')
@@ -78,6 +83,8 @@ export default function SaveFilterModal({
           match_mode: filterState.matchMode,
           is_reference: filterState.isReference,
           verse_id: filterState.verse?.id ?? null,
+          tag_ids: filterState.tags.map((t) => t.id),
+          tag_match_mode: filterState.tagMatch,
         },
       })
       toast.success(`Filter "${result.name}" saved`)

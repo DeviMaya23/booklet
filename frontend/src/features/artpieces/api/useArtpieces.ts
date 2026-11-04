@@ -7,6 +7,11 @@ export interface ArtpieceCharacter {
   name: string
 }
 
+export interface ArtpieceTag {
+  id: string
+  name: string
+}
+
 export interface ArtpieceSummary {
   id: string
   title: string | null
@@ -22,6 +27,7 @@ export interface ArtpieceSummary {
   notes: string | null
   is_reference: boolean
   characters: ArtpieceCharacter[]
+  tags: ArtpieceTag[]
   created_at: string
   updated_at: string
 }

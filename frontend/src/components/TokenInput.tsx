@@ -11,6 +11,16 @@ interface TokenInputProps<T extends { id: string; name: string }> {
   // string via this function. Returning null means "don't add" (e.g. empty
   // after trim, or duplicate name).
   createFromText?: (raw: string) => T | null
+  // Opt-in: list suggestions as soon as the input is focused, before typing.
+  openOnFocus?: boolean
+  // Opt-in async creation. Enter or comma with no suggestion highlighted, or
+  // choosing the create row, calls this with the trimmed text. A resolved item
+  // is added as a chip; null keeps the text in place. Free text is never
+  // created on blur. Ignored while a previous call is still pending.
+  onCreate?: (raw: string) => Promise<T | null>
+  // Whether the create row is offered for the current trimmed text. Defaults
+  // to true for any non-empty text when onCreate is provided.
+  canCreate?: (raw: string) => boolean
 }
 
 export default function TokenInput<T extends { id: string; name: string }>({
@@ -20,21 +30,28 @@ export default function TokenInput<T extends { id: string; name: string }>({
   suggestions = [],
   placeholder,
   createFromText,
+  openOnFocus,
+  onCreate,
+  canCreate,
 }: TokenInputProps<T>) {
   const [val, setVal] = useState('')
   const [selectedIndex, setSelectedIndex] = useState(-1)
   const [showDropdown, setShowDropdown] = useState(false)
   const inputRef = useRef<HTMLInputElement>(null)
+  const [pending, setPending] = useState(false)
+  const pendingRef = useRef(false)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  const trimmed = val.trim()
   const filtered = suggestions.filter(
     (s) =>
-      val.trim().length > 0 &&
-      s.name.toLowerCase().includes(val.trim().toLowerCase()) &&
+      (trimmed.length > 0 ? s.name.toLowerCase().includes(trimmed.toLowerCase()) : !!openOnFocus) &&
       !items.some((i) => i.id === s.id),
   )
 
-  const dropdownVisible = showDropdown && filtered.length > 0
+  const showCreateRow = !!onCreate && trimmed.length > 0 && (canCreate ? canCreate(trimmed) : true)
+  const rowCount = filtered.length + (showCreateRow ? 1 : 0)
+  const dropdownVisible = showDropdown && rowCount > 0
 
   const add = (item: T) => {
     onChange([...items, item])
@@ -53,24 +70,54 @@ export default function TokenInput<T extends { id: string; name: string }>({
     add(item)
   }
 
-  const remove = (target: T) => onChange(items.filter((i) => i !== target))
+  const runCreate = async () => {
+    if (!onCreate || !trimmed || pendingRef.current) return
+    pendingRef.current = true
+    setPending(true)
+    try {
+      const item = await onCreate(trimmed)
+      if (!item) return
+      if (items.some((i) => i.id === item.id)) {
+        setVal('')
+        setSelectedIndex(-1)
+        setShowDropdown(false)
+      } else {
+        add(item)
+      }
+    } finally {
+      pendingRef.current = false
+      setPending(false)
+    }
+  }
+
+  // Chips are locked while an async create is pending: it resolves against the
+  // items of the render that started it, so a removal now would be undone.
+  const remove = (target: T) => {
+    if (pendingRef.current) return
+    onChange(items.filter((i) => i !== target))
+  }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'ArrowDown') {
       e.preventDefault()
       if (!dropdownVisible) return
-      setSelectedIndex((i) => (i + 1) % filtered.length)
+      setSelectedIndex((i) => (i + 1) % rowCount)
     } else if (e.key === 'ArrowUp') {
       e.preventDefault()
       if (!dropdownVisible) return
-      setSelectedIndex((i) => (i <= 0 ? filtered.length - 1 : i - 1))
+      setSelectedIndex((i) => (i <= 0 ? rowCount - 1 : i - 1))
     } else if (e.key === 'Enter') {
       e.preventDefault()
-      if (dropdownVisible && selectedIndex >= 0) {
+      if (dropdownVisible && selectedIndex >= 0 && selectedIndex < filtered.length) {
         add(filtered[selectedIndex])
+      } else if (onCreate) {
+        void runCreate()
       } else if (createFromText) {
         commitRaw(val)
       }
+    } else if (e.key === ',' && onCreate) {
+      e.preventDefault()
+      void runCreate()
     } else if (e.key === ',' && createFromText) {
       e.preventDefault()
       commitRaw(val)
@@ -91,10 +138,14 @@ export default function TokenInput<T extends { id: string; name: string }>({
 
   const onBlur = () => {
     blurTimerRef.current = setTimeout(() => {
-      if (createFromText && val.trim()) {
-        commitRaw(val)
-      } else {
-        setVal('')
+      // While a create is pending the typed text stays (it may still be
+      // needed if the create fails), but the dropdown still closes.
+      if (!pendingRef.current) {
+        if (createFromText && val.trim()) {
+          commitRaw(val)
+        } else {
+          setVal('')
+        }
       }
       setShowDropdown(false)
       setSelectedIndex(-1)
@@ -105,6 +156,12 @@ export default function TokenInput<T extends { id: string; name: string }>({
     // Cancel the blur timer so the dropdown doesn't close before click fires
     if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
     add(item)
+    inputRef.current?.focus()
+  }
+
+  const onCreateRowMouseDown = () => {
+    if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+    void runCreate()
     inputRef.current?.focus()
   }
 
@@ -142,6 +199,7 @@ export default function TokenInput<T extends { id: string; name: string }>({
           onBlur={onBlur}
           placeholder={items.length === 0 ? placeholder : ''}
           disabled={disabled}
+          readOnly={pending}
           className="border-none outline-none bg-transparent text-sm min-w-[70px] flex-1 py-0.5 px-0.5"
         />
       </div>
@@ -161,6 +219,18 @@ export default function TokenInput<T extends { id: string; name: string }>({
               {s.name}
             </li>
           ))}
+          {showCreateRow && (
+            <li
+              onMouseDown={onCreateRowMouseDown}
+              className={`px-3 py-1.5 text-sm cursor-pointer select-none ${
+                selectedIndex === filtered.length
+                  ? 'bg-accent text-accent-foreground'
+                  : 'hover:bg-muted'
+              }`}
+            >
+              Create &ldquo;{trimmed}&rdquo;
+            </li>
+          )}
         </ul>
       )}
     </div>

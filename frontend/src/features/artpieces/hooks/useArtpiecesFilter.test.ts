@@ -5,6 +5,7 @@ import { type ArtpieceSummary } from '../api/useArtpieces'
 import { type Artist } from '@/features/artists/api/useArtists'
 import { type Character } from '@/features/characters/api/useCharacters'
 import { type Verse } from '@/features/verses/api/useVerses'
+import { type Tag } from '@/features/tags/api/useTags'
 
 // --- Mocks ---
 
@@ -23,7 +24,14 @@ const mockVerses: Verse[] = [
   { id: 'verse-2', name: 'Thalassa', sort_order: 1, last_used_at: null, created_at: '', updated_at: '' },
 ]
 
+const mockTags: Tag[] = [
+  { id: 'tag-a', name: 'outfit' },
+  { id: 'tag-b', name: 'sketch' },
+]
+
 let mockArtistData: Artist[] | undefined = mockArtists
+let mockTagData: Tag[] | undefined = mockTags
+let mockTagError = false
 let mockCharacterData: Character[] | undefined = mockCharacters
 let mockVerseData: Verse[] | undefined = mockVerses
 
@@ -37,6 +45,10 @@ vi.mock('@/features/characters/api/useCharacters', () => ({
 
 vi.mock('@/features/verses/api/useVerses', () => ({
   useVerses: () => ({ data: mockVerseData }),
+}))
+
+vi.mock('@/features/tags/api/useTags', () => ({
+  useTags: () => ({ data: mockTagError ? undefined : mockTagData, isPending: mockTagData === undefined && !mockTagError, isError: mockTagError }),
 }))
 
 let mockSearchParams = new URLSearchParams()
@@ -83,6 +95,7 @@ function makeArtpiece(overrides: Partial<ArtpieceSummary>): ArtpieceSummary {
     notes: null,
     is_reference: false,
     characters: [],
+    tags: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
     ...overrides,
@@ -123,6 +136,8 @@ beforeEach(() => {
   mockArtistData = mockArtists
   mockCharacterData = mockCharacters
   mockVerseData = mockVerses
+  mockTagData = mockTags
+  mockTagError = false
 })
 
 // --- Pure function tests ---
@@ -148,6 +163,69 @@ describe('filterAndSortArtpieces — artist filter', () => {
   it('shows only artpieces matching the selected artist', () => {
     const result = filterAndSortArtpieces([apAlice, apBob], { ...defaults, selectedArtist: artist1 })
     expect(result).toEqual([apAlice])
+  })
+})
+
+const tagA = { id: 'tag-a', name: 'outfit' }
+const tagB = { id: 'tag-b', name: 'sketch' }
+
+describe('filterAndSortArtpieces — tag filter', () => {
+  const apTagAB = makeArtpiece({ id: 'ap-tag-ab', title: 'Both tags', tags: [tagA, tagB] })
+  const apTagA = makeArtpiece({ id: 'ap-tag-a', title: 'Tag A only', tags: [tagA] })
+  const apUntagged = makeArtpiece({ id: 'ap-untagged', title: 'Untagged' })
+
+  it('All mode: requires every selected tag to be present', () => {
+    const result = filterAndSortArtpieces([apTagAB, apTagA, apUntagged], {
+      ...defaults,
+      selectedTags: [tagA, tagB],
+      tagMatch: 'all',
+    })
+    expect(result).toEqual([apTagAB])
+  })
+
+  it('Any mode: requires at least one selected tag to be present', () => {
+    const result = filterAndSortArtpieces([apTagAB, apTagA, apUntagged], {
+      ...defaults,
+      selectedTags: [tagA, tagB],
+      tagMatch: 'any',
+    })
+    expect(result.map((a) => a.id).sort()).toEqual(['ap-tag-a', 'ap-tag-ab'])
+  })
+
+  it('single tag: shows only artpieces that have it', () => {
+    const result = filterAndSortArtpieces([apTagAB, apTagA, apUntagged], { ...defaults, selectedTags: [tagB] })
+    expect(result).toEqual([apTagAB])
+  })
+
+  it('defaults to All when tagMatch is not provided', () => {
+    const result = filterAndSortArtpieces([apTagAB, apTagA], { ...defaults, selectedTags: [tagA, tagB] })
+    expect(result).toEqual([apTagAB])
+  })
+
+  it('no tags selected: no tag filtering', () => {
+    const result = filterAndSortArtpieces([apTagAB, apTagA, apUntagged], { ...defaults, selectedTags: [], tagMatch: 'all' })
+    expect(result).toHaveLength(3)
+  })
+
+  it('combines with the artist filter', () => {
+    const byAlice = makeArtpiece({ id: 'ap-alice-tagged', title: 'Alice tagged', artist_id: artist1.id, tags: [tagA] })
+    const byBobTagged = makeArtpiece({ id: 'ap-bob-tagged', title: 'Bob tagged', artist_id: artist2.id, tags: [tagA] })
+    const result = filterAndSortArtpieces([byAlice, byBobTagged], { ...defaults, selectedArtist: artist1, selectedTags: [tagA] })
+    expect(result).toEqual([byAlice])
+  })
+
+  it('character Any and tag All are applied independently', () => {
+    const match = makeArtpiece({ id: 'ap-match', title: 'Match', characters: [charA], tags: [tagA, tagB] })
+    const wrongTags = makeArtpiece({ id: 'ap-wrong-tags', title: 'Wrong tags', characters: [charA], tags: [tagA] })
+    const wrongChars = makeArtpiece({ id: 'ap-wrong-chars', title: 'Wrong chars', characters: [], tags: [tagA, tagB] })
+    const result = filterAndSortArtpieces([match, wrongTags, wrongChars], {
+      ...defaults,
+      selectedCharacters: [charA, charB],
+      characterMatch: 'any',
+      selectedTags: [tagA, tagB],
+      tagMatch: 'all',
+    })
+    expect(result).toEqual([match])
   })
 })
 
@@ -493,7 +571,7 @@ describe('useArtpiecesFilter — mount with URL params writes to localStorage', 
     renderHook(() => useArtpiecesFilter([]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: 'artist-1', characterIds: ['char-a'], matchMode: 'any', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: 'artist-1', characterIds: ['char-a'], matchMode: 'any', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -502,7 +580,7 @@ describe('useArtpiecesFilter — mount with URL params writes to localStorage', 
     renderHook(() => useArtpiecesFilter([]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -511,7 +589,7 @@ describe('useArtpiecesFilter — mount with URL params writes to localStorage', 
     renderHook(() => useArtpiecesFilter([]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1' }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1', tagIds: [], tagMatch: 'all' }),
     )
   })
 })
@@ -522,7 +600,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedArtist(artist1))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -531,7 +609,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedCharacters([charA, charB]))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'all', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: ['char-a', 'char-b'], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -540,7 +618,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setCharacterMatch('any'))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'any', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'any', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -549,7 +627,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setIsReference(true))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: true, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -558,7 +636,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedVerse(verse1))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1' }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: 'verse-1', tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -568,7 +646,7 @@ describe('useArtpiecesFilter — setters write to localStorage', () => {
     act(() => result.current.setSelectedVerse(null))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 })
@@ -587,7 +665,7 @@ describe('useArtpiecesFilter — clearing filter writes empty state to localStor
     act(() => result.current.setSelectedArtist(null))
     expect(localStorageMock.setItem).toHaveBeenCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 })
@@ -616,7 +694,7 @@ describe('useArtpiecesFilter — several setters in one event', () => {
     })
     expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
       FILTER_KEY,
-      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null }),
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
     )
   })
 
@@ -638,5 +716,259 @@ describe('useArtpiecesFilter — non-filter params', () => {
     act(() => result.current.setSelectedArtist(artist1))
     expect(mockSearchParams.get('view')).toBe('grid')
     expect(mockSearchParams.get('artist')).toBe('artist-1')
+  })
+})
+
+// --- Tag filter state ---
+
+describe('useArtpiecesFilter — tag URL hydration', () => {
+  it('initialises selectedTags from the tags URL param', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.selectedTags).toEqual([tagA, tagB])
+  })
+
+  it('initialises tagMatch from the tag_match URL param', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.tagMatch).toBe('any')
+  })
+
+  it('defaults to no tags and match All when params are absent', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.tagMatch).toBe('all')
+  })
+
+  it('tag_match does not affect the character match mode', () => {
+    mockSearchParams = new URLSearchParams({ tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(result.current.characterMatch).toBe('all')
+  })
+
+  it('filters the artpiece list by the URL tags', () => {
+    const tagged = makeArtpiece({ id: 'ap-tagged', title: 'Tagged', tags: [tagA] })
+    const other = makeArtpiece({ id: 'ap-other', title: 'Other' })
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([tagged, other]))
+    expect(result.current.filtered).toEqual([tagged])
+  })
+})
+
+describe('useArtpiecesFilter — deleted ids resolve to not selected', () => {
+  const both = makeArtpiece({ id: 'ap-both', title: 'Both', tags: [tagA, tagB], characters: [charA, charB] })
+  const onlyA = makeArtpiece({ id: 'ap-only-a', title: 'Only A', tags: [tagA], characters: [charA] })
+  const plain = makeArtpiece({ id: 'ap-plain', title: 'Plain' })
+
+  it('a deleted tag in All mode is dropped, leaving the remaining tag applied', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-deleted' })
+    const { result } = renderHook(() => useArtpiecesFilter([both, onlyA, plain]))
+    expect(result.current.selectedTags).toEqual([tagA])
+    expect(result.current.filtered.map((a) => a.id).sort()).toEqual(['ap-both', 'ap-only-a'])
+  })
+
+  it('when every selected tag is deleted no tag filter is applied', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-gone-1,tag-gone-2' })
+    const { result } = renderHook(() => useArtpiecesFilter([both, onlyA, plain]))
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.filtered).toHaveLength(3)
+  })
+
+  it('a deleted character in All mode is dropped, leaving the remaining character applied', () => {
+    mockSearchParams = new URLSearchParams({ characters: 'char-a,char-deleted' })
+    const { result } = renderHook(() => useArtpiecesFilter([both, onlyA, plain]))
+    expect(result.current.selectedCharacters).toEqual([charA])
+    expect(result.current.filtered.map((a) => a.id).sort()).toEqual(['ap-both', 'ap-only-a'])
+  })
+
+  it('does not apply the tag filter while the tag list is still loading', () => {
+    mockTagData = undefined
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([both, onlyA, plain]))
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.filtered).toHaveLength(3)
+  })
+
+  it('keeps unresolved tag ids in the URL when another filter changes', () => {
+    mockTagData = undefined
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedArtist(artist1))
+    expect(mockSearchParams.get('tags')).toBe('tag-a')
+    expect(mockSearchParams.get('artist')).toBe('artist-1')
+  })
+
+  it('editing the tags prunes a deleted id', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-deleted' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([tagA, tagB]))
+    expect(mockSearchParams.get('tags')).toBe('tag-a,tag-b')
+  })
+})
+
+describe('useArtpiecesFilter — tag setters update the URL', () => {
+  it('setSelectedTags sets the tags param', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([tagA, tagB]))
+    expect(mockSearchParams.get('tags')).toBe('tag-a,tag-b')
+  })
+
+  it('setSelectedTags([]) removes the tags param', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([]))
+    expect(mockSearchParams.has('tags')).toBe(false)
+  })
+
+  it('setTagMatch("any") sets tag_match and leaves match alone', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setTagMatch('any'))
+    expect(mockSearchParams.get('tag_match')).toBe('any')
+    expect(mockSearchParams.has('match')).toBe(false)
+  })
+
+  it('setTagMatch("all") removes tag_match', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setTagMatch('all'))
+    expect(mockSearchParams.has('tag_match')).toBe(false)
+  })
+
+  it('"Clear all" removes the tags and tag_match params together with the others', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1', tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => {
+      result.current.setSelectedArtist(null)
+      result.current.setSelectedTags([])
+      result.current.setTagMatch('all')
+    })
+    expect(mockSearchParams.toString()).toBe('')
+  })
+})
+
+describe('useArtpiecesFilter — tag state in localStorage', () => {
+  it('setSelectedTags writes the full filter state including tags', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([tagA]))
+    expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: ['tag-a'], tagMatch: 'all' }),
+    )
+  })
+
+  it('setTagMatch writes the tag match mode', () => {
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setTagMatch('any'))
+    expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'any' }),
+    )
+  })
+
+  it('clearing the last tag writes the empty state', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([]))
+    expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
+    )
+  })
+
+  it('writes URL-derived tag state when arriving with tag params', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(localStorageMock.setItem).toHaveBeenCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: ['tag-a', 'tag-b'], tagMatch: 'any' }),
+    )
+  })
+
+  it('restores stored tags and match mode when the URL has no filter params', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: ['tag-a', 'tag-b'], tagMatch: 'any' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(mockSearchParams.get('tags')).toBe('tag-a,tag-b')
+    expect(mockSearchParams.get('tag_match')).toBe('any')
+  })
+
+  it('a tag-only stored filter is restorable, not treated as empty', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: ['tag-a'], tagMatch: 'all' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(setSearchParamsMock).toHaveBeenCalled()
+    expect(mockSearchParams.get('tags')).toBe('tag-a')
+  })
+
+  it('state stored before tags existed restores with no tags and match All', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: 'artist-1', characterIds: [], matchMode: 'all', isReference: false, verseId: null })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    expect(mockSearchParams.get('artist')).toBe('artist-1')
+    expect(mockSearchParams.has('tags')).toBe(false)
+    expect(mockSearchParams.has('tag_match')).toBe(false)
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.tagMatch).toBe('all')
+  })
+
+  it('an empty stored tag state with nothing else does not touch the URL', () => {
+    localStore[FILTER_KEY] = JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' })
+    renderHook(() => useArtpiecesFilter([]))
+    expect(setSearchParamsMock).not.toHaveBeenCalled()
+  })
+})
+
+describe('useArtpiecesFilter — clearing tags resets the tag match mode', () => {
+  it('setSelectedTags([]) removes tag_match as well as tags', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([]))
+    expect(mockSearchParams.has('tags')).toBe(false)
+    expect(mockSearchParams.has('tag_match')).toBe(false)
+  })
+
+  it('setSelectedTags([]) stores the default match mode', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([]))
+    expect(localStorageMock.setItem).toHaveBeenLastCalledWith(
+      FILTER_KEY,
+      JSON.stringify({ artistId: null, characterIds: [], matchMode: 'all', isReference: false, verseId: null, tagIds: [], tagMatch: 'all' }),
+    )
+  })
+
+  it('"Clear all" as the component calls it (no setTagMatch) leaves no tag params behind', () => {
+    mockSearchParams = new URLSearchParams({ artist: 'artist-1', tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => {
+      result.current.setSelectedArtist(null)
+      result.current.setSelectedTags([])
+    })
+    expect(mockSearchParams.toString()).toBe('')
+  })
+
+  it('removing one of several tags keeps the match mode', () => {
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a,tag-b', tag_match: 'any' })
+    const { result } = renderHook(() => useArtpiecesFilter([]))
+    act(() => result.current.setSelectedTags([tagA]))
+    expect(mockSearchParams.get('tags')).toBe('tag-a')
+    expect(mockSearchParams.get('tag_match')).toBe('any')
+  })
+})
+
+describe('useArtpiecesFilter — tag list failed to load', () => {
+  const tagged = makeArtpiece({ id: 'ap-tagged', title: 'Tagged', tags: [tagA] })
+  const plain = makeArtpiece({ id: 'ap-plain', title: 'Plain' })
+
+  it('applies the URL tag ids as given instead of showing every artpiece', () => {
+    mockTagError = true
+    mockSearchParams = new URLSearchParams({ tags: 'tag-a' })
+    const { result } = renderHook(() => useArtpiecesFilter([tagged, plain]))
+    expect(result.current.selectedTags).toEqual([{ id: 'tag-a', name: '' }])
+    expect(result.current.filtered).toEqual([tagged])
+  })
+
+  it('applies no tag filter when the URL has no tags', () => {
+    mockTagError = true
+    const { result } = renderHook(() => useArtpiecesFilter([tagged, plain]))
+    expect(result.current.selectedTags).toEqual([])
+    expect(result.current.filtered).toHaveLength(2)
   })
 })

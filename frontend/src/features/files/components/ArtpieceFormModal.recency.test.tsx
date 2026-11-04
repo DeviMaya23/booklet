@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import ArtpieceFormModal from './ArtpieceFormModal'
@@ -39,7 +39,8 @@ describe('ArtpieceFormModal — character recency', () => {
   it('excludes characters already selected', async () => {
     await openAndType('alb')
     await userEvent.click(await screen.findByText('Alba'))
-    await userEvent.type(screen.getAllByRole('textbox').at(-1)!, 'al')
+    const charactersField = screen.getByText('Characters').parentElement!
+    await userEvent.type(within(charactersField).getByRole('textbox'), 'al')
 
     const options = await screen.findAllByRole('listitem')
     expect(options.map((o) => o.textContent)).toEqual(['Alma', 'Alto'])

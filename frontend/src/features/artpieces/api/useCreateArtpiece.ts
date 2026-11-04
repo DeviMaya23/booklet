@@ -2,12 +2,14 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
 import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
+import { TAGS_QUERY_KEY } from '@/features/tags/api/useTags'
 
 export interface CreateArtpieceParams {
   title: string
   notes?: string | null
   artistId?: string | null
   characterIds: string[]
+  tagIds: string[]
   fileIds: string[]
   isReference?: boolean
 }
@@ -35,6 +37,7 @@ export function useCreateArtpiece() {
           notes: params.notes ?? null,
           artist_id: params.artistId ?? null,
           character_ids: params.characterIds,
+          tag_ids: params.tagIds,
           file_ids: params.fileIds,
           is_reference: params.isReference ?? false,
         }),
@@ -44,6 +47,7 @@ export function useCreateArtpiece() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
+      queryClient.invalidateQueries({ queryKey: TAGS_QUERY_KEY })
     },
   })
 }

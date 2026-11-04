@@ -7,10 +7,12 @@ import TokenInput from '@/components/TokenInput'
 import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { useTags } from '@/features/tags/api/useTags'
 import { type Verse } from '@/features/verses/api/useVerses'
 import VerseCombobox from '@/features/verses/components/VerseCombobox'
 
 type CharacterToken = { id: string; name: string }
+type TagToken = { id: string; name: string }
 
 interface ArtistCharacterFilterProps {
   artist: Artist | null
@@ -19,6 +21,10 @@ interface ArtistCharacterFilterProps {
   onCharactersChange: (chars: CharacterToken[]) => void
   characterMatch?: 'all' | 'any'
   onCharacterMatchChange?: (mode: 'all' | 'any') => void
+  tags?: TagToken[]
+  onTagsChange?: (tags: TagToken[]) => void
+  tagMatch?: 'all' | 'any'
+  onTagMatchChange?: (mode: 'all' | 'any') => void
   isReference?: boolean
   onIsReferenceChange?: (value: boolean) => void
   selectedVerse?: Verse | null
@@ -32,12 +38,18 @@ function buildSummaryLabel(
   characterMatch?: 'all' | 'any',
   isReference?: boolean,
   selectedVerse?: Verse | null,
+  tags?: TagToken[],
+  tagMatch?: 'all' | 'any',
 ): string {
   const parts: string[] = []
   if (artist) parts.push('1 artist')
   if (characters.length > 0) {
     const charLabel = `${characters.length} character${characters.length > 1 ? 's' : ''}`
     parts.push(characterMatch ? `${charLabel}, ${characterMatch}` : charLabel)
+  }
+  if (tags && tags.length > 0) {
+    const tagLabel = `${tags.length} tag${tags.length > 1 ? 's' : ''}`
+    parts.push(tagMatch ? `${tagLabel}, ${tagMatch}` : tagLabel)
   }
   if (selectedVerse) parts.push('1 verse')
   if (isReference) parts.push('references')
@@ -51,6 +63,10 @@ export default function ArtistCharacterFilter({
   onCharactersChange,
   characterMatch,
   onCharacterMatchChange,
+  tags,
+  onTagsChange,
+  tagMatch,
+  onTagMatchChange,
   isReference,
   onIsReferenceChange,
   selectedVerse,
@@ -61,9 +77,16 @@ export default function ArtistCharacterFilter({
   const allCharacters = (charactersQuery.data ?? []).map((c) => ({ id: c.id, name: c.name }))
   const availableCharacters = allCharacters.filter((c) => !characters.some((sc) => sc.id === c.id))
 
-  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch, isReference, selectedVerse)
+  const showTags = tags !== undefined && onTagsChange !== undefined
+  // The tag list is only requested when the caller opts in to the Tags field.
+  const tagsQuery = useTags({ sort: 'recent', enabled: showTags })
+  const availableTags = (tagsQuery.data ?? []).filter((t) => !(tags ?? []).some((st) => st.id === t.id))
+
+  const summaryLabel = buildSummaryLabel(artist, characters, characterMatch, isReference, selectedVerse, tags, tagMatch)
   const showToggle = characterMatch !== undefined && onCharacterMatchChange !== undefined && characters.length >= 2
   const showVerse = selectedVerse !== undefined && onVerseChange !== undefined
+  const hasActiveFilter =
+    artist !== null || characters.length > 0 || (tags?.length ?? 0) > 0 || isReference || !!selectedVerse
 
   return (
     <Popover>
@@ -114,6 +137,45 @@ export default function ArtistCharacterFilter({
           )}
         </div>
 
+        {tags !== undefined && onTagsChange !== undefined && (
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center justify-between">
+              <span className="text-sm font-medium">Tags</span>
+              {tagMatch !== undefined && onTagMatchChange !== undefined && tags.length >= 2 && (
+                <div className="flex gap-1">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={tagMatch === 'any' ? 'default' : 'outline'}
+                    onClick={() => onTagMatchChange('any')}
+                  >
+                    Any
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant={tagMatch === 'all' ? 'default' : 'outline'}
+                    onClick={() => onTagMatchChange('all')}
+                  >
+                    All
+                  </Button>
+                </div>
+              )}
+            </div>
+            {tagsQuery.isError ? (
+              <p className="text-sm text-destructive">Failed to load tags.</p>
+            ) : (
+              <TokenInput
+                items={tags}
+                onChange={onTagsChange}
+                suggestions={availableTags}
+                placeholder={tagsQuery.isPending ? 'Loading…' : 'Search tags…'}
+                disabled={tagsQuery.isPending}
+              />
+            )}
+          </div>
+        )}
+
         {showVerse && (
           <div className="flex flex-col gap-1.5">
             <span className="text-sm font-medium">Verse</span>
@@ -132,9 +194,9 @@ export default function ArtistCharacterFilter({
           </div>
         )}
 
-        {(artist !== null || characters.length > 0 || isReference || selectedVerse || footerAction) && (
+        {(hasActiveFilter || footerAction) && (
           <div className="flex items-center justify-between">
-            {(artist !== null || characters.length > 0 || isReference || selectedVerse) ? (
+            {hasActiveFilter ? (
               <button
                 type="button"
                 className="text-sm underline text-muted-foreground hover:text-foreground"
@@ -143,6 +205,7 @@ export default function ArtistCharacterFilter({
                   onCharactersChange([])
                   onIsReferenceChange?.(false)
                   onVerseChange?.(null)
+                  onTagsChange?.([])
                 }}
               >
                 Clear all
