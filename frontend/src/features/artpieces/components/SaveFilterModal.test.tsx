@@ -34,6 +34,7 @@ function makeArtpiece(id: string, title: string, thumbnailUrl: string | null = n
     notes: null,
     is_reference: false,
     characters: [],
+    tags: [],
     created_at: '2024-01-01T00:00:00Z',
     updated_at: '2024-01-01T00:00:00Z',
   }
@@ -45,6 +46,8 @@ const baseFilter = {
   matchMode: 'all' as const,
   isReference: false,
   verse: null as Verse | null,
+  tags: [] as { id: string; name: string }[],
+  tagMatch: 'all' as 'all' | 'any',
 }
 
 const verse: Verse = {
@@ -156,7 +159,7 @@ describe('SaveFilterModal — successful save', () => {
       id: 'sf-1',
       name: 'My Filter',
       thumbnail_url: null,
-      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: null },
+      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: null, tag_ids: [], tag_match_mode: 'all' },
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     }
@@ -187,7 +190,7 @@ describe('SaveFilterModal — verse filter', () => {
       id: 'sf-1',
       name: 'My Filter',
       thumbnail_url: null,
-      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: verse.id },
+      filter_payload: { artist_id: null, character_ids: [], match_mode: 'all', is_reference: false, verse_id: verse.id, tag_ids: [], tag_match_mode: 'all' },
       created_at: '2024-01-01T00:00:00Z',
       updated_at: '2024-01-01T00:00:00Z',
     }
@@ -225,5 +228,64 @@ describe('SaveFilterModal — verse filter', () => {
       />,
     )
     expect(screen.getByText(/Verse: Elowen/)).toBeInTheDocument()
+  })
+})
+
+describe('SaveFilterModal — tags', () => {
+  const tags = [
+    { id: 'tag-1', name: 'outfit' },
+    { id: 'tag-2', name: 'sketch' },
+  ]
+
+  function renderModal(filterState: typeof baseFilter) {
+    render(
+      <SaveFilterModal
+        open
+        onOpenChange={onOpenChange}
+        filteredArtpieces={[makeArtpiece('ap-1', 'Sunrise')]}
+        filterState={filterState}
+        onSuccess={onSuccess}
+      />,
+    )
+  }
+
+  async function save() {
+    await userEvent.type(screen.getByRole('textbox', { name: /name/i }), 'My Filter')
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }))
+  }
+
+  it('includes the tag names and match mode in the summary chip', () => {
+    renderModal({ ...baseFilter, tags, tagMatch: 'all' })
+    expect(screen.getByText(/Tags: outfit, sketch \(all\)/)).toBeInTheDocument()
+  })
+
+  it('shows tags alongside other active filters in the chip', () => {
+    renderModal({ ...baseFilter, tags: [tags[0]], tagMatch: 'any', verse })
+    expect(screen.getByText(/Tags: outfit \(any\) · Verse: Elowen/)).toBeInTheDocument()
+  })
+
+  it('omits tags from the chip when none are selected', () => {
+    renderModal({ ...baseFilter, verse })
+    expect(screen.queryByText(/Tags:/)).not.toBeInTheDocument()
+  })
+
+  it('sends tag_ids and tag_match_mode in the payload', async () => {
+    renderModal({ ...baseFilter, tags, tagMatch: 'any' })
+    await save()
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterPayload: expect.objectContaining({ tag_ids: ['tag-1', 'tag-2'], tag_match_mode: 'any' }),
+      }),
+    )
+  })
+
+  it('sends an empty tag_ids array when no tags are selected', async () => {
+    renderModal({ ...baseFilter, verse })
+    await save()
+    expect(mockMutateAsync).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filterPayload: expect.objectContaining({ tag_ids: [], tag_match_mode: 'all' }),
+      }),
+    )
   })
 })

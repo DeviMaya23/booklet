@@ -9,6 +9,8 @@ describe('parseFilterPayload', () => {
       match_mode: 'any',
       is_reference: true,
       verse_id: 'verse-uuid',
+      tag_ids: ['tag-1', 'tag-2'],
+      tag_match_mode: 'any',
     })
     expect(result).toEqual({
       artist_id: 'artist-uuid',
@@ -16,6 +18,8 @@ describe('parseFilterPayload', () => {
       match_mode: 'any',
       is_reference: true,
       verse_id: 'verse-uuid',
+      tag_ids: ['tag-1', 'tag-2'],
+      tag_match_mode: 'any',
     })
   })
 
@@ -107,5 +111,41 @@ describe('parseFilterPayload', () => {
   it('non-string non-null verse_id coerces to null', () => {
     const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', verse_id: 123 })
     expect(result?.verse_id).toBeNull()
+  })
+
+  it('absent tag_ids defaults to an empty array', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all' })
+    expect(result?.tag_ids).toEqual([])
+  })
+
+  it('absent tag_match_mode defaults to all', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all' })
+    expect(result?.tag_match_mode).toBe('all')
+  })
+
+  it('tag_match_mode any round-trips', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', tag_ids: ['t'], tag_match_mode: 'any' })
+    expect(result?.tag_match_mode).toBe('any')
+  })
+
+  it('unrecognised tag_match_mode defaults to all', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', tag_match_mode: 'some' })
+    expect(result?.tag_match_mode).toBe('all')
+  })
+
+  it('filters non-string values out of tag_ids', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', tag_ids: ['ok', 7, null] })
+    expect(result?.tag_ids).toEqual(['ok'])
+  })
+
+  it('non-array tag_ids coerces to an empty array', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'all', tag_ids: 'nope' })
+    expect(result?.tag_ids).toEqual([])
+  })
+
+  it('tag match mode is independent of character match_mode', () => {
+    const result = parseFilterPayload({ artist_id: null, character_ids: [], match_mode: 'any', tag_ids: ['t'] })
+    expect(result?.match_mode).toBe('any')
+    expect(result?.tag_match_mode).toBe('all')
   })
 })

@@ -15,6 +15,7 @@ import { parseFilterPayload } from '../lib/parseFilterPayload'
 import { type SavedFilter } from '../api/useCreateSavedFilter'
 import { useArtists } from '@/features/artists/api/useArtists'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { useTags } from '@/features/tags/api/useTags'
 import { useVerses } from '@/features/verses/api/useVerses'
 
 interface ChangeThumbnailModalProps {
@@ -31,6 +32,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
   const artistsQuery = useArtists()
   const charactersQuery = useCharacters()
   const versesQuery = useVerses()
+  const tagsQuery = useTags({ sort: 'recent' })
   const updateFilter = useUpdateSavedFilter()
 
   const payload = useMemo(() => parseFilterPayload(filter.filter_payload), [filter.filter_payload])
@@ -44,22 +46,42 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
     const verse = payload.verse_id
       ? (versesQuery.data?.find((v) => v.id === payload.verse_id) ?? null)
       : null
+    // Saved ids that no longer resolve (deleted characters or tags) are dropped,
+    // so a stale id cannot make an All-mode filter match nothing. If a list
+    // failed to load nothing can be resolved, so its ids are applied as given
+    // instead of silently ignoring the filter.
+    const characters = charactersQuery.isError
+      ? payload.character_ids.map((id) => ({ id, name: '' }))
+      : payload.character_ids
+          .map((id) => charactersQuery.data?.find((c) => c.id === id))
+          .filter((c): c is NonNullable<typeof c> => c != null)
+          .map((c) => ({ id: c.id, name: c.name }))
+    const tags = tagsQuery.isError
+      ? payload.tag_ids.map((id) => ({ id, name: '' }))
+      : payload.tag_ids
+          .map((id) => tagsQuery.data?.find((t) => t.id === id))
+          .filter((t): t is NonNullable<typeof t> => t != null)
+          .map((t) => ({ id: t.id, name: t.name }))
     return filterAndSortArtpieces(artpiecesQuery.data, {
       search: '',
       sort: 'newest',
       selectedArtist: artist,
-      selectedCharacters: payload.character_ids.map((id) => ({ id, name: '' })),
+      selectedCharacters: characters,
       characterMatch: payload.match_mode,
+      selectedTags: tags,
+      tagMatch: payload.tag_match_mode,
       isReference: payload.is_reference,
       selectedVerse: verse,
       allCharacters: charactersQuery.data,
       charactersPending: charactersQuery.isPending,
     }).slice(0, MAX_PICKER_ITEMS)
-  }, [artpiecesQuery.data, artistsQuery.data, charactersQuery.data, charactersQuery.isPending, versesQuery.data, payload])
+  }, [artpiecesQuery.data, artistsQuery.data, charactersQuery.data, charactersQuery.isPending, charactersQuery.isError, versesQuery.data, tagsQuery.data, tagsQuery.isError, payload])
 
-  // Resolving the verse filter needs characters and verses loaded too, not
-  // just artpieces, or the grid can briefly show "no match" before they land.
-  const isLoading = artpiecesQuery.isPending || charactersQuery.isPending || versesQuery.isPending
+  // Resolving the character, tag and verse filters needs those lists loaded
+  // too, not just artpieces, or the grid can briefly show the wrong result
+  // before they land.
+  const isLoading =
+    artpiecesQuery.isPending || charactersQuery.isPending || versesQuery.isPending || tagsQuery.isPending
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const effectiveSelected = selectedId ?? filtered[0]?.id ?? null
@@ -69,6 +91,7 @@ export default function ChangeThumbnailModal({ filter, open, onOpenChange, onSav
     const parts: string[] = []
     if (payload.artist_id) parts.push('by artist')
     if (payload.character_ids.length > 0) parts.push(`${payload.character_ids.length} character${payload.character_ids.length > 1 ? 's' : ''}`)
+    if (payload.tag_ids.length > 0) parts.push(`${payload.tag_ids.length} tag${payload.tag_ids.length > 1 ? 's' : ''}`)
     if (payload.verse_id) parts.push('verse')
     if (payload.is_reference) parts.push('references only')
     return parts.length > 0 ? parts.join(', ') : 'All artpieces'

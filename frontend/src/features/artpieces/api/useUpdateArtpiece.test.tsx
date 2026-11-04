@@ -2,6 +2,7 @@ import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { useUpdateArtpiece } from './useUpdateArtpiece'
 import { CHARACTERS_QUERY_KEY } from '@/features/characters/api/useCharacters'
+import { TAGS_QUERY_KEY } from '@/features/tags/api/useTags'
 import { createTestQueryClient, createWrapper } from '@/test/queryClient'
 
 vi.mock('@kinde-oss/kinde-auth-react', () => ({
@@ -25,9 +26,40 @@ describe('useUpdateArtpiece', () => {
     const invalidate = vi.spyOn(client, 'invalidateQueries')
     const { result } = renderHook(() => useUpdateArtpiece(), { wrapper: createWrapper(client) })
 
-    result.current.mutate({ id: 'a1', title: 't', notes: null, artistId: null, characterIds: ['c1'] })
+    result.current.mutate({ id: 'a1', title: 't', notes: null, artistId: null, characterIds: ['c1'], tagIds: [] })
 
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
     expect(invalidate).toHaveBeenCalledWith({ queryKey: CHARACTERS_QUERY_KEY })
+  })
+
+  it('invalidates the tags query on success', async () => {
+    const client = createTestQueryClient()
+    const invalidate = vi.spyOn(client, 'invalidateQueries')
+    const { result } = renderHook(() => useUpdateArtpiece(), { wrapper: createWrapper(client) })
+
+    result.current.mutate({ id: 'a1', title: 't', notes: null, artistId: null, characterIds: [], tagIds: ['t1'] })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: TAGS_QUERY_KEY })
+  })
+
+  it('sends tag_ids in the request body', async () => {
+    const { result } = renderHook(() => useUpdateArtpiece(), { wrapper: createWrapper() })
+
+    result.current.mutate({ id: 'a1', title: 't', notes: null, artistId: null, characterIds: [], tagIds: ['t1', 't2'] })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const body = JSON.parse(vi.mocked(apiFetch).mock.calls[0][2]?.body as string)
+    expect(body.tag_ids).toEqual(['t1', 't2'])
+  })
+
+  it('sends an empty tag_ids array to clear all tags', async () => {
+    const { result } = renderHook(() => useUpdateArtpiece(), { wrapper: createWrapper() })
+
+    result.current.mutate({ id: 'a1', title: 't', notes: null, artistId: null, characterIds: [], tagIds: [] })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+    const body = JSON.parse(vi.mocked(apiFetch).mock.calls[0][2]?.body as string)
+    expect(body.tag_ids).toEqual([])
   })
 })

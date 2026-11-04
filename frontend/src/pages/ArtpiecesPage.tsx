@@ -47,6 +47,14 @@ interface SavedFilterSnapshot {
   matchMode: 'all' | 'any'
   isReference: boolean
   verseId: string | null
+  tagIds: string[]
+  tagMatchMode: 'all' | 'any'
+}
+
+function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const current = new Set(b)
+  return a.every((id) => current.has(id))
 }
 
 function snapshotMatchesCurrent(
@@ -56,13 +64,14 @@ function snapshotMatchesCurrent(
   matchMode: 'all' | 'any',
   isReference: boolean,
   verseId: string | null,
+  tagIds: string[],
+  tagMatchMode: 'all' | 'any',
 ): boolean {
   if (snapshot.artistId !== artistId || snapshot.matchMode !== matchMode) return false
   if (snapshot.isReference !== isReference) return false
   if (snapshot.verseId !== verseId) return false
-  if (snapshot.characterIds.length !== characterIds.length) return false
-  const current = new Set(characterIds)
-  return snapshot.characterIds.every((id) => current.has(id))
+  if (snapshot.tagMatchMode !== tagMatchMode) return false
+  return sameIdSet(snapshot.characterIds, characterIds) && sameIdSet(snapshot.tagIds, tagIds)
 }
 
 function ArtpiecesGridSkeleton({ tileSize }: { tileSize: TileSize }) {
@@ -115,13 +124,16 @@ export default function ArtpiecesPage() {
     selectedArtist, setSelectedArtist,
     selectedCharacters, setSelectedCharacters,
     characterMatch, setCharacterMatch,
+    selectedTags, setSelectedTags,
+    tagMatch, setTagMatch,
     isReference, setIsReference,
     selectedVerse, setSelectedVerse,
     filtered,
   } = useArtpiecesFilter(artpieces ?? [])
 
-  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0 || isReference || selectedVerse !== null
+  const hasActiveFilter = selectedArtist !== null || selectedCharacters.length > 0 || selectedTags.length > 0 || isReference || selectedVerse !== null
   const currentCharacterIds = selectedCharacters.map((c) => c.id)
+  const currentTagIds = selectedTags.map((t) => t.id)
 
   const snapshotMatches = savedFilterSnapshot !== null && snapshotMatchesCurrent(
     savedFilterSnapshot,
@@ -130,6 +142,8 @@ export default function ArtpiecesPage() {
     characterMatch,
     isReference,
     selectedVerse?.id ?? null,
+    currentTagIds,
+    tagMatch,
   )
 
   function handleTileSizeChange(size: TileSize) {
@@ -150,6 +164,8 @@ export default function ArtpiecesPage() {
       matchMode: characterMatch,
       isReference,
       verseId: selectedVerse?.id ?? null,
+      tagIds: currentTagIds,
+      tagMatchMode: tagMatch,
     })
   }
 
@@ -167,6 +183,16 @@ export default function ArtpiecesPage() {
   function handleMatchChange(mode: 'all' | 'any') {
     setSavedFilterSnapshot(null)
     setCharacterMatch(mode)
+  }
+
+  function handleTagsChange(tags: typeof selectedTags) {
+    setSavedFilterSnapshot(null)
+    setSelectedTags(tags)
+  }
+
+  function handleTagMatchChange(mode: 'all' | 'any') {
+    setSavedFilterSnapshot(null)
+    setTagMatch(mode)
   }
 
   function handleIsReferenceChange(value: boolean) {
@@ -239,6 +265,10 @@ export default function ArtpiecesPage() {
             onCharactersChange={handleCharactersChange}
             characterMatch={characterMatch}
             onCharacterMatchChange={handleMatchChange}
+            tags={selectedTags}
+            onTagsChange={handleTagsChange}
+            tagMatch={tagMatch}
+            onTagMatchChange={handleTagMatchChange}
             isReference={isReference}
             onIsReferenceChange={handleIsReferenceChange}
             selectedVerse={selectedVerse}
@@ -351,6 +381,8 @@ export default function ArtpiecesPage() {
             matchMode: characterMatch,
             isReference,
             verse: selectedVerse,
+            tags: selectedTags,
+            tagMatch,
           }}
           onSuccess={handleSaveFilterSuccess}
         />

@@ -29,6 +29,8 @@ import { ARTISTS_QUERY_KEY, type Artist } from '@/features/artists/api/useArtist
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { type Tag } from '@/features/tags/api/useTags'
+import TagPicker from '@/features/tags/components/TagPicker'
 import { useInitFileUpload } from '@/features/files/api/useInitFileUpload'
 import { useCompleteFileUpload } from '@/features/files/api/useCompleteFileUpload'
 import { apiFetch } from '@/lib/api'
@@ -39,6 +41,12 @@ import DeleteArtpieceDialog from './DeleteArtpieceDialog'
 interface CharacterToken {
   id: string
   name: string
+}
+
+// Compares two lists of id-bearing items as sets: same members, order ignored.
+function sameIds(a: { id: string }[], b: { id: string }[]): boolean {
+  const bIds = new Set(b.map((x) => x.id))
+  return new Set(a.map((x) => x.id)).size === bIds.size && a.every((x) => bIds.has(x.id))
 }
 
 interface ArtpieceDetailViewProps {
@@ -59,6 +67,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [editArtist, setEditArtist] = useState<Artist | null>(null)
   const [artistModalOpen, setArtistModalOpen] = useState(false)
   const [editCharacters, setEditCharacters] = useState<CharacterToken[]>([])
+  const [editTags, setEditTags] = useState<Tag[]>([])
   const [editIsReference, setEditIsReference] = useState(false)
   const [locallyRemovedIds, setLocallyRemovedIds] = useState<Set<string>>(new Set())
   const [pendingCoverFileId, setPendingCoverFileId] = useState<string | null>(null)
@@ -92,6 +101,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
     setEditArtist(cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null)
     setEditCharacters(artpiece.characters.map((c) => ({ id: c.id, name: c.name })))
+    setEditTags(artpiece.tags.map((t) => ({ id: t.id, name: t.name })))
     setEditIsReference(artpiece.is_reference)
     setLocallyRemovedIds(new Set())
     setPendingCoverFileId(null)
@@ -144,6 +154,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         notes: editNotes.trim() || null,
         artistId: editArtist?.id ?? null,
         characterIds: editCharacters.map((c) => c.id),
+        tagIds: editTags.map((t) => t.id),
         isReference: editIsReference,
       })
 
@@ -221,12 +232,8 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
     const originalArtist = cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null
     if ((editArtist?.id ?? null) !== (originalArtist?.id ?? null)) parts.push('artist changed')
-    const originalCharIds = new Set(artpiece.characters.map((c) => c.id))
-    const editCharIds = new Set(editCharacters.map((c) => c.id))
-    const charsChanged =
-      originalCharIds.size !== editCharIds.size ||
-      [...originalCharIds].some((id) => !editCharIds.has(id))
-    if (charsChanged) parts.push('characters changed')
+    if (!sameIds(artpiece.characters, editCharacters)) parts.push('characters changed')
+    if (!sameIds(artpiece.tags, editTags)) parts.push('tags changed')
     if ((editTitle.trim() || null) !== artpiece.title) parts.push('title changed')
     if ((editNotes.trim() || null) !== artpiece.notes) parts.push('notes changed')
     if (editIsReference !== artpiece.is_reference) parts.push('reference changed')
@@ -356,6 +363,24 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                     <p className="mt-1 text-sm text-muted-foreground">—</p>
                   )}
                 </div>
+
+                <div>
+                  <p className="text-sm font-medium">Tags</p>
+                  {artpiece.tags.length > 0 ? (
+                    <div className="mt-1 flex flex-wrap gap-1">
+                      {artpiece.tags.map((t) => (
+                        <span
+                          key={t.id}
+                          className="rounded-md bg-muted px-2 py-0.5 text-sm"
+                        >
+                          {t.name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="mt-1 text-sm text-muted-foreground">—</p>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -395,6 +420,10 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                     disabled={isSaving}
                   />
                 </div>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <label className="text-sm font-medium">Tags</label>
+                <TagPicker value={editTags} onChange={setEditTags} disabled={isSaving} />
               </div>
               <div className="flex flex-col gap-1.5">
                 <label className="text-sm font-medium">Notes</label>

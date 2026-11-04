@@ -28,6 +28,8 @@ import { type Artist } from '@/features/artists/api/useArtists'
 import ArtistFormModal from '@/features/artists/components/ArtistFormModal'
 import ArtistCombobox from '@/features/artists/components/ArtistCombobox'
 import { useCharacters } from '@/features/characters/api/useCharacters'
+import { type Tag } from '@/features/tags/api/useTags'
+import TagPicker from '@/features/tags/components/TagPicker'
 import { useFiles, FILES_QUERY_KEY } from '../api/useFiles'
 import { useCreateArtpiece } from '@/features/artpieces/api/useCreateArtpiece'
 import ArtpieceFilesInput from './ArtpieceFilesInput'
@@ -49,6 +51,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
   const [notes, setNotes] = useState('')
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null)
   const [selectedCharacters, setSelectedCharacters] = useState<CharacterToken[]>([])
+  const [selectedTags, setSelectedTags] = useState<Tag[]>([])
   const [fileIds, setFileIds] = useState<string[]>([])
   const [isReference, setIsReference] = useState(false)
   const [hasUploading, setHasUploading] = useState(false)
@@ -77,6 +80,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
     setNotes('')
     setSelectedArtist(null)
     setSelectedCharacters([])
+    setSelectedTags([])
     setFileIds([])
     setIsReference(false)
     setHasUploading(false)
@@ -92,6 +96,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
       notes.trim() !== '' ||
       selectedArtist !== null ||
       selectedCharacters.length > 0 ||
+      selectedTags.length > 0 ||
       fileIds.length > 0 ||
       isReference ||
       hasUploading
@@ -117,6 +122,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
         notes: notes.trim() || null,
         artistId: selectedArtist?.id ?? null,
         characterIds: selectedCharacters.map((c) => c.id),
+        tagIds: selectedTags.map((t) => t.id),
         fileIds,
         isReference,
       })
@@ -226,6 +232,12 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
                 placeholder="Search characters…"
                 disabled={isSubmitting}
               />
+            </div>
+
+            {/* Tags */}
+            <div className="flex flex-col gap-1.5">
+              <label className="text-sm font-medium">Tags</label>
+              <TagPicker value={selectedTags} onChange={setSelectedTags} disabled={isSubmitting} />
             </div>
 
             {/* Files */}

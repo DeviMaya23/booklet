@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, afterEach } from 'vitest'
 import ArtistCharacterFilter from './ArtistCharacterFilter'
@@ -21,6 +21,24 @@ vi.mock('@/features/characters/api/useCharacters', () => ({
 
 vi.mock('@/features/verses/api/useVerses', () => ({
   useVerses: () => ({ data: [verse], isError: false }),
+}))
+
+let mockTagsError = false
+const tagRequests: unknown[] = []
+
+vi.mock('@/features/tags/api/useTags', () => ({
+  useTags: (options: unknown) => {
+    tagRequests.push(options)
+    return {
+      data: mockTagsError ? undefined : [
+        { id: 'tag-1', name: 'wip' },
+        { id: 'tag-2', name: 'sketch' },
+        { id: 'tag-3', name: 'outfit' },
+      ],
+      isError: mockTagsError,
+      isPending: false,
+    }
+  },
 }))
 
 const noop = () => {}
@@ -200,5 +218,162 @@ describe('ArtistCharacterFilter — footerAction slot', () => {
     renderFilter({ artist })
     await userEvent.click(screen.getByRole('button', { name: /1 artist/i }))
     expect(screen.queryByRole('button', { name: 'Save to dashboard' })).not.toBeInTheDocument()
+  })
+})
+
+describe('ArtistCharacterFilter — Tags field', () => {
+  const twoTags = [
+    { id: 'tag-1', name: 'wip' },
+    { id: 'tag-2', name: 'sketch' },
+  ]
+
+  it('does not render a Tags field when tags/onTagsChange are omitted', async () => {
+    renderFilter()
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    expect(screen.queryByText('Tags')).not.toBeInTheDocument()
+  })
+
+  it('does not request tags when the Tags field is not provided', () => {
+    tagRequests.length = 0
+    renderFilter()
+    expect(tagRequests).toEqual([expect.objectContaining({ enabled: false })])
+  })
+
+  it('renders a Tags field when tags and onTagsChange are provided', async () => {
+    renderFilter({ tags: [], onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    expect(screen.getByText('Tags')).toBeInTheDocument()
+  })
+
+  it('requests the recency-ordered tag list', () => {
+    tagRequests.length = 0
+    renderFilter({ tags: [], onTagsChange: noop })
+    expect(tagRequests).toEqual([expect.objectContaining({ sort: 'recent', enabled: true })])
+  })
+
+  it('selecting a suggestion calls onTagsChange with the tag appended', async () => {
+    const onTagsChange = vi.fn()
+    renderFilter({ tags: [], onTagsChange })
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    await userEvent.type(screen.getByPlaceholderText('Search tags…'), 'wi')
+    await userEvent.click(await screen.findByText('wip'))
+    expect(onTagsChange).toHaveBeenCalledWith([{ id: 'tag-1', name: 'wip' }])
+  })
+
+  it('removing a chip calls onTagsChange with the tag removed', async () => {
+    const onTagsChange = vi.fn()
+    renderFilter({ tags: twoTags, onTagsChange })
+    await userEvent.click(screen.getByRole('button', { name: /2 tags/i }))
+    await userEvent.click(screen.getByRole('button', { name: /remove wip/i }))
+    expect(onTagsChange).toHaveBeenCalledWith([{ id: 'tag-2', name: 'sketch' }])
+  })
+
+  it('excludes already-selected tags from the suggestions', async () => {
+    renderFilter({ tags: [{ id: 'tag-2', name: 'sketch' }], onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /1 tag/i }))
+    const section = screen.getByText('Tags').parentElement!.parentElement!
+    await userEvent.type(within(section).getByRole('textbox'), 's')
+    expect(screen.getAllByText('sketch')).toHaveLength(1) // the chip only
+  })
+
+  it('does not offer to create an unknown tag', async () => {
+    renderFilter({ tags: [], onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    await userEvent.type(screen.getByPlaceholderText('Search tags…'), 'brand-new')
+    expect(screen.queryByText(/create/i)).not.toBeInTheDocument()
+  })
+
+  it('shows an error message when tags fail to load', async () => {
+    mockTagsError = true
+    renderFilter({ tags: [], onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /filter/i }))
+    expect(screen.getByText('Failed to load tags.')).toBeInTheDocument()
+  })
+})
+
+describe('ArtistCharacterFilter — tag match toggle', () => {
+  const oneTag = [{ id: 'tag-1', name: 'wip' }]
+  const twoTags = [...oneTag, { id: 'tag-2', name: 'sketch' }]
+
+  it('is hidden when tagMatch is omitted', async () => {
+    renderFilter({ tags: twoTags, onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /2 tags/i }))
+    expect(screen.queryByRole('button', { name: 'Any' })).not.toBeInTheDocument()
+  })
+
+  it('is hidden with fewer than two tags', async () => {
+    renderFilter({ tags: oneTag, onTagsChange: noop, tagMatch: 'all', onTagMatchChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /1 tag/i }))
+    expect(screen.queryByRole('button', { name: 'Any' })).not.toBeInTheDocument()
+  })
+
+  it('is visible with two or more tags', async () => {
+    renderFilter({ tags: twoTags, onTagsChange: noop, tagMatch: 'all', onTagMatchChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: /2 tags/i }))
+    expect(screen.getByRole('button', { name: 'Any' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'All' })).toBeInTheDocument()
+  })
+
+  it('clicking Any calls onTagMatchChange and leaves the character mode alone', async () => {
+    const onTagMatchChange = vi.fn()
+    const onCharacterMatchChange = vi.fn()
+    renderFilter({ tags: twoTags, onTagsChange: noop, tagMatch: 'all', onTagMatchChange, onCharacterMatchChange, characterMatch: 'all' })
+    await userEvent.click(screen.getByRole('button', { name: /2 tags/i }))
+    await userEvent.click(screen.getByRole('button', { name: 'Any' }))
+    expect(onTagMatchChange).toHaveBeenCalledWith('any')
+    expect(onCharacterMatchChange).not.toHaveBeenCalled()
+  })
+})
+
+describe('ArtistCharacterFilter — tag summary label', () => {
+  const oneTag = [{ id: 'tag-1', name: 'wip' }]
+  const twoTags = [...oneTag, { id: 'tag-2', name: 'sketch' }]
+
+  it('shows "1 tag" for a single tag with nothing else active', () => {
+    renderFilter({ tags: oneTag, onTagsChange: noop })
+    expect(screen.getByRole('button', { name: '1 tag' })).toBeInTheDocument()
+  })
+
+  it('shows the match mode when tagMatch is provided', () => {
+    renderFilter({ tags: twoTags, onTagsChange: noop, tagMatch: 'any', onTagMatchChange: noop })
+    expect(screen.getByRole('button', { name: '2 tags, any' })).toBeInTheDocument()
+  })
+
+  it('combines tags with artist and characters', () => {
+    renderFilter({
+      artist,
+      characters: twoChars,
+      characterMatch: 'all',
+      onCharacterMatchChange: noop,
+      tags: oneTag,
+      onTagsChange: noop,
+      tagMatch: 'all',
+      onTagMatchChange: noop,
+    })
+    expect(screen.getByRole('button', { name: '1 artist · 2 characters, all · 1 tag, all' })).toBeInTheDocument()
+  })
+})
+
+describe('ArtistCharacterFilter — Clear all with tags', () => {
+  it('calls onTagsChange([]) when provided', async () => {
+    const onTagsChange = vi.fn()
+    renderFilter({ artist, tags: [{ id: 'tag-1', name: 'wip' }], onTagsChange })
+    await userEvent.click(screen.getByRole('button', { name: /1 artist/i }))
+    await userEvent.click(screen.getByRole('button', { name: /clear all/i }))
+    expect(onTagsChange).toHaveBeenCalledWith([])
+  })
+
+  it('shows Clear all for a tag-only filter', async () => {
+    renderFilter({ tags: [{ id: 'tag-1', name: 'wip' }], onTagsChange: noop })
+    await userEvent.click(screen.getByRole('button', { name: '1 tag' }))
+    expect(screen.getByRole('button', { name: /clear all/i })).toBeInTheDocument()
+  })
+
+  it('does not call onTagsChange when the tag props are absent', async () => {
+    const onArtistChange = vi.fn()
+    renderFilter({ artist, onArtistChange })
+    await userEvent.click(screen.getByRole('button', { name: /1 artist/i }))
+    await userEvent.click(screen.getByRole('button', { name: /clear all/i }))
+    expect(onArtistChange).toHaveBeenCalledWith(null)
   })
 })

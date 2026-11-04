@@ -1,30 +1,19 @@
 import { useMutation } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
+import { type FilterPayload } from '../lib/parseFilterPayload'
 
 export interface CreateSavedFilterParams {
   name: string
   thumbnailArtpieceId?: string | null
-  filterPayload: {
-    artist_id: string | null
-    character_ids: string[]
-    match_mode: 'all' | 'any'
-    is_reference: boolean
-    verse_id: string | null
-  }
+  filterPayload: FilterPayload
 }
 
 export interface SavedFilter {
   id: string
   name: string
   thumbnail_url: string | null
-  filter_payload: {
-    artist_id: string | null
-    character_ids: string[]
-    match_mode: 'all' | 'any'
-    is_reference: boolean
-    verse_id: string | null
-  }
+  filter_payload: FilterPayload
   created_at: string
   updated_at: string
 }

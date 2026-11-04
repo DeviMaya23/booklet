@@ -10,6 +10,8 @@ export function filterToHref(filter: SavedFilter): string {
   if (payload.match_mode === 'any') params.set('match', 'any')
   if (payload.is_reference) params.set('ref', 'true')
   if (payload.verse_id) params.set('verse', payload.verse_id)
+  if (payload.tag_ids.length > 0) params.set('tags', payload.tag_ids.join(','))
+  if (payload.tag_match_mode === 'any') params.set('tag_match', 'any')
   const qs = params.toString()
   return qs ? `/app/artpieces?${qs}` : '/app/artpieces'
 }

@@ -163,3 +163,207 @@ describe('TokenInput — createFromText', () => {
     expect(onChange).not.toHaveBeenCalled()
   })
 })
+
+describe('TokenInput — openOnFocus', () => {
+  it('lists suggestions on focus with empty text when enabled', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={[nature, travel]} openOnFocus placeholder="Add…" />)
+
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+
+    expect(await screen.findByText('Nature')).toBeInTheDocument()
+    expect(screen.getByText('Travel')).toBeInTheDocument()
+  })
+
+  it('does not list suggestions on focus by default', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={[nature, travel]} placeholder="Add…" />)
+
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+
+    expect(screen.queryByText('Nature')).not.toBeInTheDocument()
+  })
+
+  it('excludes already-selected items from the focus list', async () => {
+    render(<TokenInput items={[nature]} onChange={vi.fn()} suggestions={[nature, travel]} openOnFocus />)
+
+    await userEvent.click(screen.getByRole('textbox'))
+
+    expect(await screen.findByText('Travel')).toBeInTheDocument()
+    expect(screen.getAllByText('Nature')).toHaveLength(1) // the chip only
+  })
+})
+
+describe('TokenInput — async create', () => {
+  const created: Item = { id: 'item-new', name: 'wip' }
+
+  it('offers a create row for non-empty text and creates on click', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(created)
+    render(<TokenInput items={[]} onChange={onChange} suggestions={[nature]} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'wip')
+    await userEvent.click(await screen.findByText(/Create/))
+
+    expect(onCreate).toHaveBeenCalledWith('wip')
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith([created]))
+  })
+
+  it('hides the create row when canCreate returns false', async () => {
+    const onCreate = vi.fn()
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={[nature]} onCreate={onCreate} canCreate={() => false} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'zzz')
+
+    expect(screen.queryByText(/Create/)).not.toBeInTheDocument()
+  })
+
+  it('Enter with no suggestion highlighted creates', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(created)
+    render(<TokenInput items={[]} onChange={onChange} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), '  wip  {Enter}')
+
+    expect(onCreate).toHaveBeenCalledWith('wip')
+    await waitFor(() => expect(onChange).toHaveBeenCalledWith([created]))
+  })
+
+  it('comma creates', async () => {
+    const onCreate = vi.fn().mockResolvedValue(created)
+    render(<TokenInput items={[]} onChange={vi.fn()} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'wip,')
+
+    expect(onCreate).toHaveBeenCalledWith('wip')
+  })
+
+  it('the create row is reachable with the arrow keys', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(created)
+    render(<TokenInput items={[]} onChange={onChange} suggestions={[{ id: 'item-wipe', name: 'wipe' }]} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'wip')
+    await userEvent.keyboard('{ArrowDown}{ArrowDown}{Enter}')
+
+    expect(onCreate).toHaveBeenCalledWith('wip')
+  })
+
+  it('Enter on a highlighted suggestion selects it instead of creating', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn()
+    render(<TokenInput items={[]} onChange={onChange} suggestions={[nature]} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'nat')
+    await userEvent.keyboard('{ArrowDown}{Enter}')
+
+    expect(onChange).toHaveBeenCalledWith([nature])
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('blank text creates nothing', async () => {
+    const onCreate = vi.fn()
+    render(<TokenInput items={[]} onChange={vi.fn()} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), '   {Enter}')
+
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('a null result adds nothing and keeps the text', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(null)
+    render(<TokenInput items={[]} onChange={onChange} onCreate={onCreate} placeholder="Add…" />)
+
+    const input = screen.getByPlaceholderText('Add…')
+    await userEvent.type(input, 'wip{Enter}')
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    expect(onChange).not.toHaveBeenCalled()
+    expect(input).toHaveValue('wip')
+  })
+
+  it('a second Enter while creation is pending creates once', async () => {
+    let resolve!: (v: Item) => void
+    const onCreate = vi.fn().mockReturnValue(new Promise<Item>((r) => { resolve = r }))
+    const onChange = vi.fn()
+    render(<TokenInput items={[]} onChange={onChange} onCreate={onCreate} placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'wip')
+    await userEvent.keyboard('{Enter}{Enter}')
+    resolve(created)
+
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(onCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('a resolved item that is already selected is not added twice', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(nature)
+    render(<TokenInput items={[nature]} onChange={onChange} onCreate={onCreate} />)
+
+    const input = screen.getByRole('textbox')
+    await userEvent.type(input, 'nature{Enter}')
+
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('blur does not create', async () => {
+    const onCreate = vi.fn()
+    render(<TokenInput items={[]} onChange={vi.fn()} onCreate={onCreate} placeholder="Add…" />)
+
+    const input = screen.getByPlaceholderText('Add…')
+    await userEvent.type(input, 'wip')
+    await userEvent.tab()
+
+    await waitFor(() => expect(input).toHaveValue(''))
+    expect(onCreate).not.toHaveBeenCalled()
+  })
+
+  it('ignores chip removal while a create is pending, so the chip is not resurrected', async () => {
+    let resolve!: (v: Item) => void
+    const onCreate = vi.fn().mockReturnValue(new Promise<Item>((r) => { resolve = r }))
+    const onChange = vi.fn()
+    render(<TokenInput items={[nature]} onChange={onChange} onCreate={onCreate} />)
+
+    await userEvent.type(screen.getByRole('textbox'), 'wip{Enter}')
+    await userEvent.click(screen.getByRole('button', { name: /remove nature/i }))
+    expect(onChange).not.toHaveBeenCalled()
+
+    resolve(created)
+    await waitFor(() => expect(onChange).toHaveBeenCalledTimes(1))
+    expect(onChange).toHaveBeenCalledWith([nature, created])
+  })
+
+  it('allows chip removal again once the create has settled', async () => {
+    const onChange = vi.fn()
+    const onCreate = vi.fn().mockResolvedValue(null)
+    render(<TokenInput items={[nature]} onChange={onChange} onCreate={onCreate} />)
+
+    await userEvent.type(screen.getByRole('textbox'), 'wip{Enter}')
+    await waitFor(() => expect(onCreate).toHaveBeenCalled())
+    await userEvent.click(screen.getByRole('button', { name: /remove nature/i }))
+
+    expect(onChange).toHaveBeenCalledWith([])
+  })
+
+  it('closes the dropdown but keeps the text when blurred during a pending create that then fails', async () => {
+    let resolve!: (v: Item | null) => void
+    const onCreate = vi.fn().mockReturnValue(new Promise<Item | null>((r) => { resolve = r }))
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={[nature]} onCreate={onCreate} placeholder="Add…" />)
+
+    const input = screen.getByPlaceholderText('Add…')
+    await userEvent.type(input, 'wip')
+    expect(screen.getByText(/Create/)).toBeInTheDocument()
+    await userEvent.keyboard('{Enter}')
+    await userEvent.tab()
+
+    await waitFor(() => expect(screen.queryByText(/Create/)).not.toBeInTheDocument())
+    expect(input).toHaveValue('wip')
+
+    resolve(null)
+    await waitFor(() => expect(onCreate).toHaveBeenCalledTimes(1))
+    expect(screen.queryByText(/Create/)).not.toBeInTheDocument()
+    expect(input).toHaveValue('wip')
+  })
+})
