@@ -1,0 +1,19 @@
+meta {
+  name: Delete Tag
+  type: http
+  seq: 4
+}
+
+delete {
+  url: {{baseUrl}}/tags/:id
+  body: none
+  auth: inherit
+}
+
+params:path {
+  id: {{tagId}}
+}
+
+docs {
+  Removes the tag from every artpiece it was assigned to. The artpieces are not deleted.
+}

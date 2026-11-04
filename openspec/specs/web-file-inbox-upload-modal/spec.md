@@ -14,11 +14,11 @@ The system SHALL open an "Add files to dump" modal when the user clicks the floa
 ---
 
 ### Requirement: File upload via modal
-The system SHALL allow the user to upload multiple files simultaneously via the modal's drop zone or file picker. The file extension SHALL be stripped from `File.name` before it is sent as `name` in the initiate-upload request and before the name input is pre-filled.
+The system SHALL allow the user to upload multiple files simultaneously via the modal's drop zone or file picker. The file extension SHALL be stripped from `File.name` before it is sent as `name` in the initiate-upload request and before the name input is pre-filled. The lowercased file extension SHALL be sent as the `extension` field in the same initiate-upload request.
 
 #### Scenario: Dropping files onto the modal drop zone
 - **WHEN** a user drops one or more files onto the drop zone inside the modal
-- **THEN** each file is immediately added to the file list as an uploading row (spinner thumbnail, disabled name and notes inputs, no remove button), and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel
+- **THEN** each file is immediately added to the file list as an uploading row (spinner thumbnail, disabled name and notes inputs, no remove button), and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel, with the lowercased extension sent as `extension` in the initiate request
 
 #### Scenario: Selecting files via file picker
 - **WHEN** a user clicks the drop zone and selects files via the file picker

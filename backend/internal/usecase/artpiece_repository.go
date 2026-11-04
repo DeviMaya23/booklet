@@ -37,6 +37,11 @@ type ArtpieceCharacterRepository interface {
 	UpdateLastUsedAt(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
 }
 
+type ArtpieceTagRepository interface {
+	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]domain.Tag, error)
+	UpdateLastUsedAt(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
+}
+
 type ArtpieceFileRepository interface {
 	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error)
 	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error)
@@ -50,6 +55,8 @@ type ListArtpieceFilters struct {
 	CharacterIDs []uuid.UUID `query:"character_ids"`
 	ArtistIDs    []uuid.UUID `query:"artist_ids"`
 	IsReference  *bool       `query:"is_reference"`
+	TagIDs       []uuid.UUID `query:"tag_ids"`
+	TagMatch     string      `query:"tag_match" validate:"omitempty,oneof=any all"`
 }
 
 type CreateArtpieceParams struct {
@@ -57,6 +64,7 @@ type CreateArtpieceParams struct {
 	ArtistID     *uuid.UUID
 	Notes        *string
 	CharacterIDs []uuid.UUID
+	TagIDs       []uuid.UUID
 	FileIDs      []uuid.UUID
 	IsReference  bool
 }
@@ -66,6 +74,7 @@ type UpdateArtpieceParams struct {
 	ArtistID     *uuid.UUID
 	Notes        *string
 	CharacterIDs []uuid.UUID
+	TagIDs       []uuid.UUID
 	IsReference  *bool
 }
 

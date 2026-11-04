@@ -28,8 +28,9 @@ type spyArtpieceUsecase struct {
 	getByIDResult *domain.Artpiece
 	getByIDErr    error
 
-	listResult []*domain.Artpiece
-	listErr    error
+	listResult      []*domain.Artpiece
+	listErr         error
+	lastListFilters usecase.ListArtpieceFilters
 
 	updateResult *domain.Artpiece
 	updateErr    error
@@ -54,7 +55,8 @@ func (s *spyArtpieceUsecase) Create(_ context.Context, _ uuid.UUID, p usecase.Cr
 func (s *spyArtpieceUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.Artpiece, error) {
 	return s.getByIDResult, s.getByIDErr
 }
-func (s *spyArtpieceUsecase) List(_ context.Context, _ uuid.UUID, _ usecase.ListArtpieceFilters) ([]*domain.Artpiece, error) {
+func (s *spyArtpieceUsecase) List(_ context.Context, _ uuid.UUID, f usecase.ListArtpieceFilters) ([]*domain.Artpiece, error) {
+	s.lastListFilters = f
 	return s.listResult, s.listErr
 }
 func (s *spyArtpieceUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, p usecase.UpdateArtpieceParams) (*domain.Artpiece, error) {
@@ -588,4 +590,170 @@ func TestGetArtpieceByID_FileExtensionInResponse(t *testing.T) {
 	require.Len(t, files, 1)
 	fileMap := files[0].(map[string]interface{})
 	require.Equal(t, "clip", fileMap["extension"])
+}
+
+// --- tags ---
+
+func newArtpieceHandlerForTags(spy *spyArtpieceUsecase) *echo.Echo {
+	h := handler.NewArtpieceHandler(spy, &spyPresigner{}, observability.NewTelemetry(nil, nil, nil))
+	e := setupEcho(testUserID)
+	e.POST("/artpieces", h.CreateArtpiece)
+	e.GET("/artpieces", h.ListArtpieces)
+	e.GET("/artpieces/:id", h.GetArtpieceByID)
+	e.PUT("/artpieces/:id", h.UpdateArtpiece)
+	return e
+}
+
+func serve(e *echo.Echo, method, path, body string) *httptest.ResponseRecorder {
+	var req *http.Request
+	if body == "" {
+		req = httptest.NewRequest(method, path, nil)
+	} else {
+		req = httptest.NewRequest(method, path, strings.NewReader(body))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	}
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec
+}
+
+func artpieceWithTags(names ...string) *domain.Artpiece {
+	a := makeArtpiece()
+	for _, n := range names {
+		a.Tags = append(a.Tags, domain.Tag{ID: uuid.New(), UserID: testUserID, Name: n})
+	}
+	return a
+}
+
+func tagsFromBody(t *testing.T, body []byte) []map[string]interface{} {
+	t.Helper()
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(body, &got))
+	raw, ok := got["tags"].([]interface{})
+	require.True(t, ok, "tags must be a JSON array, got %T", got["tags"])
+	out := make([]map[string]interface{}, len(raw))
+	for i, r := range raw {
+		out[i] = r.(map[string]interface{})
+	}
+	return out
+}
+
+func TestCreateArtpiece_TagIDsReachUsecase(t *testing.T) {
+	spy := &spyArtpieceUsecase{createResult: makeArtpiece()}
+	tagA, tagB := uuid.New(), uuid.New()
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPost, "/artpieces",
+		`{"tag_ids":["`+tagA.String()+`","`+tagB.String()+`"]}`)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Equal(t, []uuid.UUID{tagA, tagB}, spy.lastCreate.TagIDs)
+}
+
+func TestCreateArtpiece_ResponseIncludesTags(t *testing.T) {
+	a := artpieceWithTags("wip", "sketch")
+	spy := &spyArtpieceUsecase{createResult: a}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPost, "/artpieces", `{}`)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Equal(t, []map[string]interface{}{
+		{"id": a.Tags[0].ID.String(), "name": "wip"},
+		{"id": a.Tags[1].ID.String(), "name": "sketch"},
+	}, tagsFromBody(t, rec.Body.Bytes()))
+}
+
+func TestCreateArtpiece_NoTagsIsEmptyArray(t *testing.T) {
+	spy := &spyArtpieceUsecase{createResult: makeArtpiece()}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPost, "/artpieces", `{}`)
+
+	require.Equal(t, http.StatusCreated, rec.Code)
+	require.Contains(t, rec.Body.String(), `"tags":[]`)
+}
+
+func TestCreateArtpiece_TagNotOwned(t *testing.T) {
+	spy := &spyArtpieceUsecase{createErr: usecase.ErrTagNotOwned}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPost, "/artpieces",
+		`{"tag_ids":["`+uuid.NewString()+`"]}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Contains(t, rec.Body.String(), usecase.ErrTagNotOwned.Error())
+}
+
+func TestUpdateArtpiece_TagIDsReachUsecase(t *testing.T) {
+	a := artpieceWithTags("wip")
+	spy := &spyArtpieceUsecase{updateResult: a}
+	tagID := uuid.New()
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPut, "/artpieces/"+a.ID.String(),
+		`{"tag_ids":["`+tagID.String()+`"]}`)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []uuid.UUID{tagID}, spy.lastUpdate.TagIDs)
+	require.Equal(t, "wip", tagsFromBody(t, rec.Body.Bytes())[0]["name"])
+}
+
+func TestUpdateArtpiece_TagNotOwned(t *testing.T) {
+	spy := &spyArtpieceUsecase{updateErr: usecase.ErrTagNotOwned}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodPut, "/artpieces/"+uuid.NewString(),
+		`{"tag_ids":["`+uuid.NewString()+`"]}`)
+
+	require.Equal(t, http.StatusUnprocessableEntity, rec.Code)
+	require.Contains(t, rec.Body.String(), usecase.ErrTagNotOwned.Error())
+}
+
+func TestGetArtpieceByID_ResponseIncludesTags(t *testing.T) {
+	a := artpieceWithTags("wip", "sketch")
+	spy := &spyArtpieceUsecase{getByIDResult: a}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodGet, "/artpieces/"+a.ID.String(), "")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []map[string]interface{}{
+		{"id": a.Tags[0].ID.String(), "name": "wip"},
+		{"id": a.Tags[1].ID.String(), "name": "sketch"},
+	}, tagsFromBody(t, rec.Body.Bytes()))
+}
+
+func TestListArtpieces_ResponseIncludesTags(t *testing.T) {
+	tagged := artpieceWithTags("wip")
+	untagged := makeArtpiece()
+	spy := &spyArtpieceUsecase{listResult: []*domain.Artpiece{tagged, untagged}}
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodGet, "/artpieces", "")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 2)
+	require.Equal(t, []interface{}{map[string]interface{}{"id": tagged.Tags[0].ID.String(), "name": "wip"}}, got[0]["tags"])
+	require.Equal(t, []interface{}{}, got[1]["tags"])
+}
+
+func TestListArtpieces_BindsTagFilters(t *testing.T) {
+	spy := &spyArtpieceUsecase{}
+	tagA, tagB := uuid.New(), uuid.New()
+
+	rec := serve(newArtpieceHandlerForTags(spy), http.MethodGet,
+		"/artpieces?tag_ids="+tagA.String()+"&tag_ids="+tagB.String()+"&tag_match=all", "")
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.Equal(t, []uuid.UUID{tagA, tagB}, spy.lastListFilters.TagIDs)
+	require.Equal(t, "all", spy.lastListFilters.TagMatch)
+}
+
+func TestListArtpieces_InvalidTagFilters(t *testing.T) {
+	tests := []struct{ name, query string }{
+		{"non-uuid tag_ids", "tag_ids=not-a-uuid"},
+		{"unknown tag_match", "tag_ids=" + uuid.NewString() + "&tag_match=bogus"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			rec := serve(newArtpieceHandlerForTags(&spyArtpieceUsecase{}), http.MethodGet, "/artpieces?"+tt.query, "")
+
+			require.Equal(t, http.StatusBadRequest, rec.Code)
+		})
+	}
 }

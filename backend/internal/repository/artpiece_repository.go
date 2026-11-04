@@ -32,6 +32,7 @@ func (r *artpieceRepository) GetByID(ctx context.Context, id uuid.UUID, userID u
 		Preload("Files").
 		Preload("Files.ImageMetadata").
 		Preload("Characters").
+		Preload("Tags").
 		Where("id = ? AND user_id = ?", id, userID).
 		First(&a).Error
 	if err != nil {
@@ -46,6 +47,7 @@ func (r *artpieceRepository) List(ctx context.Context, userID uuid.UUID, filters
 		Preload("Artist.Links").
 		Preload("CoverFile").
 		Preload("Characters").
+		Preload("Tags").
 		Where("artpieces.user_id = ?", userID)
 
 	if len(filters.CharacterIDs) > 0 {
@@ -58,6 +60,17 @@ func (r *artpieceRepository) List(ctx context.Context, userID uuid.UUID, filters
 	}
 	if filters.IsReference != nil {
 		q = q.Where("artpieces.is_reference = ?", *filters.IsReference)
+	}
+	if tagIDs := distinctUUIDs(filters.TagIDs); len(tagIDs) > 0 {
+		if filters.TagMatch == "all" {
+			q = q.Where(`artpieces.id IN (
+				SELECT artpiece_id FROM artpiece_tags
+				WHERE tag_id IN ?
+				GROUP BY artpiece_id
+				HAVING COUNT(DISTINCT tag_id) = ?)`, tagIDs, len(tagIDs))
+		} else {
+			q = q.Where("artpieces.id IN (SELECT artpiece_id FROM artpiece_tags WHERE tag_id IN ?)", tagIDs)
+		}
 	}
 
 	err := q.Order("artpieces.created_at DESC").Find(&artpieces).Error
@@ -74,6 +87,19 @@ func (r *artpieceRepository) Update(ctx context.Context, id uuid.UUID, userID uu
 		First(&a).Error
 	if err != nil {
 		return nil, fmt.Errorf("get artpiece: %w", err)
+	}
+
+	tagIDs := distinctUUIDs(params.TagIDs)
+	if len(tagIDs) > 0 {
+		var count int64
+		if err := dbFromContext(ctx, r.db).Model(&domain.Tag{}).
+			Where("id IN ? AND user_id = ?", tagIDs, userID).
+			Count(&count).Error; err != nil {
+			return nil, fmt.Errorf("count tags: %w", err)
+		}
+		if count != int64(len(tagIDs)) {
+			return nil, usecase.ErrTagNotOwned
+		}
 	}
 
 	var title, notes interface{}
@@ -126,6 +152,14 @@ func (r *artpieceRepository) Update(ctx context.Context, id uuid.UUID, userID uu
 	}
 	if err := dbFromContext(ctx, r.db).Model(&a).Association("Characters").Replace(characters); err != nil {
 		return nil, fmt.Errorf("replace characters: %w", err)
+	}
+
+	tags := make([]domain.Tag, len(tagIDs))
+	for i, tid := range tagIDs {
+		tags[i] = domain.Tag{ID: tid}
+	}
+	if err := dbFromContext(ctx, r.db).Model(&a).Association("Tags").Replace(tags); err != nil {
+		return nil, fmt.Errorf("replace tags: %w", err)
 	}
 
 	return r.GetByID(ctx, id, userID)
@@ -218,3 +252,15 @@ func (r *artpieceRepository) GetArtpiecesForCommission(ctx context.Context, comm
 	return artpieces, nil
 }
 
+
+func distinctUUIDs(ids []uuid.UUID) []uuid.UUID {
+	seen := make(map[uuid.UUID]struct{}, len(ids))
+	out := make([]uuid.UUID, 0, len(ids))
+	for _, id := range ids {
+		if _, ok := seen[id]; !ok {
+			seen[id] = struct{}{}
+			out = append(out, id)
+		}
+	}
+	return out
+}
