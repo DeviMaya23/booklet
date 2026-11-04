@@ -367,3 +367,111 @@ describe('TokenInput — async create', () => {
     expect(input).toHaveValue('wip')
   })
 })
+
+describe('TokenInput — focus list cap', () => {
+  const many = (n: number): Item[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `i-${i + 1}`, name: `Item${String(i + 1).padStart(2, '0')}` }))
+  const HINT = /type to search/i
+
+  it('shows the first 10 and a hint row when 25 items exist', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={many(25)} openOnFocus placeholder="Add…" />)
+
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+
+    const rows = await screen.findAllByRole('listitem')
+    expect(rows).toHaveLength(11)
+    expect(rows.slice(0, 10).map((r) => r.textContent)).toEqual(many(10).map((i) => i.name))
+    expect(rows[10]).toHaveTextContent(HINT)
+  })
+
+  it('shows no hint when 10 or fewer items exist', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={many(10)} openOnFocus placeholder="Add…" />)
+
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+
+    expect(await screen.findAllByRole('listitem')).toHaveLength(10)
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument()
+  })
+
+  it('selected items do not consume the cap', async () => {
+    const all = many(25)
+    render(<TokenInput items={all.slice(0, 3)} onChange={vi.fn()} suggestions={all} openOnFocus />)
+
+    await userEvent.click(screen.getByRole('textbox'))
+
+    const rows = await screen.findAllByRole('listitem')
+    expect(rows.slice(0, 10).map((r) => r.textContent)).toEqual(all.slice(3, 13).map((i) => i.name))
+    expect(rows).toHaveLength(11)
+  })
+
+  it('typing finds an item beyond the first 10', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={many(25)} openOnFocus placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'Item22')
+
+    expect(await screen.findByText('Item22')).toBeInTheDocument()
+    expect(screen.queryByText(HINT)).not.toBeInTheDocument()
+  })
+
+  it('typed matches are not capped', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={many(25)} openOnFocus placeholder="Add…" />)
+
+    await userEvent.type(screen.getByPlaceholderText('Add…'), 'Item')
+
+    expect(await screen.findAllByRole('listitem')).toHaveLength(25)
+  })
+
+  it('arrow keys skip the hint row and Enter on it adds nothing', async () => {
+    const onChange = vi.fn()
+    render(<TokenInput items={[]} onChange={onChange} suggestions={many(11)} openOnFocus placeholder="Add…" />)
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+    await screen.findByText(HINT)
+
+    // 10 rows: 10 presses reach the last item, the 11th wraps to the first.
+    await userEvent.keyboard('{ArrowDown>10/}')
+    await userEvent.keyboard('{ArrowDown}')
+    await userEvent.keyboard('{ArrowUp}')
+    await userEvent.keyboard('{Enter}')
+
+    expect(onChange).toHaveBeenCalledTimes(1)
+    expect(onChange).toHaveBeenCalledWith([expect.objectContaining({ name: 'Item10' })])
+  })
+
+  it('clicking the hint row adds nothing', async () => {
+    const onChange = vi.fn()
+    render(<TokenInput items={[]} onChange={onChange} suggestions={many(25)} openOnFocus placeholder="Add…" />)
+    await userEvent.click(screen.getByPlaceholderText('Add…'))
+
+    await userEvent.click(await screen.findByText(HINT))
+
+    expect(onChange).not.toHaveBeenCalled()
+  })
+
+  it('clicking the hint row keeps the input focused and the list open', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={many(25)} openOnFocus placeholder="Add…" />)
+    const input = screen.getByPlaceholderText('Add…')
+    await userEvent.click(input)
+
+    await userEvent.click(await screen.findByText(HINT))
+    await new Promise((r) => setTimeout(r, 200))
+
+    expect(input).toHaveFocus()
+    expect(screen.getByText(HINT)).toBeInTheDocument()
+  })
+})
+
+describe('TokenInput — blur timer', () => {
+  it('refocusing before the blur timer fires keeps the text and the open list', async () => {
+    render(<TokenInput items={[]} onChange={vi.fn()} suggestions={[nature, travel]} placeholder="Add…" />)
+    const input = screen.getByPlaceholderText('Add…')
+    await userEvent.type(input, 'nat')
+    expect(await screen.findByText('Nature')).toBeInTheDocument()
+
+    await userEvent.tab()
+    await userEvent.click(input)
+    await new Promise((r) => setTimeout(r, 250))
+
+    expect(input).toHaveValue('nat')
+    expect(screen.getByText('Nature')).toBeInTheDocument()
+  })
+})

@@ -5,7 +5,7 @@ import { createMemoryRouter, RouterProvider } from 'react-router-dom'
 import ArtpieceDetailView from './ArtpieceDetailView'
 import { type ArtpieceDetail } from '../api/useArtpiece'
 import { createWrapper } from '@/test/queryClient'
-import { characterRequests, mockCharacterPickerApi } from '@/test/characterPickerApi'
+import { characterRequests, manyCharacters, mockCharacterPickerApi } from '@/test/characterPickerApi'
 
 vi.mock('@kinde-oss/kinde-auth-react', () => ({
   useKindeAuth: () => ({ getToken: vi.fn().mockResolvedValue('tok') }),
@@ -82,5 +82,45 @@ describe('ArtpieceDetailView — character recency in edit mode', () => {
     await enterEditAndType('al')
 
     expect(characterRequests()).toEqual(['/characters?sort=recent'])
+  })
+})
+
+describe('ArtpieceDetailView — characters on focus in edit mode', () => {
+  async function enterEditAndFocus() {
+    const router = createMemoryRouter([
+      { path: '/', element: <ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} /> },
+    ])
+    render(<RouterProvider router={router} />, { wrapper: createWrapper() })
+    await userEvent.click(screen.getByRole('button', { name: /^edit$/i }))
+    const charactersField = screen.getByText('Characters').parentElement!
+    await userEvent.click(within(charactersField).getByRole('textbox'))
+  }
+
+  it('lists characters in recency order on focus', async () => {
+    await enterEditAndFocus()
+
+    const options = await screen.findAllByRole('listitem')
+    expect(options.map((o) => o.textContent)).toEqual(['Alma', 'Alba', 'Alto'])
+  })
+
+  it('excludes characters already on the artpiece', async () => {
+    artpiece = { ...baseArtpiece, characters: [{ id: 'c-b', name: 'Alba' }] as ArtpieceDetail['characters'] }
+
+    await enterEditAndFocus()
+
+    const options = await screen.findAllByRole('listitem')
+    expect(options.map((o) => o.textContent)).toEqual(['Alma', 'Alto'])
+  })
+
+  it('caps the focus list at 10 with a hint row', async () => {
+    const chars = manyCharacters(25)
+    mockCharacterPickerApi(chars)
+
+    await enterEditAndFocus()
+
+    const options = await screen.findAllByRole('listitem')
+    expect(options.slice(0, 10).map((o) => o.textContent)).toEqual(chars.slice(0, 10).map((c) => c.name))
+    expect(options).toHaveLength(11)
+    expect(options[10]).toHaveTextContent(/type to search/i)
   })
 })
