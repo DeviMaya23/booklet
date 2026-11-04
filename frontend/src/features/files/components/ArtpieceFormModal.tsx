@@ -229,6 +229,7 @@ export default function ArtpieceFormModal({ open, onOpenChange, initialFileIds, 
                 items={selectedCharacters}
                 onChange={setSelectedCharacters}
                 suggestions={availableCharacters}
+                openOnFocus
                 placeholder="Search characters…"
                 disabled={isSubmitting}
               />

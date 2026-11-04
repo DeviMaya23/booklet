@@ -21,11 +21,20 @@ export const recencyCharacters = [
  * given (API) order, everything else returns an empty list.
  * Requires `vi.mock('@/lib/api', () => ({ apiFetch: vi.fn() }))` in the test file.
  */
-export function mockCharacterPickerApi() {
+export function mockCharacterPickerApi(characters: typeof recencyCharacters = recencyCharacters) {
   vi.mocked(apiFetch).mockImplementation(async (path: string) => {
-    const body = path.startsWith('/characters') ? recencyCharacters : []
+    const body = path.startsWith('/characters') ? characters : []
     return { ok: true, json: async () => body } as Response
   })
+}
+
+/** n characters named Char01..CharNN, in that (recency) order. */
+export function manyCharacters(n: number): typeof recencyCharacters {
+  return Array.from({ length: n }, (_, i) => ({
+    ...recencyCharacters[0],
+    id: `c-${i + 1}`,
+    name: `Char${String(i + 1).padStart(2, '0')}`,
+  }))
 }
 
 export function characterRequests(): string[] {

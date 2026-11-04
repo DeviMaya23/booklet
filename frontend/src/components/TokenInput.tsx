@@ -1,5 +1,9 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { X } from 'lucide-react'
+
+// Max suggestions listed when the dropdown opens with empty text. Typed
+// matches are never capped.
+const FOCUS_LIST_LIMIT = 10
 
 interface TokenInputProps<T extends { id: string; name: string }> {
   items: T[]
@@ -42,12 +46,22 @@ export default function TokenInput<T extends { id: string; name: string }>({
   const pendingRef = useRef(false)
   const blurTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
+  // A pending blur timer must not outlive the component.
+  useEffect(
+    () => () => {
+      if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+    },
+    [],
+  )
+
   const trimmed = val.trim()
-  const filtered = suggestions.filter(
+  const matches = suggestions.filter(
     (s) =>
       (trimmed.length > 0 ? s.name.toLowerCase().includes(trimmed.toLowerCase()) : !!openOnFocus) &&
       !items.some((i) => i.id === s.id),
   )
+  const truncated = trimmed.length === 0 && matches.length > FOCUS_LIST_LIMIT
+  const filtered = truncated ? matches.slice(0, FOCUS_LIST_LIMIT) : matches
 
   const showCreateRow = !!onCreate && trimmed.length > 0 && (canCreate ? canCreate(trimmed) : true)
   const rowCount = filtered.length + (showCreateRow ? 1 : 0)
@@ -195,7 +209,12 @@ export default function TokenInput<T extends { id: string; name: string }>({
           value={val}
           onChange={onValChange}
           onKeyDown={onKeyDown}
-          onFocus={() => setShowDropdown(true)}
+          onFocus={() => {
+            // Refocusing before the blur timer fires must cancel it, or it
+            // would clear the text and close the list the user is using.
+            if (blurTimerRef.current) clearTimeout(blurTimerRef.current)
+            setShowDropdown(true)
+          }}
           onBlur={onBlur}
           placeholder={items.length === 0 ? placeholder : ''}
           disabled={disabled}
@@ -219,6 +238,15 @@ export default function TokenInput<T extends { id: string; name: string }>({
               {s.name}
             </li>
           ))}
+          {truncated && (
+            <li
+              // Keep focus on the input so the blur timer doesn't close the list.
+              onMouseDown={(e) => e.preventDefault()}
+              className="px-3 py-1.5 text-xs text-muted-foreground select-none cursor-default"
+            >
+              Type to search more…
+            </li>
+          )}
           {showCreateRow && (
             <li
               onMouseDown={onCreateRowMouseDown}

@@ -416,6 +416,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
                     items={editCharacters}
                     onChange={setEditCharacters}
                     suggestions={availableCharacters}
+                    openOnFocus
                     placeholder="Search characters…"
                     disabled={isSaving}
                   />

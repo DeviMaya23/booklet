@@ -99,6 +99,20 @@ describe('TagPicker — chips', () => {
 })
 
 describe('TagPicker — suggestions', () => {
+  it('caps the focus list at 10 tags with a hint row', async () => {
+    const tags: Tag[] = Array.from({ length: 25 }, (_, i) => ({ id: `t-${i + 1}`, name: `tag${String(i + 1).padStart(2, '0')}` }))
+    mockTagsApi(tags)
+    renderPicker()
+
+    await ready()
+    await userEvent.click(screen.getByRole('textbox'))
+
+    const rows = await screen.findAllByRole('listitem')
+    expect(rows.slice(0, 10).map((r) => r.textContent)).toEqual(tags.slice(0, 10).map((t) => t.name))
+    expect(rows).toHaveLength(11)
+    expect(rows[10]).toHaveTextContent(/type to search/i)
+  })
+
   it('requests tags with sort=recent', async () => {
     mockTagsApi([outfit])
     renderPicker()

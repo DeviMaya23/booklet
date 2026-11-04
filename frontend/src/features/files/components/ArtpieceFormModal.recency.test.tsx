@@ -3,7 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { vi, describe, it, expect, beforeEach } from 'vitest'
 import ArtpieceFormModal from './ArtpieceFormModal'
 import { createWrapper } from '@/test/queryClient'
-import { characterRequests, mockCharacterPickerApi } from '@/test/characterPickerApi'
+import { characterRequests, manyCharacters, mockCharacterPickerApi } from '@/test/characterPickerApi'
 
 vi.mock('@kinde-oss/kinde-auth-react', () => ({
   useKindeAuth: () => ({ getToken: vi.fn().mockResolvedValue('tok') }),
@@ -50,5 +50,37 @@ describe('ArtpieceFormModal — character recency', () => {
     await openAndType('al')
 
     expect(characterRequests()).toEqual(['/characters?sort=recent'])
+  })
+})
+
+describe('ArtpieceFormModal — characters on focus', () => {
+  async function openAndFocus() {
+    render(<ArtpieceFormModal open onOpenChange={() => {}} />, { wrapper: createWrapper() })
+    await userEvent.click(await screen.findByPlaceholderText(/search characters/i))
+  }
+
+  it('lists characters in recency order on focus', async () => {
+    await openAndFocus()
+
+    const options = await screen.findAllByRole('listitem')
+    expect(options.map((o) => o.textContent)).toEqual(['Alma', 'Alba', 'Alto'])
+  })
+
+  it('caps the focus list at 10 with a hint row', async () => {
+    const chars = manyCharacters(25)
+    mockCharacterPickerApi(chars)
+    await openAndFocus()
+
+    const options = await screen.findAllByRole('listitem')
+    expect(options.slice(0, 10).map((o) => o.textContent)).toEqual(chars.slice(0, 10).map((c) => c.name))
+    expect(options).toHaveLength(11)
+    expect(options[10]).toHaveTextContent(/type to search/i)
+  })
+
+  it('typing finds a character beyond the first 10', async () => {
+    mockCharacterPickerApi(manyCharacters(25))
+    await openAndType('Char22')
+
+    expect(await screen.findByText('Char22')).toBeInTheDocument()
   })
 })
