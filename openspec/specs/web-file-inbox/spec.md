@@ -17,7 +17,7 @@ The system SHALL display a grid of all unassigned files at `/app/files` (the Inb
 
 #### Scenario: File tile with thumbnail generation settled (no thumbnail)
 - **WHEN** a file in the grid has `thumbnail_url === null` and `thumbnail_gen_state !== "pending"`
-- **THEN** the tile renders a static fallback icon (no shimmer, no spinner) and polling stops for that file
+- **THEN** the tile renders a category tile (icon, optional tint, extension label) and polling stops for that file
 
 #### Scenario: Polling stops when all files are settled
 - **WHEN** no file in the list has `thumbnail_gen_state === "pending"`
@@ -145,11 +145,11 @@ The system SHALL open the file edit overlay when the user double-clicks a tile. 
 ---
 
 ### Requirement: Drag-and-drop upload
-The system SHALL allow the user to drop multiple files onto the grid to upload them in parallel, with immediate placeholder feedback. The file extension SHALL be stripped from `File.name` before it is sent as the `name` field in the initiate-upload request.
+The system SHALL allow the user to drop multiple files onto the grid to upload them in parallel, with immediate placeholder feedback. The file extension SHALL be stripped from `File.name` before it is sent as the `name` field in the initiate-upload request. The lowercased file extension SHALL be sent as the `extension` field in the same request.
 
 #### Scenario: Dropping files onto the grid
 - **WHEN** a user drops one or more files anywhere onto the grid area
-- **THEN** each file immediately gets a shimmer placeholder tile inserted into the grid, and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel, with the file's name sent as `name` in the initiate request after stripping the extension (e.g. `pic.jpg` → `pic`)
+- **THEN** each file immediately gets a shimmer placeholder tile inserted into the grid, and each file's upload flow (initiate → PUT to R2 → complete) runs in parallel, with the file's name sent as `name` after stripping the extension (e.g. `clip.mp4` → `clip`), and the lowercased extension sent as `extension` (e.g. `"mp4"`)
 
 #### Scenario: Upload completes — thumbnail pending
 - **WHEN** a file's complete-upload call succeeds and `thumbnail_gen_state === "pending"`
@@ -157,7 +157,7 @@ The system SHALL allow the user to drop multiple files onto the grid to upload t
 
 #### Scenario: Upload completes — thumbnail settled
 - **WHEN** a file's complete-upload call succeeds and `thumbnail_gen_state !== "pending"`
-- **THEN** the shimmer placeholder is replaced by the real tile showing either the thumbnail or the fallback icon
+- **THEN** the shimmer placeholder is replaced by the real tile showing either the thumbnail or the category tile
 
 #### Scenario: No auto-select on upload completion
 - **WHEN** a file finishes uploading
