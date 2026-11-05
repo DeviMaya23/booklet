@@ -109,7 +109,7 @@ Clicking a tile in either tab SHALL open the file viewer on that tab's artpieces
 - **THEN** the browser navigates to `/app/artpieces/:id` for that artpiece
 
 ### Requirement: Edit mode header
-Clicking Edit SHALL switch the page to edit mode in place. The header SHALL show the back link labelled with the character's name ("← Tanelle"), a name input, and Cancel and Save buttons. Save SHALL be disabled while the name is blank or a save is in progress.
+Clicking Edit SHALL switch the page to edit mode in place. The header SHALL show a back link labelled with the character's name ("← Tanelle") that returns to view mode, a name input, and Cancel and Save buttons. Save SHALL be disabled while the name is blank or a save is in progress.
 
 #### Scenario: Edit switches the page to edit mode
 - **WHEN** the user clicks Edit
@@ -139,27 +139,27 @@ In edit mode, while any field differs from the saved character, the page SHALL s
 - **THEN** the summary includes it in the removed-folder count
 
 ### Requirement: Leaving with unsaved changes
-In edit mode with unsaved changes, leaving the page (back link, browser navigation or sidebar) SHALL open a "Discard changes?" dialog with "Keep editing" and "Discard". Discard SHALL proceed with the navigation; Keep editing SHALL stay on the page with edits intact. Without unsaved changes, navigation SHALL proceed with no dialog.
+In edit mode with unsaved changes, using the back link or navigating away (browser navigation or sidebar) SHALL open a "Discard changes?" dialog with "Keep editing" and "Discard". Discard SHALL drop the edits and complete the action (return to view mode, or proceed with the navigation); Keep editing SHALL keep the edits. Without unsaved changes there SHALL be no dialog.
 
 #### Scenario: Discard dialog on back link
 - **WHEN** the user has unsaved changes and clicks the back link
-- **THEN** the "Discard changes?" dialog opens and the page does not navigate
+- **THEN** the "Discard changes?" dialog opens and the page stays in edit mode
 
-#### Scenario: Discard proceeds
-- **WHEN** the user confirms Discard
-- **THEN** the navigation completes and edits are dropped
+#### Scenario: Discard from the back link
+- **WHEN** the user confirms Discard after clicking the back link
+- **THEN** the edits are dropped and the page returns to view mode
 
 #### Scenario: Keep editing stays
 - **WHEN** the user chooses Keep editing
 - **THEN** the dialog closes and the edits remain
 
-#### Scenario: Sidebar navigation is guarded
-- **WHEN** the user has unsaved changes and clicks another sidebar item
-- **THEN** the "Discard changes?" dialog opens
+#### Scenario: Sidebar or browser navigation is guarded
+- **WHEN** the user has unsaved changes and navigates to another page in the app
+- **THEN** the "Discard changes?" dialog opens, and confirming Discard completes the navigation
 
 #### Scenario: No dialog without changes
-- **WHEN** the user is in edit mode with no changes and clicks the back link
-- **THEN** the page navigates immediately
+- **WHEN** the user is in edit mode with no changes and clicks the back link or navigates away
+- **THEN** the action completes immediately with no dialog
 
 ### Requirement: Edit mode fields
 Edit mode SHALL provide a Verse combobox with a clear control and a Notes textarea. The Verse field SHALL offer the user's existing verses and SHALL allow clearing to no verse.

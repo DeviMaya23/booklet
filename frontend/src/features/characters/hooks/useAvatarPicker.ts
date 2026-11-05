@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 import { FILE_SIZE_LIMITS } from '@/features/files/lib/fileCategory'
 
@@ -35,14 +35,14 @@ export function useAvatarPicker({ currentUrl = null }: UseAvatarPickerOptions = 
   const canClear = !avatarCleared && (localPreviewUrl !== null || currentUrl !== null)
   const isChanged = localFile !== null || avatarCleared
 
-  function stageFile(file: File) {
+  const stageFile = useCallback((file: File) => {
     const imageLimit = FILE_SIZE_LIMITS['image']
     if (file.size > imageLimit) {
       toast.error(`Image exceeds the ${Math.round(imageLimit / (1024 * 1024))} MB limit`)
       return
     }
     setCropSourceUrl(URL.createObjectURL(file))
-  }
+  }, [])
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -67,12 +67,16 @@ export function useAvatarPicker({ currentUrl = null }: UseAvatarPickerOptions = 
     onDrop: handleDrop,
   }
 
-  function handlePaste(e: PasteLike) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-    const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
-    const file = item?.getAsFile()
-    if (file) stageFile(file)
-  }
+  // Stable identity so callers can bind it to `document` without re-subscribing every render.
+  const handlePaste = useCallback(
+    (e: PasteLike) => {
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
+      const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
+      const file = item?.getAsFile()
+      if (file) stageFile(file)
+    },
+    [stageFile],
+  )
 
   function confirmCrop(cropped: File) {
     setLocalFile(cropped)
