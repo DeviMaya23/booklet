@@ -1,6 +1,7 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useCreateTag, TagConflictError } from './useCreateTag'
+import { useCreateTag } from './useCreateTag'
+import { TagConflictError } from './useTags'
 import { TAGS_QUERY_KEY } from './useTags'
 import { createTestQueryClient, createWrapper } from '@/test/queryClient'
 

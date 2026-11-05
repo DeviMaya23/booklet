@@ -1,14 +1,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
-import { TAGS_QUERY_KEY, type Tag } from './useTags'
-
-export class TagConflictError extends Error {
-  constructor() {
-    super('Tag name already exists')
-    this.name = 'TagConflictError'
-  }
-}
+import { TAGS_QUERY_KEY, TagConflictError, type Tag } from './useTags'
 
 export function useCreateTag() {
   const { getToken } = useKindeAuth()

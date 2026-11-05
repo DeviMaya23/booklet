@@ -14,3 +14,10 @@ type Tag struct {
 	CreatedAt  time.Time  `gorm:"column:created_at"`
 	UpdatedAt  time.Time  `gorm:"column:updated_at"`
 }
+
+// TagWithUsage is a Tag plus the number of artpieces it is assigned to.
+// It is a read model scanned from a grouped query, not a table of its own.
+type TagWithUsage struct {
+	Tag
+	ArtpieceCount int `gorm:"column:artpiece_count"`
+}

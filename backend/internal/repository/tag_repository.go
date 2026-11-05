@@ -28,20 +28,54 @@ func (r *tagRepository) Create(ctx context.Context, tag *domain.Tag) (*domain.Ta
 	return tag, nil
 }
 
-func (r *tagRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListTagFilters) ([]*domain.Tag, error) {
-	order := "name ASC"
+func tagOrder(filters usecase.ListTagFilters) string {
 	if filters.Sort != nil && *filters.Sort == "recent" {
-		order = "last_used_at DESC NULLS LAST, name ASC"
+		return "tags.last_used_at DESC NULLS LAST, tags.name ASC"
 	}
+	return "tags.name ASC"
+}
+
+func (r *tagRepository) List(ctx context.Context, userID uuid.UUID, filters usecase.ListTagFilters) ([]*domain.Tag, error) {
+	order := tagOrder(filters)
 	var tags []*domain.Tag
 	err := dbFromContext(ctx, r.db).
-		Where("user_id = ?", userID).
+		Where("tags.user_id = ?", userID).
 		Order(order).
 		Find(&tags).Error
 	if err != nil {
 		return nil, fmt.Errorf("list tags: %w", err)
 	}
 	return tags, nil
+}
+
+func (r *tagRepository) ListWithUsage(ctx context.Context, userID uuid.UUID, filters usecase.ListTagFilters) ([]*domain.TagWithUsage, error) {
+	var tags []*domain.TagWithUsage
+	err := dbFromContext(ctx, r.db).
+		Model(&domain.Tag{}).
+		Select("tags.*, COUNT(artpiece_tags.artpiece_id) AS artpiece_count").
+		Joins("LEFT JOIN artpiece_tags ON artpiece_tags.tag_id = tags.id").
+		Where("tags.user_id = ?", userID).
+		Group("tags.id").
+		Order(tagOrder(filters)).
+		Scan(&tags).Error
+	if err != nil {
+		return nil, fmt.Errorf("list tags with usage: %w", err)
+	}
+	return tags, nil
+}
+
+// ReassignArtpieces copies every artpiece assignment of fromTagID to toTagID,
+// skipping artpieces that already have toTagID. The from rows are left for the
+// caller to remove (deleting the tag cascades).
+func (r *tagRepository) ReassignArtpieces(ctx context.Context, fromTagID, toTagID uuid.UUID) error {
+	err := dbFromContext(ctx, r.db).Exec(
+		`INSERT INTO artpiece_tags (artpiece_id, tag_id)
+		 SELECT artpiece_id, ? FROM artpiece_tags WHERE tag_id = ?
+		 ON CONFLICT DO NOTHING`, toTagID, fromTagID).Error
+	if err != nil {
+		return fmt.Errorf("reassign artpiece tags: %w", err)
+	}
+	return nil
 }
 
 func (r *tagRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, params usecase.UpdateTagParams) (*domain.Tag, error) {

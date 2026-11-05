@@ -1,5 +1,5 @@
 import { NavLink, useMatch } from 'react-router-dom'
-import { type LucideIcon, Images, UsersRound, ReceiptText, Palette, Inbox, LayoutDashboard } from 'lucide-react'
+import { type LucideIcon, Images, UsersRound, ReceiptText, Palette, Tags, Inbox, LayoutDashboard } from 'lucide-react'
 import {
   Sidebar,
   SidebarContent,
@@ -25,6 +25,7 @@ const groups = [
     items: [
       { label: 'Commissions', to: '/app/commissions', icon: ReceiptText },
       { label: 'Artists', to: '/app/artists', icon: Palette },
+      { label: 'Tags', to: '/app/tags', icon: Tags },
     ],
   },
 ]

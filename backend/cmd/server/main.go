@@ -255,7 +255,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	verseHandler := httphandler.NewVerseHandler(verseUsecase, tel)
 
 	tagRepository := repository.NewTagRepository(db)
-	tagUsecase := usecase.NewTagUsecase(tagRepository, tel)
+	tagUsecase := usecase.NewTagUsecase(tagRepository, transactor, tel)
 	tagHandler := httphandler.NewTagHandler(tagUsecase, tel)
 
 	characterUsecase := usecase.NewCharacterUsecase(characterRepository, verseRepository, r2Storage, characterAvatarRepository, transactor, tel, bookleafClient)
@@ -357,6 +357,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	protected.GET("/tags", tagHandler.ListTags)
 	protected.PATCH("/tags/:id", tagHandler.UpdateTag)
 	protected.DELETE("/tags/:id", tagHandler.DeleteTag)
+	protected.POST("/tags/:id/merge", tagHandler.MergeTag)
 
 	protected.POST("/artists", artistHandler.CreateArtist)
 	protected.GET("/artists", artistHandler.ListArtists)

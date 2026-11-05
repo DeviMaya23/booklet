@@ -9,6 +9,7 @@ import CharactersPage from './pages/CharactersPage'
 import ArtistsPage from './pages/ArtistsPage'
 import FilesPage from './pages/FilesPage'
 import ArtpiecesPage from './pages/ArtpiecesPage'
+import TagsPage from './pages/TagsPage'
 import CommissionsPage from './pages/CommissionsPage'
 import DashboardPage from './pages/DashboardPage'
 
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
               { path: '/app/dashboard', element: <DashboardPage /> },
               { path: '/app/characters', element: <CharactersPage /> },
               { path: '/app/artists', element: <ArtistsPage /> },
+              { path: '/app/tags', element: <TagsPage /> },
               { path: '/app/files', element: <FilesPage /> },
               { path: '/app/artpieces', element: <ArtpiecesPage /> },
               { path: '/app/artpieces/:id', element: <ArtpiecesPage /> },

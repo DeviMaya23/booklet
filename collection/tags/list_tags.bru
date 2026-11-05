@@ -12,9 +12,13 @@ get {
 
 params:query {
   ~sort: recent
+  ~with_usage: true
 }
 
 docs {
   Ordered by name ascending by default. Enable `sort=recent` to order by most recently used
   (null last, then name). Any other `sort` value returns 422.
+
+  Enable `with_usage=true` to add `artpiece_count` to each tag (0 for unused tags). Combines with `sort`.
+  A non-boolean `with_usage` value returns 400.
 }
