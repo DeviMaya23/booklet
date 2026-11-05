@@ -25,6 +25,14 @@ type spyFileUsecase struct {
 	bulkDeleteIDs []uuid.UUID
 	getByIDFile   *domain.File
 	getByIDErr    error
+
+	listFiles []*domain.File
+
+	updateFile       *domain.File
+	updateErr        error
+	lastUpdateName   *string
+	lastUpdateNotes  *string
+	lastUpdateVisible *bool
 }
 
 func (s *spyFileUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*domain.File, error) {
@@ -32,11 +40,12 @@ func (s *spyFileUsecase) GetByID(_ context.Context, _ uuid.UUID, _ uuid.UUID) (*
 }
 
 func (s *spyFileUsecase) List(_ context.Context, _ uuid.UUID, _ bool) ([]*domain.File, error) {
-	return nil, nil
+	return s.listFiles, nil
 }
 
-func (s *spyFileUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, _ *string, _ *string) (*domain.File, error) {
-	return nil, nil
+func (s *spyFileUsecase) Update(_ context.Context, _ uuid.UUID, _ uuid.UUID, name *string, notes *string, isVisible *bool) (*domain.File, error) {
+	s.lastUpdateName, s.lastUpdateNotes, s.lastUpdateVisible = name, notes, isVisible
+	return s.updateFile, s.updateErr
 }
 
 func (s *spyFileUsecase) Delete(_ context.Context, _ uuid.UUID, _ uuid.UUID) error {
@@ -168,6 +177,108 @@ func TestGetDownloadURL_NotFound(t *testing.T) {
 	e.ServeHTTP(rec, req)
 
 	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+// --- UpdateFile / is_visible ---
+
+func putFile(t *testing.T, spy *spyFileUsecase, id uuid.UUID, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	h := newFileHandler(spy)
+	e := setupEcho(testUserID)
+	e.PUT("/files/:id", h.UpdateFile)
+	req := httptest.NewRequest(http.MethodPut, "/files/"+id.String(), strings.NewReader(body))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	return rec
+}
+
+func TestUpdateFile_IsVisibleOnly(t *testing.T) {
+	id := uuid.New()
+	spy := &spyFileUsecase{updateFile: &domain.File{ID: id, UserID: testUserID, MimeType: "image/png", IsVisible: false}}
+
+	rec := putFile(t, spy, id, `{"is_visible": false}`)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	require.NotNil(t, spy.lastUpdateVisible)
+	assert.False(t, *spy.lastUpdateVisible)
+	assert.Nil(t, spy.lastUpdateName)
+	assert.Nil(t, spy.lastUpdateNotes)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	assert.Equal(t, false, got["is_visible"])
+}
+
+func TestUpdateFile_IsVisibleOmitted(t *testing.T) {
+	id := uuid.New()
+	spy := &spyFileUsecase{updateFile: &domain.File{ID: id, UserID: testUserID, IsVisible: true}}
+
+	rec := putFile(t, spy, id, `{"name": "x"}`)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.Nil(t, spy.lastUpdateVisible)
+	require.NotNil(t, spy.lastUpdateName)
+	assert.Equal(t, "x", *spy.lastUpdateName)
+}
+
+func TestUpdateFile_NotFound(t *testing.T) {
+	spy := &spyFileUsecase{updateErr: gorm.ErrRecordNotFound}
+	rec := putFile(t, spy, uuid.New(), `{"is_visible": true}`)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+}
+
+func TestUpdateFile_InvalidUUID(t *testing.T) {
+	h := newFileHandler(&spyFileUsecase{})
+	e := setupEcho(testUserID)
+	e.PUT("/files/:id", h.UpdateFile)
+	req := httptest.NewRequest(http.MethodPut, "/files/nope", strings.NewReader(`{}`))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestUpdateFile_MalformedBody(t *testing.T) {
+	rec := putFile(t, &spyFileUsecase{}, uuid.New(), `{"is_visible": "not-a-bool"}`)
+	assert.Equal(t, http.StatusBadRequest, rec.Code)
+}
+
+func TestGetFile_ResponseIncludesIsVisible(t *testing.T) {
+	id := uuid.New()
+	spy := &spyFileUsecase{getByIDFile: &domain.File{ID: id, UserID: testUserID, IsVisible: false}}
+	h := newFileHandler(spy)
+	e := setupEcho(testUserID)
+	e.GET("/files/:id", h.GetFile)
+
+	req := httptest.NewRequest(http.MethodGet, "/files/"+id.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	assert.Equal(t, false, got["is_visible"])
+}
+
+func TestListFiles_ResponseIncludesIsVisible(t *testing.T) {
+	spy := &spyFileUsecase{listFiles: []*domain.File{
+		{ID: uuid.New(), UserID: testUserID, IsVisible: true},
+		{ID: uuid.New(), UserID: testUserID, IsVisible: false},
+	}}
+	h := newFileHandler(spy)
+	e := setupEcho(testUserID)
+	e.GET("/files", h.ListFiles)
+
+	req := httptest.NewRequest(http.MethodGet, "/files", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got []map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	require.Len(t, got, 2)
+	assert.Equal(t, true, got[0]["is_visible"])
+	assert.Equal(t, false, got[1]["is_visible"])
 }
 
 // suppress unused import

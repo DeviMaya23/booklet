@@ -201,7 +201,7 @@ func TestFileRepository_Update(t *testing.T) {
 	name := "my sketch.png"
 	notes := "updated notes"
 
-	err := repo.Update(context.Background(), f.ID, user.ID, &name, &notes)
+	err := repo.Update(context.Background(), f.ID, user.ID, &name, &notes, nil)
 	require.NoError(t, err)
 
 	got, err := repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
@@ -212,6 +212,36 @@ func TestFileRepository_Update(t *testing.T) {
 	assert.Equal(t, notes, *got.Notes)
 }
 
+func TestFileRepository_Update_IsVisibleRoundTrip(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewFileRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	f := seedFile(t, tx, user.ID, "image/jpeg")
+	name, notes := "keep", "keep notes"
+	require.NoError(t, repo.Update(context.Background(), f.ID, user.ID, &name, &notes, nil))
+
+	got, err := repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
+	require.NoError(t, err)
+	assert.True(t, got.IsVisible, "new files default to visible")
+
+	hidden := false
+	require.NoError(t, repo.Update(context.Background(), f.ID, user.ID, nil, nil, &hidden))
+	got, err = repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
+	require.NoError(t, err)
+	assert.False(t, got.IsVisible)
+	require.NotNil(t, got.Name)
+	require.NotNil(t, got.Notes)
+	assert.Equal(t, name, *got.Name, "is_visible-only update leaves name untouched")
+	assert.Equal(t, notes, *got.Notes, "is_visible-only update leaves notes untouched")
+
+	visible := true
+	require.NoError(t, repo.Update(context.Background(), f.ID, user.ID, nil, nil, &visible))
+	got, err = repo.GetByIDAndUserID(context.Background(), f.ID, user.ID)
+	require.NoError(t, err)
+	assert.True(t, got.IsVisible)
+}
+
 func TestFileRepository_Update_NotFound(t *testing.T) {
 	tx := testutil.NewTestTx(t, testDB)
 	repo := NewFileRepository(tx)
@@ -219,7 +249,7 @@ func TestFileRepository_Update_NotFound(t *testing.T) {
 	user := seedUser(t, tx, "user_1")
 	notes := "notes"
 
-	err := repo.Update(context.Background(), uuid.New(), user.ID, nil, &notes)
+	err := repo.Update(context.Background(), uuid.New(), user.ID, nil, &notes, nil)
 	assert.ErrorIs(t, err, gorm.ErrRecordNotFound)
 }
 

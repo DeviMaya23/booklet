@@ -28,11 +28,13 @@ interface EditModeProps {
 type ArtpieceDetailFileGridProps = {
   files: ArtpieceFile[]
   coverFileId: string | null
-  onOpen?: (index: number) => void
+  onOpen?: (fileId: string) => void
 } & (ViewModeProps | EditModeProps)
 
 export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProps) {
-  const { files, coverFileId, mode, onOpen } = props
+  const { coverFileId, mode, onOpen } = props
+  // Hidden files never render as tiles; they are reachable only via the details modal.
+  const files = props.files.filter((f) => f.is_visible)
 
   const effectiveCoverId =
     mode === 'edit' ? (props.pendingCoverFileId ?? coverFileId) : coverFileId
@@ -56,7 +58,7 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
           <Loader2 className="size-6 text-muted-foreground animate-spin" />
         </div>
       ))}
-      {files.map((file, fileIndex) => {
+      {files.map((file) => {
         const isCover = file.id === effectiveCoverId
         const isRemoved = mode === 'edit' && props.locallyRemovedIds.has(file.id)
         const label = mimeTypeLabel(file.mime_type)
@@ -65,7 +67,7 @@ export default function ArtpieceDetailFileGrid(props: ArtpieceDetailFileGridProp
           <div key={file.id} className="relative aspect-square">
             <div
               className={`relative h-full w-full overflow-hidden rounded-md bg-muted transition-opacity ${isRemoved ? 'opacity-40' : ''} ${mode === 'view' && onOpen ? 'cursor-pointer' : ''}`}
-              onClick={mode === 'view' && onOpen ? () => onOpen(fileIndex) : undefined}
+              onClick={mode === 'view' && onOpen ? () => onOpen(file.id) : undefined}
             >
               <FileThumb
                 thumbnailUrl={file.thumbnail_url}

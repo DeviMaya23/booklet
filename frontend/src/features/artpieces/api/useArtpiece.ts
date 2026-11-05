@@ -9,6 +9,8 @@ export interface ArtpieceFile {
   thumbnail_url: string | null
   mime_type: string
   name: string | null
+  notes: string | null
+  is_visible: boolean
   extension: string | null
   width: number | null
   height: number | null

@@ -84,7 +84,9 @@ type fileRef struct {
 	ThumbnailURL *string `json:"thumbnail_url"`
 	MimeType     string  `json:"mime_type"`
 	Name         *string `json:"name"`
+	Notes        *string `json:"notes"`
 	Extension    *string `json:"extension"`
+	IsVisible    bool    `json:"is_visible"`
 	Width        *int    `json:"width"`
 	Height       *int    `json:"height"`
 }
@@ -198,7 +200,9 @@ func (h *ArtpieceHandler) GetArtpieceByID(c echo.Context) error {
 			ThumbnailURL: thumbURL,
 			MimeType:     f.MimeType,
 			Name:         f.Name,
+			Notes:        f.Notes,
 			Extension:    f.Extension,
+			IsVisible:    f.IsVisible,
 		}
 		if f.ImageMetadata != nil {
 			ref.Width = &f.ImageMetadata.Width

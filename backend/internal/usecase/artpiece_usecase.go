@@ -420,6 +420,9 @@ func (u *ArtpieceUsecase) UpdateCover(ctx context.Context, artpieceID uuid.UUID,
 }
 
 func (u *ArtpieceUsecase) maybeAutoSetCover(ctx context.Context, artpiece *domain.Artpiece, newFile *domain.File) error {
+	if !newFile.IsVisible {
+		return nil
+	}
 	if bookmime.IsImage(newFile.MimeType) {
 		coverID := newFile.ID
 		return u.artpieceRepo.UpdateCover(ctx, artpiece.ID, &coverID)
@@ -431,7 +434,7 @@ func (u *ArtpieceUsecase) maybeAutoSetCover(ctx context.Context, artpiece *domai
 		return err
 	}
 	for _, f := range files {
-		if f.ID != newFile.ID && bookmime.IsImage(f.MimeType) {
+		if f.ID != newFile.ID && f.IsVisible && bookmime.IsImage(f.MimeType) {
 			return nil
 		}
 	}
@@ -448,7 +451,7 @@ func (u *ArtpieceUsecase) reassignCover(ctx context.Context, artpieceID uuid.UUI
 
 	var remaining []*domain.File
 	for _, f := range files {
-		if f.ID != detachedFileID {
+		if f.ID != detachedFileID && f.IsVisible {
 			remaining = append(remaining, f)
 		}
 	}
@@ -583,15 +586,44 @@ func (u *ArtpieceUsecase) setCoverFromFileSet(ctx context.Context, artpieceID uu
 		}
 	}
 
-	// Cover is absent or was removed — pick the best candidate.
+	// Hidden files are never cover candidates.
+	var visible []*domain.File
 	for _, f := range files {
+		if f.IsVisible {
+			visible = append(visible, f)
+		}
+	}
+	if len(visible) == 0 {
+		// Only clear when a cover existed and was removed; otherwise nothing to do.
+		if currentCoverID != nil {
+			return u.artpieceRepo.UpdateCover(ctx, artpieceID, nil)
+		}
+		return nil
+	}
+
+	// Cover is absent or was removed — pick the best candidate.
+	for _, f := range visible {
 		if bookmime.IsImage(f.MimeType) {
 			coverID := f.ID
 			return u.artpieceRepo.UpdateCover(ctx, artpieceID, &coverID)
 		}
 	}
-	coverID := files[0].ID
+	coverID := visible[0].ID
 	return u.artpieceRepo.UpdateCover(ctx, artpieceID, &coverID)
+}
+
+// ReassignCoverIfCurrent reassigns the artpiece cover (using the detach
+// reassignment rules) when fileID is the artpiece's current cover. Used when a
+// cover file is hidden while remaining attached.
+func (u *ArtpieceUsecase) ReassignCoverIfCurrent(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) error {
+	artpiece, err := u.artpieceRepo.GetByIDAndUserID(ctx, artpieceID, userID)
+	if err != nil {
+		return err
+	}
+	if artpiece.CoverFileID == nil || *artpiece.CoverFileID != fileID {
+		return nil
+	}
+	return u.reassignCover(ctx, artpieceID, fileID)
 }
 
 func (u *ArtpieceUsecase) DownloadFiles(ctx context.Context, artpiece *domain.Artpiece, w io.Writer) error {
