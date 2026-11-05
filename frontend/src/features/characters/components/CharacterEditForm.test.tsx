@@ -268,6 +268,90 @@ describe('CharacterEditForm — folders', () => {
     expect(screen.getByRole('button', { name: 'Remove Plant' })).toBeEnabled()
   })
 
+  it('shows the live Bookleaf name when a stored folder was renamed there', async () => {
+    await openEditor(baseCharacter, {
+      'GET /folders': {
+        body: foldersResponse([{ ...folderA, name: 'Plant (renamed)' }, folderB, folderC]),
+      },
+    })
+
+    expect(await screen.findByText('Plant (renamed)')).toBeInTheDocument()
+    expect(screen.queryByText('Plant')).not.toBeInTheDocument()
+    expect(screen.queryByText(/unsaved changes/i)).not.toBeInTheDocument()
+  })
+
+  it('shows the "Couldn\'t reach Bookleaf" block in the drawer, and Retry loads the list', async () => {
+    let bookleafUp = false
+    await openEditor(baseCharacter, {
+      'GET /folders': () =>
+        bookleafUp
+          ? { body: foldersResponse([folderA, folderB, folderC]) }
+          : { ok: false, status: 502, body: {} },
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Choose folders' }))
+    expect(await screen.findByText(/couldn't reach bookleaf/i)).toBeInTheDocument()
+    expect(screen.queryByRole('checkbox')).not.toBeInTheDocument()
+
+    bookleafUp = true
+    await userEvent.click(screen.getByRole('button', { name: /retry/i }))
+
+    expect(await screen.findByRole('checkbox', { name: 'Tavern' })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn't reach bookleaf/i)).not.toBeInTheDocument()
+  })
+
+  it('keeps the existing chips removable after closing a drawer that could not reach Bookleaf', async () => {
+    await openEditor(baseCharacter, { 'GET /folders': { ok: false, status: 502, body: {} } })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Choose folders' }))
+    await screen.findByText(/couldn't reach bookleaf/i)
+    await userEvent.click(screen.getByRole('button', { name: /close folder panel/i }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Remove Plant' }))
+
+    expect(screen.getByText('Unsaved changes: 1 folder removed')).toBeInTheDocument()
+  })
+
+  it('refreshing the drawer list picks up new folders', async () => {
+    let fetches = 0
+    await openEditor(baseCharacter, {
+      'GET /folders': () => {
+        fetches++
+        return {
+          body: foldersResponse(
+            fetches === 1
+              ? [folderA, folderB, folderC]
+              : [folderA, folderB, folderC, { id: 'f-d', name: 'Greenhouse', token: 'tok-d' }],
+          ),
+        }
+      },
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Choose folders' }))
+    await screen.findByRole('checkbox', { name: 'Tavern' })
+    expect(screen.queryByRole('checkbox', { name: 'Greenhouse' })).not.toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: /refresh folder list/i }))
+
+    expect(await screen.findByRole('checkbox', { name: 'Greenhouse' })).toBeInTheDocument()
+  })
+
+  it('keeps the loaded list when a refresh fails', async () => {
+    let fetches = 0
+    await openEditor(baseCharacter, {
+      'GET /folders': () =>
+        ++fetches === 1
+          ? { body: foldersResponse([folderA, folderB, folderC]) }
+          : { ok: false, status: 502, body: {} },
+    })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Choose folders' }))
+    await screen.findByRole('checkbox', { name: 'Tavern' })
+    await userEvent.click(screen.getByRole('button', { name: /refresh folder list/i }))
+    await waitFor(() => expect(fetches).toBe(2))
+
+    expect(screen.getByRole('checkbox', { name: 'Tavern' })).toBeInTheDocument()
+    expect(screen.queryByText(/couldn't reach bookleaf/i)).not.toBeInTheDocument()
+  })
+
   it('opens and closes the Choose folders drawer without losing edits', async () => {
     await openEditor()
     await renameTo('Tan')

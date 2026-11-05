@@ -44,6 +44,7 @@
 - [x] 7.2 Write the PUT response into the detail query cache in `useUpdateCharacter` so view mode never flashes the old values; verified by `useUpdateCharacter.test.tsx` and the existing save test.
 - [x] 7.3 Do not count Bookleaf-dropped folders as unsaved changes (summary ignores them, guard stays quiet) while still excluding them from the save; verified by summary unit tests and edit-form tests (no prompt on Back, user removal still counted, `folder_ids` unchanged).
 - [x] 7.4 Split `CharacterEditForm` into `useUnsavedChangesGuard`, `useCharacterSave`, `useCharacterDelete`, a `listenForPaste` option on `useAvatarPicker`, and `CharacterAvatarEditor` / `DeleteCharacterDialog` / `DiscardChangesDialog`, each with a colocated test; verified by the unchanged edit-form behavior tests still passing.
+- [x] 7.5 Close the verify-report test gaps: drawer degraded state with Retry, chips still removable after it, renamed folder shows the live name, refresh success picks up new folders, refresh failure keeps the loaded list, Escape closes the drawer, and paste is ignored in view mode; verified by the added `CharacterEditForm` and `CharacterDetailView` tests.
 
 ## 8. Final checks
 

@@ -1,4 +1,4 @@
-import { screen, waitFor } from '@testing-library/react'
+import { fireEvent, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mockApiRoutes, callsTo } from '@/test/mockApi'
@@ -14,6 +14,10 @@ vi.mock('@kinde-oss/kinde-auth-react', () => ({
 }))
 vi.mock('@/lib/api', () => ({ apiFetch: vi.fn() }))
 vi.mock('sonner', () => ({ toast: { success: vi.fn(), error: vi.fn() } }))
+// react-easy-crop needs real layout; a stand-in dialog is enough to see whether the crop flow opened.
+vi.mock('./AvatarCropDialog', () => ({
+  default: () => <div>Crop dialog</div>,
+}))
 
 const tanelle = makeCharacter({
   avatar_url: 'https://img/tanelle.jpg',
@@ -90,6 +94,36 @@ describe('CharacterDetailView — view mode', () => {
     await userEvent.click(await screen.findByRole('link', { name: /characters/i }))
 
     expect(await screen.findByText('Characters list')).toBeInTheDocument()
+  })
+})
+
+describe('CharacterDetailView — avatar paste', () => {
+  const pasteImage = () =>
+    fireEvent.paste(document.body, {
+      clipboardData: {
+        items: [{ type: 'image/png', getAsFile: () => new File(['png'], 'p.png', { type: 'image/png' }) }],
+      },
+    })
+
+  it('ignores a pasted image in view mode', async () => {
+    mockApiRoutes({ 'GET /characters/c-1': { body: tanelle } })
+    renderCharacterDetail()
+    await screen.findByRole('heading', { name: 'Tanelle' })
+
+    pasteImage()
+
+    expect(screen.queryByText('Crop dialog')).not.toBeInTheDocument()
+  })
+
+  it('accepts the same paste once the page is in edit mode', async () => {
+    mockApiRoutes({ 'GET /characters/c-1': { body: tanelle } })
+    renderCharacterDetail()
+    await userEvent.click(await screen.findByRole('button', { name: /edit/i }))
+    await screen.findByLabelText('Name')
+
+    pasteImage()
+
+    expect(await screen.findByText('Crop dialog')).toBeInTheDocument()
   })
 })
 
