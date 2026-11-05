@@ -1,7 +1,8 @@
 import { toast } from 'sonner'
 import TokenInput from '@/components/TokenInput'
 import { useTags, type Tag } from '../api/useTags'
-import { useCreateTag, TagConflictError } from '../api/useCreateTag'
+import { useCreateTag } from '../api/useCreateTag'
+import { TagConflictError } from '../api/useTags'
 
 interface TagPickerProps {
   value: Tag[]

@@ -235,10 +235,44 @@ func (s *spyStorageService) DeleteObject(_ context.Context, _ string) error {
 // the tags map so tests assert on the resulting tag rows, not on the call graph.
 type fakeTagRepository struct {
 	tags map[uuid.UUID]*domain.Tag
+	// assignments maps tag ID -> set of artpiece IDs carrying it.
+	assignments map[uuid.UUID]map[uuid.UUID]bool
+	reassignErr error
+	deleteErr   error
 }
 
 func newFakeTagRepository() *fakeTagRepository {
-	return &fakeTagRepository{tags: make(map[uuid.UUID]*domain.Tag)}
+	return &fakeTagRepository{
+		tags:        make(map[uuid.UUID]*domain.Tag),
+		assignments: make(map[uuid.UUID]map[uuid.UUID]bool),
+	}
+}
+
+func (f *fakeTagRepository) assign(tagID, artpieceID uuid.UUID) {
+	if f.assignments[tagID] == nil {
+		f.assignments[tagID] = make(map[uuid.UUID]bool)
+	}
+	f.assignments[tagID][artpieceID] = true
+}
+
+func (f *fakeTagRepository) ListWithUsage(_ context.Context, userID uuid.UUID, _ usecase.ListTagFilters) ([]*domain.TagWithUsage, error) {
+	var result []*domain.TagWithUsage
+	for _, t := range f.tags {
+		if t.UserID == userID {
+			result = append(result, &domain.TagWithUsage{Tag: *t, ArtpieceCount: len(f.assignments[t.ID])})
+		}
+	}
+	return result, nil
+}
+
+func (f *fakeTagRepository) ReassignArtpieces(_ context.Context, fromTagID, toTagID uuid.UUID) error {
+	if f.reassignErr != nil {
+		return f.reassignErr
+	}
+	for artpieceID := range f.assignments[fromTagID] {
+		f.assign(toTagID, artpieceID)
+	}
+	return nil
 }
 
 func (f *fakeTagRepository) seed(userID uuid.UUID, name string) *domain.Tag {
@@ -272,11 +306,15 @@ func (f *fakeTagRepository) Update(_ context.Context, id uuid.UUID, userID uuid.
 }
 
 func (f *fakeTagRepository) Delete(_ context.Context, id uuid.UUID, userID uuid.UUID) error {
+	if f.deleteErr != nil {
+		return f.deleteErr
+	}
 	t, ok := f.tags[id]
 	if !ok || t.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
 	delete(f.tags, id)
+	delete(f.assignments, id)
 	return nil
 }
 

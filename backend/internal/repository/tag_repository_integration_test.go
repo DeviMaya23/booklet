@@ -329,3 +329,108 @@ func TestTagRepository_UpdateLastUsedAt_EmptyIDsIsNoOp(t *testing.T) {
 	require.NoError(t, tx.First(&after, "id = ?", tag.ID).Error)
 	assert.True(t, after.LastUsedAt.Equal(old))
 }
+
+func usageByName(tags []*domain.TagWithUsage) map[string]int {
+	m := make(map[string]int, len(tags))
+	for _, tg := range tags {
+		m[tg.Name] = tg.ArtpieceCount
+	}
+	return m
+}
+
+func usageNames(tags []*domain.TagWithUsage) []string {
+	names := make([]string, len(tags))
+	for i, tg := range tags {
+		names[i] = tg.Name
+	}
+	return names
+}
+
+func TestTagRepository_ListWithUsage_Counts(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewTagRepository(tx)
+	user := seedUser(t, tx, "user_1")
+	sketch := seedTag(t, tx, user.ID, "sketch")
+	wip := seedTag(t, tx, user.ID, "wip")
+	seedTag(t, tx, user.ID, "unused")
+	seedArtpieceWithTags(t, tx, user.ID, sketch, wip)
+	seedArtpieceWithTags(t, tx, user.ID, sketch)
+	seedArtpieceWithTags(t, tx, user.ID, sketch)
+
+	got, err := repo.ListWithUsage(context.Background(), user.ID, usecase.ListTagFilters{})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]int{"sketch": 3, "wip": 1, "unused": 0}, usageByName(got))
+	assert.Equal(t, []string{"sketch", "unused", "wip"}, usageNames(got))
+	assert.Equal(t, sketch.ID, got[0].ID)
+}
+
+func TestTagRepository_ListWithUsage_UserIsolation(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewTagRepository(tx)
+	userA := seedUser(t, tx, "user_a")
+	userB := seedUser(t, tx, "user_b")
+	tagA := seedTag(t, tx, userA.ID, "sketch")
+	tagB := seedTag(t, tx, userB.ID, "sketch")
+	seedArtpieceWithTags(t, tx, userA.ID, tagA)
+	seedArtpieceWithTags(t, tx, userB.ID, tagB)
+	seedArtpieceWithTags(t, tx, userB.ID, tagB)
+
+	got, err := repo.ListWithUsage(context.Background(), userA.ID, usecase.ListTagFilters{})
+
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, tagA.ID, got[0].ID)
+	assert.Equal(t, 1, got[0].ArtpieceCount)
+}
+
+func TestTagRepository_ListWithUsage_RecentOrder(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewTagRepository(tx)
+	user := seedUser(t, tx, "user_1")
+	now := time.Now()
+	old := seedTagWithLastUsed(t, tx, user.ID, "old", now.Add(-time.Hour))
+	seedTagWithLastUsed(t, tx, user.ID, "new", now)
+	seedTag(t, tx, user.ID, "never-b")
+	seedTag(t, tx, user.ID, "never-a")
+	seedArtpieceWithTags(t, tx, user.ID, old)
+
+	got, err := repo.ListWithUsage(context.Background(), user.ID, usecase.ListTagFilters{Sort: strPtr("recent")})
+
+	require.NoError(t, err)
+	assert.Equal(t, []string{"new", "old", "never-a", "never-b"}, usageNames(got))
+	assert.Equal(t, 1, usageByName(got)["old"])
+}
+
+func TestTagRepository_ReassignArtpieces(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewTagRepository(tx)
+	user := seedUser(t, tx, "user_1")
+	lastUsed := time.Now().Add(-time.Hour).Truncate(time.Second)
+	source := seedTag(t, tx, user.ID, "sketches")
+	target := seedTagWithLastUsed(t, tx, user.ID, "sketch", lastUsed)
+	onlySource := seedArtpieceWithTags(t, tx, user.ID, source)
+	both := seedArtpieceWithTags(t, tx, user.ID, source, target)
+	onlyTarget := seedArtpieceWithTags(t, tx, user.ID, target)
+
+	require.NoError(t, repo.ReassignArtpieces(context.Background(), source.ID, target.ID))
+	require.NoError(t, repo.Delete(context.Background(), source.ID, user.ID))
+
+	var rows []struct{ ArtpieceID uuid.UUID }
+	require.NoError(t, tx.Table("artpiece_tags").Select("artpiece_id").Where("tag_id = ?", target.ID).Scan(&rows).Error)
+	ids := make([]uuid.UUID, len(rows))
+	for i, r := range rows {
+		ids[i] = r.ArtpieceID
+	}
+	assert.ElementsMatch(t, []uuid.UUID{onlySource.ID, both.ID, onlyTarget.ID}, ids)
+
+	var sourceRows int64
+	require.NoError(t, tx.Table("artpiece_tags").Where("tag_id = ?", source.ID).Count(&sourceRows).Error)
+	assert.Zero(t, sourceRows)
+
+	var reloaded domain.Tag
+	require.NoError(t, tx.First(&reloaded, "id = ?", target.ID).Error)
+	assert.Equal(t, "sketch", reloaded.Name)
+	require.NotNil(t, reloaded.LastUsedAt)
+	assert.True(t, lastUsed.Equal(*reloaded.LastUsedAt))
+}

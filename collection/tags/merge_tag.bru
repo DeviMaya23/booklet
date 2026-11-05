@@ -1,0 +1,32 @@
+meta {
+  name: Merge Tag
+  type: http
+  seq: 5
+}
+
+post {
+  url: {{baseUrl}}/tags/:id/merge
+  body: json
+  auth: inherit
+}
+
+params:path {
+  id: {{tagId}}
+}
+
+body:json {
+  {
+    "target_id": "{{targetTagId}}"
+  }
+}
+
+docs {
+  Merges the tag `:id` (source) into `target_id`: artpieces with the source gain the target (artpieces
+  that already have both keep one), then the source is deleted. Atomic. The target's name and
+  last_used_at are unchanged.
+
+  - 204: merged
+  - 400: malformed `:id`, invalid JSON, or `target_id` not a UUID
+  - 404: source or target does not exist or is not owned by the user
+  - 422: `target_id` missing, or equal to the source id
+}

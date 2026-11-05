@@ -1,6 +1,6 @@
 import { renderHook, waitFor } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { useTags, TAGS_QUERY_KEY } from './useTags'
+import { useTags, tagsQueryKey, TAGS_QUERY_KEY } from './useTags'
 import { createTestQueryClient, createWrapper } from '@/test/queryClient'
 
 vi.mock('@kinde-oss/kinde-auth-react', () => ({
@@ -34,6 +34,36 @@ describe('useTags', () => {
     await waitFor(() => expect(result.current.isSuccess).toBe(true))
 
     expect(apiFetch).toHaveBeenCalledWith('/tags?sort=recent', expect.any(Function))
+  })
+
+  it('requests with_usage=true, combined with sort', async () => {
+    const { result } = renderHook(() => useTags({ sort: 'recent', withUsage: true }), { wrapper: createWrapper() })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiFetch).toHaveBeenCalledWith('/tags?sort=recent&with_usage=true', expect.any(Function))
+  })
+
+  it('requests only with_usage=true when no sort is given', async () => {
+    const { result } = renderHook(() => useTags({ withUsage: true }), { wrapper: createWrapper() })
+
+    await waitFor(() => expect(result.current.isSuccess).toBe(true))
+
+    expect(apiFetch).toHaveBeenCalledWith('/tags?with_usage=true', expect.any(Function))
+  })
+
+  it('keeps usage and non-usage lists in separate cache entries', async () => {
+    const client = createTestQueryClient()
+    const plain = renderHook(() => useTags(), { wrapper: createWrapper(client) })
+    await waitFor(() => expect(plain.result.current.isSuccess).toBe(true))
+    expect(apiFetch).toHaveBeenCalledTimes(1)
+
+    const usage = renderHook(() => useTags({ withUsage: true }), { wrapper: createWrapper(client) })
+    await waitFor(() => expect(usage.result.current.isSuccess).toBe(true))
+
+    expect(apiFetch).toHaveBeenCalledTimes(2)
+    expect(tagsQueryKey()).toEqual(TAGS_QUERY_KEY)
+    expect(tagsQueryKey('recent', true)).toEqual([...TAGS_QUERY_KEY, 'recent', 'usage'])
   })
 
   it('does not request tags when disabled', async () => {
