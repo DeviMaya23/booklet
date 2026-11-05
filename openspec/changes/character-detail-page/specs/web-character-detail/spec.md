@@ -82,6 +82,14 @@ Below the header the page SHALL show an Artpieces tab and a References tab, each
 - **WHEN** the Artpieces tab is selected
 - **THEN** no artpiece with `is_reference: true` is shown
 
+#### Scenario: Loading is not shown as empty
+- **WHEN** `GET /artpieces` is still in flight
+- **THEN** the tab panel shows "Loading…", the tab counts are hidden, and no empty-state block is shown
+
+#### Scenario: Failure is not shown as empty
+- **WHEN** `GET /artpieces` fails and there is no cached data
+- **THEN** the tab panel shows "Failed to load artpieces.", the tab counts are hidden, and no empty-state block is shown
+
 #### Scenario: Switching tabs
 - **WHEN** the user selects the References tab
 - **THEN** the references grid is shown in place of the artpieces grid
@@ -124,7 +132,7 @@ Clicking Edit SHALL switch the page to edit mode in place. The header SHALL show
 - **THEN** edit state is discarded and the page returns to view mode showing the original values
 
 ### Requirement: Unsaved changes summary
-In edit mode, while any field differs from the saved character, the page SHALL show an amber-dotted line "Unsaved changes: …" listing what changed, such as "name changed", "verse changed", "notes changed", "avatar changed", "avatar removed", "N folder(s) added" and "N folder(s) removed". The line SHALL be hidden when nothing differs.
+In edit mode, while any field differs from the saved character, the page SHALL show an amber-dotted line "Unsaved changes: …" listing what changed, such as "name changed", "verse changed", "notes changed", "avatar changed", "avatar removed", "N folder(s) added" and "N folder(s) removed". Folders dropped automatically because Bookleaf no longer lists them SHALL NOT count as changes. The line SHALL be hidden when nothing differs.
 
 #### Scenario: Summary lists changes
 - **WHEN** the user changes the verse and removes one folder
@@ -134,9 +142,13 @@ In edit mode, while any field differs from the saved character, the page SHALL s
 - **WHEN** the user changes the verse and then selects the original verse again
 - **THEN** "verse changed" no longer appears and the line is hidden if nothing else differs
 
-#### Scenario: Folders removed by reconciliation are counted
-- **WHEN** a stored folder is no longer public in Bookleaf and is removed from the selection by reconciliation
-- **THEN** the summary includes it in the removed-folder count
+#### Scenario: Reconciliation alone is not a change
+- **WHEN** a stored folder is no longer public in Bookleaf and the user has changed nothing
+- **THEN** no "Unsaved changes" line is shown and leaving the page does not prompt
+
+#### Scenario: User changes are counted next to a dropped folder
+- **WHEN** a stored folder is no longer public in Bookleaf and the user removes another folder
+- **THEN** the summary reads "1 folder removed", counting only the user's removal
 
 ### Requirement: Leaving with unsaved changes
 In edit mode with unsaved changes, using the back link or navigating away (browser navigation or sidebar) SHALL open a "Discard changes?" dialog with "Keep editing" and "Discard". Discard SHALL drop the edits and complete the action (return to view mode, or proceed with the navigation); Keep editing SHALL keep the edits. Without unsaved changes there SHALL be no dialog.
@@ -201,6 +213,10 @@ On Save the page SHALL: upload a newly cropped avatar (init → PUT to the presi
 #### Scenario: Metadata-only save
 - **WHEN** the user edits name or notes and saves
 - **THEN** `PUT /characters/:id` is called, a success toast is shown, and view mode shows the new values
+
+#### Scenario: Saved values show immediately
+- **WHEN** the update succeeds and the page returns to view mode
+- **THEN** view mode shows the saved values straight away, never the previous ones
 
 #### Scenario: Save with new avatar
 - **WHEN** the user crops a new avatar and saves

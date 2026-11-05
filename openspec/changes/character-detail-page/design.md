@@ -36,7 +36,7 @@ See proposal.md for motivation. Current state, from the code:
 
 ### D3. Draft state and the unsaved-changes summary
 `CharacterEditForm` holds name, notes and a verse override in local state (legitimate divergent state per CONVENTIONS). The verse is stored as `undefined` (untouched) / `Verse | null` (chosen), with the effective verse resolved from `useVerses()` against `character.verse_id`, so the form does not read as dirty while verses are still loading. A pure `characterEditSummary` function in `features/characters/lib` (colocated test; no React state, so not a hook) takes the draft, avatar picker state and selected folder IDs and returns the "Unsaved changes: …" string or `null`; `useBlocker` and the discard dialog key off that string, mirroring `ArtpieceDetailView`. Cancel discards directly; the back link and in-app navigation ask first.
-Folder counts come from comparing selected IDs with the character's original IDs, so reconciliation-removed folders count as removed.
+Folder counts compare selected IDs with the character's original IDs, minus stored folders Bookleaf no longer lists (derived from the live list): Bookleaf is the source of truth for which folders exist and the save drops those folders on its own, so reconciliation alone never makes the form dirty or arms the guard.
 
 ### D4. Shared avatar logic: one hook, one lib function
 - `features/characters/hooks/useAvatarPicker` owns `localFile`, the preview object URL, `avatarCleared`, `cropSourceUrl`, drag-active state, size validation (toast), and the file/drop/paste/crop/clear handlers, with semantic mutators and URL revocation. The modal (create) and the page (edit) both use it.
@@ -44,8 +44,11 @@ Folder counts come from comparing selected IDs with the character's original IDs
 *Why now:* CONVENTIONS requires factoring a multi-step pipeline used from two entry points rather than copying it. The modal's create behavior is unchanged.
 *Paste:* the modal keeps an `onPaste` on its dialog content. On the page no element has focus by default, so the page binds the hook's paste handler on `document` while `CharacterEditForm` is mounted; the existing "ignore paste from input/textarea" rule is inside the handler.
 
+### D4a. One hook per concern in the edit form
+`CharacterEditForm` composes small units, each with a colocated test: `useUnsavedChangesGuard` (router blocker plus in-page back, prompt state derived from `blocker.state`, `allowLeaving` bypass), `useCharacterSave` (avatar step then update, toasts), `useCharacterDelete` (confirm lifecycle), the paste listener as a `listenForPaste` option of `useAvatarPicker`, and presentational `CharacterAvatarEditor`, `DeleteCharacterDialog` and `DiscardChangesDialog`. The form keeps only draft state, the derived summary and layout.
+
 ### D5. Save sequence and leaving the page
-Save mirrors the modal's edit path: avatar upload or `DELETE …/avatar` first, then `PUT /characters/:id` (always sent, as today), then toast and unmount the form. Failures toast and keep the form mounted. After a successful delete or save the form must not trip its own blocker: the blocker predicate also checks a `leavingRef` set just before the post-delete `navigate('/app/characters')`.
+Save mirrors the modal's edit path: avatar upload or `DELETE …/avatar` first, then `PUT /characters/:id` (always sent, as today), then toast and unmount the form. On success `useUpdateCharacter` writes the PUT response (a full character) into the detail query cache before invalidating, so view mode never shows the previous values. Failures toast and keep the form mounted. After a successful delete or save the form must not trip its own blocker: the blocker predicate also checks a `leavingRef` set just before the post-delete `navigate('/app/characters')`.
 
 ### D6. Folders UI on the page
 - View mode: `CharacterFolderChips` renders names, linking to `VITE_BOOKLEAF_HOST/share/:token` when `usePublicFolders()` has the token; on failure it renders plain names (no error UI).

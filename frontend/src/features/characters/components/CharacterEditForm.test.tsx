@@ -226,7 +226,7 @@ describe('CharacterEditForm — folders', () => {
     expect(callsTo('PUT', '/characters/c-1')[0].body).toMatchObject({ folder_ids: ['f-a'] })
   })
 
-  it('warns about a folder that is no longer public and excludes it from the save', async () => {
+  it('warns about a folder that is no longer public without treating the form as edited', async () => {
     const stale = {
       ...baseCharacter,
       folders: [...baseCharacter.folders, { id: 'f-old', name: 'Old refs' }],
@@ -235,12 +235,28 @@ describe('CharacterEditForm — folders', () => {
 
     expect(await screen.findByText('No longer public in Bookleaf.')).toBeInTheDocument()
     expect(screen.getByText('Old refs')).toBeInTheDocument()
-    expect(screen.getByText('Unsaved changes: 1 folder removed')).toBeInTheDocument()
+    expect(screen.queryByText(/unsaved changes/i)).not.toBeInTheDocument()
 
+    await userEvent.click(screen.getByRole('button', { name: 'Tanelle' }))
+
+    expect(await screen.findByRole('heading', { name: 'Tanelle' })).toBeInTheDocument()
+    expect(screen.queryByText('Discard changes?')).not.toBeInTheDocument()
+  })
+
+  it('still drops a no-longer-public folder from the save, and only counts the user\'s own changes', async () => {
+    const stale = {
+      ...baseCharacter,
+      folders: [...baseCharacter.folders, { id: 'f-old', name: 'Old refs' }],
+    }
+    await openEditor(stale)
+    await screen.findByText('No longer public in Bookleaf.')
+
+    await userEvent.click(screen.getByRole('button', { name: 'Remove Cottagecore' }))
+    expect(screen.getByText('Unsaved changes: 1 folder removed')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Save' }))
 
     await waitFor(() => expect(callsTo('PUT', '/characters/c-1')).toHaveLength(1))
-    expect(callsTo('PUT', '/characters/c-1')[0].body).toMatchObject({ folder_ids: ['f-a', 'f-b'] })
+    expect(callsTo('PUT', '/characters/c-1')[0].body).toMatchObject({ folder_ids: ['f-a'] })
   })
 
   it('keeps chips visible and removable, without links, when Bookleaf is unreachable', async () => {
@@ -263,6 +279,16 @@ describe('CharacterEditForm — folders', () => {
 
     await waitFor(() => expect(screen.queryByText('Public folders from Bookleaf')).not.toBeInTheDocument())
     expect(screen.getByLabelText('Name')).toHaveValue('Tan')
+  })
+
+  it('closes the drawer with Escape', async () => {
+    await openEditor()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Choose folders' }))
+    expect(await screen.findByText('Public folders from Bookleaf')).toBeInTheDocument()
+    await userEvent.keyboard('{Escape}')
+
+    await waitFor(() => expect(screen.queryByText('Public folders from Bookleaf')).not.toBeInTheDocument())
   })
 
   it('shows folders picked in the drawer as chips and counts them as added', async () => {

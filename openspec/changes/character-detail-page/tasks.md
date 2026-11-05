@@ -38,8 +38,15 @@
 - [x] 6.5 Implement save: avatar upload or `DELETE …/avatar`, then `PUT /characters/:id` with name, notes, `folder_ids`, `verse_id`; success toast and return to view with new values; failures toast and stay in edit; invalidate character queries after the avatar step. Tests cover metadata-only save, save with new avatar (order asserted), save after avatar removal (order asserted), avatar upload failure (no `PUT`), `PUT` failure (edit intact), and the diff `[A,B]` → `[A,C]`.
 - [x] 6.6 Implement the unsaved-changes guard (`useBlocker` + "Discard changes?" dialog with a `leavingRef` bypass) and "Delete character" (confirm dialog, `DELETE`, toast, navigate to `/app/characters`, error toast on failure). Tests cover back-link and sidebar navigation guarded, Discard proceeding, Keep editing staying, no dialog without changes, delete confirmed/cancelled/failed, and no discard dialog after a successful delete with unsaved edits.
 
-## 7. Final checks
+## 7. Review follow-ups
 
-- [x] 7.1 Run `openspec validate character-detail-page --strict` and fix any findings.
-- [x] 7.2 Run `npm run build` and `npm run lint` in `frontend/` and fix whatever they report; verify both exit 0 and the full Vitest suite passes.
-- [x] 7.3 Run the app and compare view, edit and drawer states against the mockup (`character_edit_page_revamp.pdf`), plus the create modal's inline folder panel with the 24-image preview; verify no regressions in the create flow.
+- [x] 7.1 Show loading and error states (not the empty state) in the artpiece tabs and hide the counts until data exists; verified by tab tests for a pending and a failed `GET /artpieces`.
+- [x] 7.2 Write the PUT response into the detail query cache in `useUpdateCharacter` so view mode never flashes the old values; verified by `useUpdateCharacter.test.tsx` and the existing save test.
+- [x] 7.3 Do not count Bookleaf-dropped folders as unsaved changes (summary ignores them, guard stays quiet) while still excluding them from the save; verified by summary unit tests and edit-form tests (no prompt on Back, user removal still counted, `folder_ids` unchanged).
+- [x] 7.4 Split `CharacterEditForm` into `useUnsavedChangesGuard`, `useCharacterSave`, `useCharacterDelete`, a `listenForPaste` option on `useAvatarPicker`, and `CharacterAvatarEditor` / `DeleteCharacterDialog` / `DiscardChangesDialog`, each with a colocated test; verified by the unchanged edit-form behavior tests still passing.
+
+## 8. Final checks
+
+- [x] 8.1 Run `openspec validate character-detail-page --strict` and fix any findings.
+- [x] 8.2 Run `npm run build` and `npm run lint` in `frontend/` and fix whatever they report; verify both exit 0 and the full Vitest suite passes.
+- [x] 8.3 Run the app and compare view, edit and drawer states against the mockup (`character_edit_page_revamp.pdf`), plus the create modal's inline folder panel with the 24-image preview; verify no regressions in the create flow.

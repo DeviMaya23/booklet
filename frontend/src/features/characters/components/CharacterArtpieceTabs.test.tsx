@@ -2,6 +2,7 @@ import { screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mockApiRoutes } from '@/test/mockApi'
+import { apiFetch } from '@/lib/api'
 import { makeCharacter, makeArtpiece, renderCharacterDetail } from '@/test/characterFixtures'
 
 vi.mock('@kinde-oss/kinde-auth-react', () => ({
@@ -75,6 +76,32 @@ describe('CharacterArtpieceTabs', () => {
     await userEvent.click(screen.getByRole('tab', { name: /references/i }))
 
     expect(await screen.findByText('No references with Tanelle yet')).toBeInTheDocument()
+  })
+
+  it('shows a loading state, not the empty state, while artpieces load', async () => {
+    // /artpieces never resolves, so the query stays pending.
+    vi.mocked(apiFetch).mockImplementation(async (path: string) => {
+      if (path === '/characters/c-1') return { ok: true, json: async () => makeCharacter() } as Response
+      return new Promise<Response>(() => {})
+    })
+    renderCharacterDetail()
+
+    expect(await screen.findByRole('tab', { name: /artpieces/i })).toBeInTheDocument()
+    expect(screen.getByText('Loading…')).toBeInTheDocument()
+    expect(screen.queryByText(/No artpieces with/)).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^artpieces$/i })).toBeInTheDocument() // no "0" count while loading
+  })
+
+  it('shows an error, not the empty state, when artpieces fail to load', async () => {
+    mockApiRoutes({
+      'GET /characters/c-1': { body: makeCharacter() },
+      'GET /artpieces': { ok: false, status: 500, body: {} },
+    })
+    renderCharacterDetail()
+
+    expect(await screen.findByText('Failed to load artpieces.')).toBeInTheDocument()
+    expect(screen.queryByText(/No artpieces with/)).not.toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: /^artpieces$/i })).toBeInTheDocument()
   })
 
   it('opens the file viewer when a tile is clicked', async () => {

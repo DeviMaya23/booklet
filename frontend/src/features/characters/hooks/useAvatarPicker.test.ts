@@ -1,4 +1,4 @@
-import { renderHook, act } from '@testing-library/react'
+import { renderHook, act, fireEvent } from '@testing-library/react'
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { toast } from 'sonner'
 import { FILE_SIZE_LIMITS } from '@/features/files/lib/fileCategory'
@@ -145,5 +145,50 @@ describe('useAvatarPicker', () => {
     act(() => result.current.confirmCrop(imageFile()))
 
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:mock-1')
+  })
+
+  describe('listenForPaste', () => {
+    function pasteOnDocument(target: Element, file: File | null) {
+      fireEvent.paste(target, {
+        clipboardData: {
+          items: file ? [{ type: file.type, getAsFile: () => file }] : [],
+        },
+      })
+    }
+
+    it('stages an image pasted anywhere on the page', () => {
+      const { result } = renderHook(() => useAvatarPicker({ listenForPaste: true }))
+
+      act(() => pasteOnDocument(document.body, imageFile()))
+
+      expect(result.current.cropSourceUrl).toBe('blob:mock-1')
+    })
+
+    it('still ignores pastes aimed at a text field', () => {
+      const { result } = renderHook(() => useAvatarPicker({ listenForPaste: true }))
+      const textarea = document.body.appendChild(document.createElement('textarea'))
+
+      act(() => pasteOnDocument(textarea, imageFile()))
+
+      expect(result.current.cropSourceUrl).toBeNull()
+      textarea.remove()
+    })
+
+    it('does nothing when it is not enabled', () => {
+      const { result } = renderHook(() => useAvatarPicker())
+
+      act(() => pasteOnDocument(document.body, imageFile()))
+
+      expect(result.current.cropSourceUrl).toBeNull()
+    })
+
+    it('stops listening after unmount', () => {
+      const { result, unmount } = renderHook(() => useAvatarPicker({ listenForPaste: true }))
+      unmount()
+
+      act(() => pasteOnDocument(document.body, imageFile()))
+
+      expect(result.current.cropSourceUrl).toBeNull()
+    })
   })
 })

@@ -81,6 +81,18 @@ describe('characterEditSummary', () => {
     ).toBe('Unsaved changes: 2 folders added')
   })
 
+  it('does not count folders Bookleaf dropped as a change', () => {
+    expect(
+      characterEditSummary(input({ selectedFolderIds: ['f-a', 'f-b'], staleFolderIds: ['f-c'] })),
+    ).toBeNull()
+  })
+
+  it('still counts removals the user made alongside stale folders', () => {
+    expect(
+      characterEditSummary(input({ selectedFolderIds: ['f-a'], staleFolderIds: ['f-c'] })),
+    ).toBe('Unsaved changes: 1 folder removed')
+  })
+
   it('combines changes in the documented order', () => {
     expect(
       characterEditSummary(input({ verseId: 'v-2', selectedFolderIds: ['f-a', 'f-b', 'f-new'] })),

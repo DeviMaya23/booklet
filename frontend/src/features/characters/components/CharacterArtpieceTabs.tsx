@@ -12,7 +12,8 @@ interface CharacterArtpieceTabsProps {
   characterName: string
 }
 
-function Count({ value }: { value: number }) {
+function Count({ value }: { value: number | null }) {
+  if (value === null) return null
   return (
     <span className="rounded-md bg-background/60 px-1.5 text-xs font-normal text-muted-foreground">
       {value}
@@ -31,7 +32,7 @@ function EmptyState({ title, hint }: { title: string; hint: string }) {
 
 export default function CharacterArtpieceTabs({ characterId, characterName }: CharacterArtpieceTabsProps) {
   const navigate = useNavigate()
-  const { data: artpieces } = useArtpieces()
+  const { data: artpieces, isPending } = useArtpieces()
   const [viewer, setViewer] = useState<{ list: ArtpieceSummary[]; index: number } | null>(null)
 
   const { artworks, references } = useMemo(() => {
@@ -42,7 +43,18 @@ export default function CharacterArtpieceTabs({ characterId, characterName }: Ch
     }
   }, [artpieces, characterId])
 
-  function grid(list: ArtpieceSummary[]) {
+  // No data yet: still loading, or the request failed. Never show that as "empty".
+  const unavailable = artpieces === undefined
+
+  function panel(list: ArtpieceSummary[], empty: { title: string; hint: string }) {
+    if (unavailable) {
+      return isPending ? (
+        <p className="text-sm text-muted-foreground">Loading…</p>
+      ) : (
+        <p className="text-sm text-destructive">Failed to load artpieces.</p>
+      )
+    }
+    if (list.length === 0) return <EmptyState {...empty} />
     return (
       <ArtpiecesGrid
         artpieces={list}
@@ -54,38 +66,33 @@ export default function CharacterArtpieceTabs({ characterId, characterName }: Ch
     )
   }
 
+  const artworkCount = unavailable ? null : artworks.length
+  const referenceCount = unavailable ? null : references.length
+
   return (
     <TooltipProvider>
       <Tabs defaultValue="artpieces">
         <TabsList>
           <TabsTrigger value="artpieces">
-            Artpieces <Count value={artworks.length} />
+            Artpieces <Count value={artworkCount} />
           </TabsTrigger>
           <TabsTrigger value="references">
-            References <Count value={references.length} />
+            References <Count value={referenceCount} />
           </TabsTrigger>
         </TabsList>
 
         <TabsContent value="artpieces">
-          {artworks.length === 0 ? (
-            <EmptyState
-              title={`No artpieces with ${characterName} yet`}
-              hint="Add this character in an artpiece's Characters field and it will show up here."
-            />
-          ) : (
-            grid(artworks)
-          )}
+          {panel(artworks, {
+            title: `No artpieces with ${characterName} yet`,
+            hint: "Add this character in an artpiece's Characters field and it will show up here.",
+          })}
         </TabsContent>
 
         <TabsContent value="references">
-          {references.length === 0 ? (
-            <EmptyState
-              title={`No references with ${characterName} yet`}
-              hint="Mark an artpiece as a reference and add this character to it, and it will show up here."
-            />
-          ) : (
-            grid(references)
-          )}
+          {panel(references, {
+            title: `No references with ${characterName} yet`,
+            hint: 'Mark an artpiece as a reference and add this character to it, and it will show up here.',
+          })}
         </TabsContent>
       </Tabs>
 

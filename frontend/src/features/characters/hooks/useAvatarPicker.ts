@@ -10,9 +10,11 @@ interface PasteLike {
 interface UseAvatarPickerOptions {
   /** The avatar already saved on the server, shown until a local change is made. */
   currentUrl?: string | null
+  /** Also accept pastes anywhere on the page (a page has no focused container, unlike a dialog). */
+  listenForPaste?: boolean
 }
 
-export function useAvatarPicker({ currentUrl = null }: UseAvatarPickerOptions = {}) {
+export function useAvatarPicker({ currentUrl = null, listenForPaste = false }: UseAvatarPickerOptions = {}) {
   const [localFile, setLocalFile] = useState<File | null>(null)
   const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
   const [avatarCleared, setAvatarCleared] = useState(false)
@@ -78,6 +80,12 @@ export function useAvatarPicker({ currentUrl = null }: UseAvatarPickerOptions = 
     [stageFile],
   )
 
+  useEffect(() => {
+    if (!listenForPaste) return
+    document.addEventListener('paste', handlePaste)
+    return () => document.removeEventListener('paste', handlePaste)
+  }, [listenForPaste, handlePaste])
+
   function confirmCrop(cropped: File) {
     setLocalFile(cropped)
     setLocalPreviewUrl(URL.createObjectURL(cropped))
@@ -120,3 +128,5 @@ export function useAvatarPicker({ currentUrl = null }: UseAvatarPickerOptions = 
     reset,
   }
 }
+
+export type AvatarPicker = ReturnType<typeof useAvatarPicker>

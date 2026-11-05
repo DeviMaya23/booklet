@@ -7,6 +7,11 @@ export interface CharacterEditSummaryInput {
   verseId: string | null
   avatar: { hasNewFile: boolean; cleared: boolean }
   selectedFolderIds: string[]
+  /**
+   * Stored folders Bookleaf no longer lists. They are dropped from the save
+   * automatically, so their absence is not a change the user made.
+   */
+  staleFolderIds?: string[]
 }
 
 function plural(n: number, noun: string): string {
@@ -21,6 +26,7 @@ export function characterEditSummary({
   verseId,
   avatar,
   selectedFolderIds,
+  staleFolderIds = [],
 }: CharacterEditSummaryInput): string | null {
   const parts: string[] = []
 
@@ -30,7 +36,8 @@ export function characterEditSummary({
   if (avatar.hasNewFile) parts.push('avatar changed')
   else if (avatar.cleared) parts.push('avatar removed')
 
-  const original = new Set(character.folders.map((f) => f.id))
+  const stale = new Set(staleFolderIds)
+  const original = new Set(character.folders.map((f) => f.id).filter((id) => !stale.has(id)))
   const selected = new Set(selectedFolderIds)
   const added = selectedFolderIds.filter((id) => !original.has(id)).length
   const removed = [...original].filter((id) => !selected.has(id)).length
