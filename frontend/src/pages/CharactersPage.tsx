@@ -1,4 +1,5 @@
 import { useState, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Plus, BookOpen } from 'lucide-react'
 import { toast } from 'sonner'
 import { Input } from '@/components/ui/input'
@@ -21,10 +22,10 @@ import { useVerses } from '@/features/verses/api/useVerses'
 import VersesModal from '@/features/verses/components/VersesModal'
 
 export default function CharactersPage() {
+  const navigate = useNavigate()
   const [search, setSearch] = useState('')
   const [modalOpen, setModalOpen] = useState(false)
   const [versesModalOpen, setVersesModalOpen] = useState(false)
-  const [selectedCharacter, setSelectedCharacter] = useState<Character | undefined>(undefined)
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null)
 
   const { data: characters = [], isLoading } = useCharacters()
@@ -56,19 +57,8 @@ export default function CharactersPage() {
     return result
   }, [filtered, verses, verseSet])
 
-  function handleNewClick() {
-    setSelectedCharacter(undefined)
-    setModalOpen(true)
-  }
-
-  function handleEditClick(character: Character) {
-    setSelectedCharacter(character)
-    setModalOpen(true)
-  }
-
-  function handleModalOpenChange(open: boolean) {
-    setModalOpen(open)
-    if (!open) setSelectedCharacter(undefined)
+  function handleCharacterClick(character: Character) {
+    navigate(`/app/characters/${character.id}`)
   }
 
   function handleDeleteConfirm() {
@@ -99,7 +89,7 @@ export default function CharactersPage() {
           <BookOpen className="size-4" />
           Verses
         </Button>
-        <Button onClick={handleNewClick}>
+        <Button onClick={() => setModalOpen(true)}>
           <Plus className="size-4" />
           New Character
         </Button>
@@ -109,7 +99,7 @@ export default function CharactersPage() {
         <CharactersGrid
           characters={filtered}
           onDeleteClick={setPendingDeleteId}
-          onEditClick={handleEditClick}
+          onCharacterClick={handleCharacterClick}
         />
       ) : (
         <div className="flex flex-col gap-6">
@@ -122,19 +112,14 @@ export default function CharactersPage() {
               <CharactersGrid
                 characters={group.characters}
                 onDeleteClick={setPendingDeleteId}
-                onEditClick={handleEditClick}
+                onCharacterClick={handleCharacterClick}
               />
             </div>
           ))}
         </div>
       )}
 
-      <CharacterFormModal
-        key={selectedCharacter?.id ?? 'new'}
-        open={modalOpen}
-        onOpenChange={handleModalOpenChange}
-        character={selectedCharacter}
-      />
+      <CharacterFormModal open={modalOpen} onOpenChange={setModalOpen} />
 
       <VersesModal
         open={versesModalOpen}

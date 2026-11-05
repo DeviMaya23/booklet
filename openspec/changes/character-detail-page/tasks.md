@@ -2,25 +2,25 @@
 
 ## 1. Foundations
 
-- [ ] 1.1 Add `frontend/src/components/ui/tabs.tsx` wrapping `@base-ui/react` Tabs (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`) in the style of `sheet.tsx`; verify `npm run build` type-checks it and the import resolves from `@base-ui/react/tabs`.
-- [ ] 1.2 Add `features/characters/api/useCharacter.ts` (`GET /characters/:id`, key `['characters', 'detail', id]`, disabled without an id) with a colocated test at the API boundary: success returns the character, a 404 puts the query in error, and `invalidateQueries(['characters'])` refetches it.
-- [ ] 1.3 Extract the `ArtpieceSummary → ViewerFile` mapping from `pages/ArtpiecesPage.tsx` into `features/artpieces/lib/toViewerFiles.ts`, use it in `ArtpiecesPage`, and add a unit test for the mapping (cover file id fallback, title fallback to cover name then "Untitled"); verify the existing `ArtpiecesPage.test.tsx` still passes.
+- [x] 1.1 Add `frontend/src/components/ui/tabs.tsx` wrapping `@base-ui/react` Tabs (`Tabs`, `TabsList`, `TabsTrigger`, `TabsContent`) in the style of `sheet.tsx`; verify `npm run build` type-checks it and the import resolves from `@base-ui/react/tabs`.
+- [x] 1.2 Add `features/characters/api/useCharacter.ts` (`GET /characters/:id`, key `['characters', 'detail', id]`, disabled without an id) with a colocated test at the API boundary: success returns the character, a 404 puts the query in error, and `invalidateQueries(['characters'])` refetches it.
+- [x] 1.3 Extract the `ArtpieceSummary → ViewerFile` mapping from `pages/ArtpiecesPage.tsx` into `features/artpieces/lib/toViewerFiles.ts`, use it in `ArtpiecesPage`, and add a unit test for the mapping (cover file id fallback, title fallback to cover name then "Untitled"); verify the existing `ArtpiecesPage.test.tsx` still passes.
 
 ## 2. Shared avatar logic
 
-- [ ] 2.1 Add `features/characters/lib/uploadCharacterAvatar.ts` (init → `PUT` presigned URL → complete, taking the init/complete mutate functions) with a test: the three steps run in order with the file's MIME type and size, and a non-OK `PUT` rejects before `complete` is called.
-- [ ] 2.2 Add `features/characters/hooks/useAvatarPicker.ts` (local file, preview URL, cleared flag, crop source URL, drag state, size-limit toast, file/drop/paste/crop/clear handlers, URL revocation, `reset`) with a colocated test: oversized file toasts and does not stage a crop, paste is ignored from inputs/textareas and without an image item, crop confirm sets the preview and clears the cleared flag, crop cancel changes nothing, and clear drops the local file.
-- [ ] 2.3 Switch `CharacterFormModal` to `useAvatarPicker` and `uploadCharacterAvatar`; verify the create flow is unchanged via a new `CharacterFormModal.test.tsx` covering the `web-characters` create scenarios (name only, with avatar, avatar failure deletes the new character and keeps the modal open, blank name disables Save).
+- [x] 2.1 Add `features/characters/lib/uploadCharacterAvatar.ts` (init → `PUT` presigned URL → complete, taking the init/complete mutate functions) with a test: the three steps run in order with the file's MIME type and size, and a non-OK `PUT` rejects before `complete` is called.
+- [x] 2.2 Add `features/characters/hooks/useAvatarPicker.ts` (local file, preview URL, cleared flag, crop source URL, drag state, size-limit toast, file/drop/paste/crop/clear handlers, URL revocation, `reset`) with a colocated test: oversized file toasts and does not stage a crop, paste is ignored from inputs/textareas and without an image item, crop confirm sets the preview and clears the cleared flag, crop cancel changes nothing, and clear drops the local file.
+- [x] 2.3 Switch `CharacterFormModal` to `useAvatarPicker` and `uploadCharacterAvatar`; verify the create flow is unchanged via a new `CharacterFormModal.test.tsx` covering the `web-characters` create scenarios (name only, with avatar, avatar failure deletes the new character and keeps the modal open, blank name disables Save).
 
 ## 3. Create-only modal and list navigation
 
-- [ ] 3.1 Remove the edit branch from `CharacterFormModal` (`character` prop, `isEditMode`, Delete button and dialog, avatar clear control, edit submit path, verse-sync effect); verify `npm run build` passes and the modal test from 2.3 asserts there is no Delete button and the title is "New character".
-- [ ] 3.2 Update `CharactersPage`: card click calls `navigate('/app/characters/:id')`, drop `selectedCharacter`/modal `key`/`handleEditClick`, keep the "New Character" button and card delete menu; add `CharactersPage.test.tsx` scenarios for card click navigating (no modal opens), the `(...)` menu not navigating, and "New Character" still opening the empty create modal.
+- [x] 3.1 Remove the edit branch from `CharacterFormModal` (`character` prop, `isEditMode`, Delete button and dialog, avatar clear control, edit submit path, verse-sync effect); verify `npm run build` passes and the modal test from 2.3 asserts there is no Delete button and the title is "New character".
+- [x] 3.2 Update `CharactersPage`: card click calls `navigate('/app/characters/:id')`, drop `selectedCharacter`/modal `key`/`handleEditClick`, keep the "New Character" button and card delete menu; add `CharactersPage.test.tsx` scenarios for card click navigating (no modal opens), the `(...)` menu not navigating, and "New Character" still opening the empty create modal.
 
 ## 4. Shared folder panel changes
 
-- [ ] 4.1 Update `FolderPreview` to 24 per page, add the "Showing the first N" caption and a "View all in Bookleaf" link (folder share URL, new tab); update `FolderPreview.test.tsx` for the 24/24 paging and add a test for the link `href`.
-- [ ] 4.2 Add an `updatedAt` prop to `ChooseFoldersPanel` showing "Updated <relative time>" (date-fns `formatDistanceToNow`, 60 s tick) and pass `dataUpdatedAt` from `usePublicFolders` in the modal; update `ChooseFoldersPanel.test.tsx` for the label (fake timers) and that Refresh calls `onRefresh`.
+- [x] 4.1 Update `FolderPreview` to 24 per page, add the "Showing the first N" caption and a "View all in Bookleaf" link (folder share URL, new tab); update `FolderPreview.test.tsx` for the 24/24 paging and add a test for the link `href`.
+- [x] 4.2 Add an `updatedAt` prop to `ChooseFoldersPanel` showing "Updated <relative time>" (date-fns `formatDistanceToNow`, 60 s tick) and pass `dataUpdatedAt` from `usePublicFolders` in the modal; update `ChooseFoldersPanel.test.tsx` for the label (fake timers) and that Refresh calls `onRefresh`.
 
 ## 5. Detail page: route and view mode
 

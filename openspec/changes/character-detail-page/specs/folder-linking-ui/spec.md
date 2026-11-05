@@ -22,7 +22,7 @@ In edit mode the character detail page SHALL apply the same folder behavior as t
 - **THEN** the panel shows the "Couldn't reach Bookleaf" block with Retry, and existing chips stay removable
 
 ### Requirement: Folder preview paging and links
-Each folder row in the Choose folders panel SHALL offer an on-demand image preview fetched from `GET /folders/:id/images`. The FE shows the first 24 images; "Show more" reveals the next 24 from the full response. A "Showing the first N" caption and a "View all in Bookleaf" link to the folder's share URL SHALL accompany the grid. Only one preview may be open at a time.
+Each folder row in the Choose folders panel SHALL offer an on-demand image preview fetched from `GET /folders/:id/images`. The FE shows the first 24 images; "Show more" reveals the next 24 from the full response. A caption ("Showing the first N" while more remain, otherwise "Showing all N") and a "View all in Bookleaf" link to the folder's share URL SHALL accompany the grid. Only one preview may be open at a time.
 
 #### Scenario: Preview opens on demand
 - **WHEN** the user clicks Preview on a folder row
@@ -35,6 +35,10 @@ Each folder row in the Choose folders panel SHALL offer an on-demand image previ
 #### Scenario: Initial image count is 24
 - **WHEN** the preview loads successfully
 - **THEN** up to 24 thumbnails are shown with a "Showing the first 24" caption; a "Show more" button appears if more exist
+
+#### Scenario: Caption reads "Showing all" when nothing remains
+- **WHEN** every image in the folder is visible
+- **THEN** the caption reads "Showing all N" and no "Show more" button is shown
 
 #### Scenario: Show more reveals next 24
 - **WHEN** the user clicks "Show more"

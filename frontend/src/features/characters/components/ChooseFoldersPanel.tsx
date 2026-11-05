@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { formatDistanceToNow } from 'date-fns'
 import { ExternalLink, Leaf, RefreshCw, X } from 'lucide-react'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -16,6 +17,17 @@ interface ChooseFoldersPanelProps {
   isLoading: boolean
   isError: boolean
   onRefresh: () => void
+  /** Epoch ms of the last successful folder-list fetch (React Query `dataUpdatedAt`). */
+  updatedAt?: number
+}
+
+function UpdatedLabel({ updatedAt }: { updatedAt: number }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000)
+    return () => clearInterval(id)
+  }, [])
+  return <span>Updated {formatDistanceToNow(updatedAt, { addSuffix: true })}</span>
 }
 
 export function ChooseFoldersPanel({
@@ -27,6 +39,7 @@ export function ChooseFoldersPanel({
   isLoading,
   isError,
   onRefresh,
+  updatedAt,
 }: ChooseFoldersPanelProps) {
   const [search, setSearch] = useState('')
   const [activePreviewId, setActivePreviewId] = useState<string | null>(null)
@@ -97,14 +110,17 @@ export function ChooseFoldersPanel({
               <Leaf className="size-3" />
               <span>Public folders from Bookleaf</span>
             </div>
-            <button
-              type="button"
-              className="hover:text-foreground"
-              onClick={onRefresh}
-              aria-label="Refresh folder list"
-            >
-              <RefreshCw className="size-3.5" />
-            </button>
+            <div className="flex items-center gap-2">
+              {updatedAt ? <UpdatedLabel updatedAt={updatedAt} /> : null}
+              <button
+                type="button"
+                className="hover:text-foreground"
+                onClick={onRefresh}
+                aria-label="Refresh folder list"
+              >
+                <RefreshCw className="size-3.5" />
+              </button>
+            </div>
           </div>
 
           {/* Empty state */}
@@ -196,7 +212,7 @@ export function ChooseFoldersPanel({
 
                     {isPreviewOpen && (
                       <div className="border-t px-3 pb-3 pt-2">
-                        <FolderPreview folderID={folder.id} />
+                        <FolderPreview folderID={folder.id} shareUrl={`${bookleafHost}/share/${folder.token}`} />
                       </div>
                     )}
                   </div>
