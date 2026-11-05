@@ -166,6 +166,7 @@ func (u *FileUploadUsecase) CompleteUpload(ctx context.Context, id uuid.UUID, us
 		Name:       pending.Name,
 		Notes:      pending.Notes,
 		Extension:  pending.Extension,
+		IsVisible:  true,
 	}
 	if bookmime.IsImage(pending.MimeType) && params.ThumbnailUploaded {
 		thumbKey := fmt.Sprintf("users/%s/thumbnails/%s%s", pending.UserID.String(), pending.ID.String(), bookmime.ThumbnailExt(pending.MimeType))

@@ -129,6 +129,7 @@ func TestCompleteFileUpload_HappyPath(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
 	require.Equal(t, f.ID.String(), got["id"])
 	require.Equal(t, "video/mp4", got["mime_type"])
+	require.Contains(t, got, "is_visible")
 }
 
 func TestCompleteFileUpload_InvalidUUID(t *testing.T) {

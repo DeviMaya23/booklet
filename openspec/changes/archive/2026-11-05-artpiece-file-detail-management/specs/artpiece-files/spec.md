@@ -1,0 +1,171 @@
+# Spec Delta
+
+## MODIFIED Requirements
+
+### Requirement: Attach file to artpiece
+The system SHALL allow an authenticated user to attach an existing file to an artpiece, both owned by the same user. After attachment, cover auto-selection runs if the artpiece has no cover, skipping any file with `is_visible: false`.
+
+#### Scenario: Successful attach — artpiece has no cover, file is an image
+- **WHEN** a user attaches a visible image-type file to an artpiece that currently has no cover
+- **THEN** the file is attached (artpiece_id set) and the artpiece's cover_file_id is set to that file
+
+#### Scenario: Successful attach — artpiece has no cover, file is not an image, no other images exist
+- **WHEN** a user attaches a visible non-image file to a coverless artpiece that contains no other visible image files
+- **THEN** the file is attached and set as the cover
+
+#### Scenario: Successful attach — artpiece already has a cover
+- **WHEN** a user attaches a file to an artpiece that already has a cover
+- **THEN** the file is attached and the existing cover is left unchanged
+
+#### Scenario: Attached file is hidden — cover not auto-assigned
+- **WHEN** a user attaches a file with `is_visible: false` to a coverless artpiece
+- **THEN** the file is attached and the artpiece's cover_file_id remains unset
+
+#### Scenario: Attached non-image file becomes cover when the only existing image is hidden
+- **WHEN** a user attaches a visible non-image file to a coverless artpiece whose only other attached file is a hidden image
+- **THEN** the file is attached and set as the cover, because the hidden image is not a cover candidate
+
+#### Scenario: File does not belong to user
+- **WHEN** a user attaches a file that belongs to another user
+- **THEN** the system returns HTTP 422
+
+#### Scenario: Artpiece does not belong to user
+- **WHEN** a user attaches a file to an artpiece that belongs to another user
+- **THEN** the system returns HTTP 404
+
+#### Scenario: File already attached to a different artpiece
+- **WHEN** a user attaches a file that already has a different artpiece_id
+- **THEN** the system returns HTTP 422
+
+---
+
+### Requirement: Detach file from artpiece
+The system SHALL allow an authenticated user to detach a file from an artpiece. Detaching sets the file's artpiece_id to NULL. If the detached file was the cover, cover reassignment runs, skipping any remaining file with `is_visible: false`.
+
+#### Scenario: Successful detach — file was not the cover
+- **WHEN** a user detaches a file that is not the artpiece's cover
+- **THEN** the file's artpiece_id is set to NULL and the artpiece cover is unchanged
+
+#### Scenario: Cover reassignment — another image file exists
+- **WHEN** a user detaches the cover file and another visible image-type file is still attached
+- **THEN** the detached file's artpiece_id is set to NULL and the artpiece cover is reassigned to that visible image file
+
+#### Scenario: Cover reassignment — no images remain, another file exists
+- **WHEN** a user detaches the cover file and no visible image-type files remain but other visible files do
+- **THEN** the artpiece cover is set to the first remaining visible file
+
+#### Scenario: Cover reassignment skips hidden remaining files
+- **WHEN** a user detaches the cover file and the only other attached file is hidden (`is_visible: false`), whether or not it is an image
+- **THEN** the detached file's artpiece_id is set to NULL and the artpiece cover is cleared (set to NULL), because the hidden file is not a cover candidate
+
+#### Scenario: Cover cleared — no files remain
+- **WHEN** a user detaches the only file from the artpiece
+- **THEN** the file's artpiece_id is set to NULL and the artpiece cover is set to NULL
+
+#### Scenario: File not attached to this artpiece
+- **WHEN** a user attempts to detach a file that is not attached to the specified artpiece
+- **THEN** the system returns HTTP 422
+
+#### Scenario: Artpiece does not belong to user
+- **WHEN** a user detaches a file from an artpiece that belongs to another user
+- **THEN** the system returns HTTP 404
+
+---
+
+### Requirement: Artpiece create accepts optional initial file IDs
+The system SHALL allow `POST /artpieces` to accept an optional `file_ids` array. When provided, the files are attached to the new artpiece and cover assignment rules are applied, skipping any file with `is_visible: false`. An absent or empty array SHALL be equivalent to a plain create with no files.
+
+#### Scenario: Create with no file_ids
+- **WHEN** a user creates an artpiece without a `file_ids` field (or with an empty array)
+- **THEN** the system creates the artpiece with no files attached, returning 201
+
+#### Scenario: Create with valid file IDs
+- **WHEN** a user creates an artpiece with a non-empty `file_ids` array of visible files they own
+- **THEN** the system creates the artpiece, attaches all specified files, assigns the cover to the first image file in the set (or the first file if no images exist), and returns 201
+
+#### Scenario: Create with all specified files hidden
+- **WHEN** a user creates an artpiece with a `file_ids` array where every referenced file has `is_visible: false`
+- **THEN** the system creates the artpiece, attaches all specified files, and leaves the cover unset
+
+#### Scenario: Create with a file ID not owned by the user
+- **WHEN** a user creates an artpiece and one or more `file_ids` entries do not exist or belong to another user
+- **THEN** the system returns 422 and does not create the artpiece
+
+#### Scenario: Create with a file already attached to another artpiece
+- **WHEN** a user creates an artpiece and one or more `file_ids` entries are already attached to a different artpiece
+- **THEN** the system returns 422 and does not create the artpiece
+
+---
+
+### Requirement: Bulk full-replace artpiece file set
+The system SHALL provide `PUT /artpieces/:id/files` that accepts the complete desired set of file IDs and reconciles it in a single transaction: files newly included are attached, files no longer included are detached, and unchanged files are left alone. Cover assignment rules are applied to the resulting set, skipping any file with `is_visible: false`.
+
+#### Scenario: Full replace with a new set
+- **WHEN** a user sends `PUT /artpieces/:id/files` with a `file_ids` array
+- **THEN** the system attaches files in the new set not currently attached, detaches files currently attached but absent from the new set, and returns 200 with the updated artpiece
+
+#### Scenario: Empty new set
+- **WHEN** a user sends `PUT /artpieces/:id/files` with an empty `file_ids` array
+- **THEN** all files are detached from the artpiece, the cover is cleared, and the system returns 200
+
+#### Scenario: Current cover remains in the new set
+- **WHEN** the artpiece's current cover file is included in the new `file_ids`
+- **THEN** the cover is unchanged
+
+#### Scenario: Current cover removed from set
+- **WHEN** the artpiece's current cover file is not in the new `file_ids`
+- **THEN** the system reassigns the cover to the first visible image in the remaining set, or the first visible file if no images, or clears it if no visible files remain
+
+#### Scenario: Artpiece had no cover and new set contains images
+- **WHEN** the artpiece has no cover and the new set contains at least one visible image file
+- **THEN** the system sets the cover to the first visible image file in the new set
+
+#### Scenario: New set contains only hidden files
+- **WHEN** the artpiece has no cover and every file in the new set has `is_visible: false`
+- **THEN** the system leaves the cover unset
+
+#### Scenario: File in new set belongs to another user
+- **WHEN** one or more `file_ids` entries do not exist or belong to another user
+- **THEN** the system returns 422 and makes no changes
+
+#### Scenario: File in new set already attached to a different artpiece
+- **WHEN** one or more `file_ids` entries are already attached to a different artpiece
+- **THEN** the system returns 422 and makes no changes
+
+#### Scenario: Artpiece not found
+- **WHEN** a user sends `PUT /artpieces/:id/files` for an artpiece that does not exist or belongs to another user
+- **THEN** the system returns 404
+
+---
+
+### Requirement: Artpiece file response includes name and image dimensions
+The artpiece detail response SHALL include `name`, `notes`, `extension`, `width`, `height`, and `is_visible` fields for each attached file.
+
+#### Scenario: File response with image dimensions
+- **WHEN** `GET /artpieces/:id` is called and a file has stored `ImageMetadata`
+- **THEN** each file entry in the response `files` array SHALL include `name` (string or null), `notes` (string or null), `extension` (string or null), `width` (integer or null), `height` (integer or null), and `is_visible` (boolean)
+
+#### Scenario: File response without image dimensions
+- **WHEN** `GET /artpieces/:id` is called and a file has no `ImageMetadata` (e.g. PSD, PDF)
+- **THEN** the file entry SHALL include `name` (string or null), `notes` (string or null), `extension` (string or null), and `is_visible` (boolean); `width` and `height` SHALL both be null
+
+#### Scenario: File with no stored extension
+- **WHEN** `GET /artpieces/:id` is called and a file has a null `extension`
+- **THEN** the file entry includes `"extension": null`
+
+## ADDED Requirements
+
+### Requirement: Cover reassignment when hiding the current cover
+The system SHALL run the same cover-reassignment logic used for detach when a user sets `is_visible: false` on a file that is the artpiece's current cover, even though the file remains attached.
+
+#### Scenario: Hiding the cover reassigns to another visible image
+- **WHEN** a user sets `is_visible: false` on a file that is the artpiece's current cover, and another visible image-type file is still attached
+- **THEN** the artpiece cover is reassigned to that visible image file; the hidden file remains attached with `is_visible: false`
+
+#### Scenario: Hiding the cover with no other visible files
+- **WHEN** a user sets `is_visible: false` on a file that is the artpiece's current cover, and no other visible files remain attached
+- **THEN** the artpiece cover is cleared (set to NULL); the hidden file remains attached with `is_visible: false`
+
+#### Scenario: Hiding a non-cover file does not trigger reassignment
+- **WHEN** a user sets `is_visible: false` on a file that is not the artpiece's current cover
+- **THEN** the artpiece's cover_file_id is unchanged

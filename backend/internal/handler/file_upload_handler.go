@@ -55,6 +55,7 @@ type fileResponse struct {
 	Name         *string `json:"name"`
 	Notes        *string `json:"notes"`
 	Extension    *string `json:"extension"`
+	IsVisible    bool    `json:"is_visible"`
 	CreatedAt    string  `json:"created_at"`
 	UpdatedAt    string  `json:"updated_at"`
 }
@@ -177,6 +178,7 @@ func toFileResponse(f *domain.File, fileURL *string, thumbnailURL *string) fileR
 		Name:         f.Name,
 		Notes:        f.Notes,
 		Extension:    f.Extension,
+		IsVisible:    f.IsVisible,
 		CreatedAt:    f.CreatedAt.Format("2006-01-02T15:04:05Z07:00"),
 		UpdatedAt:    f.UpdatedAt.Format("2006-01-02T15:04:05Z07:00"),
 	}

@@ -541,8 +541,8 @@ func TestDetachFile_CoverReassignedToImage(t *testing.T) {
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{
 		ID: artpieceID, UserID: userID, CoverFileID: &coverFileID,
 	}
-	coverFile := &domain.File{ID: coverFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
-	otherFile := &domain.File{ID: otherImageID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png"}
+	coverFile := &domain.File{IsVisible: true, ID: coverFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	otherFile := &domain.File{IsVisible: true, ID: otherImageID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png"}
 	fileRepo.files[coverFileID] = coverFile
 	fileRepo.files[otherImageID] = otherFile
 	artpieceRepo.files[artpieceID] = []*domain.File{coverFile, otherFile}
@@ -566,7 +566,7 @@ func TestDetachFile_CoverClearedWhenNoFilesRemain(t *testing.T) {
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{
 		ID: artpieceID, UserID: userID, CoverFileID: &fileID,
 	}
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 
@@ -583,7 +583,7 @@ func TestCreateArtpiece_WithFileIDs_Success(t *testing.T) {
 	artpieceRepo := newFakeArtpieceRepository()
 	fileRepo := newFakeArtpieceFileRepository()
 	fileID := uuid.New()
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, MimeType: "image/jpeg"}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, MimeType: "image/jpeg"}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{fileID}})
@@ -620,7 +620,7 @@ func TestCreateArtpiece_WithFileIDs_FileAlreadyAttached(t *testing.T) {
 	otherArtpieceID := uuid.New()
 	fileRepo := newFakeArtpieceFileRepository()
 	fileID := uuid.New()
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
 
 	uc := newArtpieceUsecase(newFakeArtpieceRepository(), newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 	_, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{fileID}})
@@ -639,8 +639,8 @@ func TestReplaceFiles_FullReplace(t *testing.T) {
 	oldFileID := uuid.New()
 	newFileID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
-	fileRepo.files[oldFileID] = &domain.File{ID: oldFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
-	fileRepo.files[newFileID] = &domain.File{ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
+	fileRepo.files[oldFileID] = &domain.File{IsVisible: true, ID: oldFileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
+	fileRepo.files[newFileID] = &domain.File{IsVisible: true, ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
 	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[oldFileID]}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
@@ -662,7 +662,7 @@ func TestReplaceFiles_EmptySet_ClearsAll(t *testing.T) {
 
 	fileID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &fileID}
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
 	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[fileID]}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
@@ -681,7 +681,7 @@ func TestReplaceFiles_CurrentCoverRemainsInSet(t *testing.T) {
 
 	coverID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &coverID}
-	fileRepo.files[coverID] = &domain.File{ID: coverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
+	fileRepo.files[coverID] = &domain.File{IsVisible: true, ID: coverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg"}
 	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[coverID]}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
@@ -701,8 +701,8 @@ func TestReplaceFiles_CoverReassignedWhenRemoved(t *testing.T) {
 	oldCoverID := uuid.New()
 	newFileID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &oldCoverID}
-	fileRepo.files[oldCoverID] = &domain.File{ID: oldCoverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
-	fileRepo.files[newFileID] = &domain.File{ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
+	fileRepo.files[oldCoverID] = &domain.File{IsVisible: true, ID: oldCoverID, UserID: userID, ArtpieceID: &artpieceID, MimeType: "video/mp4"}
+	fileRepo.files[newFileID] = &domain.File{IsVisible: true, ID: newFileID, UserID: userID, MimeType: "image/jpeg"}
 	artpieceRepo.files[artpieceID] = []*domain.File{fileRepo.files[oldCoverID]}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
@@ -734,7 +734,7 @@ func TestReplaceFiles_FileAttachedToOtherArtpiece(t *testing.T) {
 
 	fileID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 	_, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{fileID})
@@ -763,7 +763,7 @@ func TestSetCover_FileNotInArtpiece(t *testing.T) {
 
 	fileID := uuid.New()
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &otherArtpieceID}
 
 	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
 
@@ -781,7 +781,7 @@ func TestDeleteArtpiece_DeleteFilesfalse_NoFileDeletion(t *testing.T) {
 
 	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
 	fileID := uuid.New()
-	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID}
+	fileRepo.files[fileID] = &domain.File{IsVisible: true, ID: fileID, UserID: userID, ArtpieceID: &artpieceID}
 
 	spy := &spyJobInserter{}
 	uc := newArtpieceUsecaseWithJobInserter(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo, spy)
@@ -1005,4 +1005,131 @@ func TestDownloadFiles_R2Error(t *testing.T) {
 	var buf bytes.Buffer
 	err := uc.DownloadFiles(context.Background(), artpiece, &buf)
 	require.EqualError(t, err, "r2 unavailable")
+}
+
+// --- hidden-file cover selection tests ---
+
+func newCoverlessArtpiece(userID uuid.UUID) (uuid.UUID, *fakeArtpieceRepository, *fakeArtpieceFileRepository) {
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID}
+	return artpieceID, artpieceRepo, newFakeArtpieceFileRepository()
+}
+
+func TestAttachFile_HiddenImage_CoverNotAutoAssigned(t *testing.T) {
+	userID := uuid.New()
+	artpieceID, artpieceRepo, fileRepo := newCoverlessArtpiece(userID)
+	hiddenID := uuid.New()
+	fileRepo.files[hiddenID] = &domain.File{ID: hiddenID, UserID: userID, MimeType: "image/png", IsVisible: false}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	got, err := uc.AttachFile(context.Background(), artpieceID, hiddenID, userID)
+
+	require.NoError(t, err)
+	assert.Nil(t, got.CoverFileID)
+	assert.Equal(t, &artpieceID, fileRepo.files[hiddenID].ArtpieceID)
+}
+
+func TestAttachFile_NonImage_BecomesCoverWhenOnlyImageIsHidden(t *testing.T) {
+	userID := uuid.New()
+	artpieceID, artpieceRepo, fileRepo := newCoverlessArtpiece(userID)
+	hiddenImage := &domain.File{ID: uuid.New(), UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png", IsVisible: false}
+	video := &domain.File{ID: uuid.New(), UserID: userID, MimeType: "video/mp4", IsVisible: true}
+	fileRepo.files[hiddenImage.ID] = hiddenImage
+	fileRepo.files[video.ID] = video
+	artpieceRepo.files[artpieceID] = []*domain.File{hiddenImage, video}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	got, err := uc.AttachFile(context.Background(), artpieceID, video.ID, userID)
+
+	require.NoError(t, err)
+	require.NotNil(t, got.CoverFileID)
+	assert.Equal(t, video.ID, *got.CoverFileID)
+}
+
+func TestDetachFile_CoverClearedWhenOnlyRemainingFileIsHidden(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+	cover := &domain.File{ID: uuid.New(), UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg", IsVisible: true}
+	hidden := &domain.File{ID: uuid.New(), UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png", IsVisible: false}
+	artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &cover.ID}
+	fileRepo.files[cover.ID] = cover
+	fileRepo.files[hidden.ID] = hidden
+	artpieceRepo.files[artpieceID] = []*domain.File{cover, hidden}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	got, err := uc.DetachFile(context.Background(), artpieceID, cover.ID, userID)
+
+	require.NoError(t, err)
+	assert.Nil(t, got.CoverFileID)
+}
+
+func TestCreateArtpiece_WithAllHiddenFileIDs_CoverUnset(t *testing.T) {
+	userID := uuid.New()
+	artpieceRepo := newFakeArtpieceRepository()
+	fileRepo := newFakeArtpieceFileRepository()
+	fileID := uuid.New()
+	fileRepo.files[fileID] = &domain.File{ID: fileID, UserID: userID, MimeType: "image/jpeg", IsVisible: false}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	got, err := uc.Create(context.Background(), userID, usecase.CreateArtpieceParams{FileIDs: []uuid.UUID{fileID}})
+
+	require.NoError(t, err)
+	assert.Nil(t, got.CoverFileID)
+	assert.NotNil(t, fileRepo.files[fileID].ArtpieceID)
+}
+
+func TestReplaceFiles_AllHiddenNewSet_CoverUnset(t *testing.T) {
+	userID := uuid.New()
+	artpieceID, artpieceRepo, fileRepo := newCoverlessArtpiece(userID)
+	hiddenID := uuid.New()
+	fileRepo.files[hiddenID] = &domain.File{ID: hiddenID, UserID: userID, MimeType: "image/png", IsVisible: false}
+
+	uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+	got, err := uc.ReplaceFiles(context.Background(), artpieceID, userID, []uuid.UUID{hiddenID})
+
+	require.NoError(t, err)
+	assert.Nil(t, got.CoverFileID)
+}
+
+func TestReassignCoverIfCurrent(t *testing.T) {
+	userID := uuid.New()
+	setup := func(otherVisible bool, withOther bool) (uuid.UUID, uuid.UUID, uuid.UUID, *fakeArtpieceRepository, *usecase.ArtpieceUsecase) {
+		artpieceID := uuid.New()
+		artpieceRepo := newFakeArtpieceRepository()
+		fileRepo := newFakeArtpieceFileRepository()
+		// the file being hidden is already persisted as hidden before reassignment runs
+		hidden := &domain.File{ID: uuid.New(), UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/jpeg", IsVisible: false}
+		other := &domain.File{ID: uuid.New(), UserID: userID, ArtpieceID: &artpieceID, MimeType: "image/png", IsVisible: otherVisible}
+		artpieceRepo.artpieces[artpieceID] = &domain.Artpiece{ID: artpieceID, UserID: userID, CoverFileID: &hidden.ID}
+		artpieceRepo.files[artpieceID] = []*domain.File{hidden}
+		if withOther {
+			artpieceRepo.files[artpieceID] = append(artpieceRepo.files[artpieceID], other)
+		}
+		uc := newArtpieceUsecase(artpieceRepo, newFakeArtpieceArtistRepository(), newFakeArtpieceCharacterRepository(), fileRepo)
+		return artpieceID, hidden.ID, other.ID, artpieceRepo, uc
+	}
+
+	t.Run("hidden cover reassigned to another visible image", func(t *testing.T) {
+		artpieceID, hiddenID, otherID, repo, uc := setup(true, true)
+		require.NoError(t, uc.ReassignCoverIfCurrent(context.Background(), artpieceID, hiddenID, userID))
+		require.NotNil(t, repo.artpieces[artpieceID].CoverFileID)
+		assert.Equal(t, otherID, *repo.artpieces[artpieceID].CoverFileID)
+	})
+
+	t.Run("cover cleared when no other visible file remains", func(t *testing.T) {
+		artpieceID, hiddenID, _, repo, uc := setup(false, true)
+		require.NoError(t, uc.ReassignCoverIfCurrent(context.Background(), artpieceID, hiddenID, userID))
+		assert.Nil(t, repo.artpieces[artpieceID].CoverFileID)
+	})
+
+	t.Run("non-cover file leaves cover unchanged", func(t *testing.T) {
+		artpieceID, hiddenID, otherID, repo, uc := setup(true, true)
+		require.NoError(t, uc.ReassignCoverIfCurrent(context.Background(), artpieceID, otherID, userID))
+		require.NotNil(t, repo.artpieces[artpieceID].CoverFileID)
+		assert.Equal(t, hiddenID, *repo.artpieces[artpieceID].CoverFileID)
+		assert.Equal(t, uuid.Nil, repo.lastCoverArtID)
+	})
 }

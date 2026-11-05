@@ -14,13 +14,14 @@ import (
 
 type FileUsecase struct {
 	fileRepo    FileRepository
+	coverFixer  FileCoverReassigner
 	storage     FileStorageService
 	jobInserter JobInserter
 	tel         *observability.Telemetry
 }
 
-func NewFileUsecase(fileRepo FileRepository, storage FileStorageService, jobInserter JobInserter, tel *observability.Telemetry) *FileUsecase {
-	return &FileUsecase{fileRepo: fileRepo, storage: storage, jobInserter: jobInserter, tel: tel}
+func NewFileUsecase(fileRepo FileRepository, coverFixer FileCoverReassigner, storage FileStorageService, jobInserter JobInserter, tel *observability.Telemetry) *FileUsecase {
+	return &FileUsecase{fileRepo: fileRepo, coverFixer: coverFixer, storage: storage, jobInserter: jobInserter, tel: tel}
 }
 
 func (u *FileUsecase) GetByID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error) {
@@ -49,16 +50,30 @@ func (u *FileUsecase) List(ctx context.Context, userID uuid.UUID, unassigned boo
 	return files, nil
 }
 
-func (u *FileUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) (*domain.File, error) {
+func (u *FileUsecase) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string, isVisible *bool) (*domain.File, error) {
 	ctx, span := u.tel.Tracer.Start(ctx, "usecase.UpdateFile")
 	defer span.End()
 
-	if err := u.fileRepo.Update(ctx, id, userID, name, notes); err != nil {
+	if err := u.fileRepo.Update(ctx, id, userID, name, notes, isVisible); err != nil {
 		span.RecordError(err)
 		span.SetStatus(codes.Error, err.Error())
 		return nil, err
 	}
-	return u.fileRepo.GetByIDAndUserID(ctx, id, userID)
+
+	file, err := u.fileRepo.GetByIDAndUserID(ctx, id, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Hiding the artpiece's current cover reassigns it, same as a detach would.
+	if isVisible != nil && !*isVisible && file.ArtpieceID != nil {
+		if err := u.coverFixer.ReassignCoverIfCurrent(ctx, *file.ArtpieceID, id, userID); err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, err.Error())
+			return nil, fmt.Errorf("reassign cover after hiding file: %w", err)
+		}
+	}
+	return file, nil
 }
 
 func (u *FileUsecase) Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error {

@@ -16,6 +16,7 @@ type File struct {
 	Name             *string        `gorm:"type:text;column:name"`
 	Notes            *string        `gorm:"type:text;column:notes"`
 	Extension        *string        `gorm:"type:text;column:extension"`
+	IsVisible        bool           `gorm:"column:is_visible;not null;default:true"`
 	ImageMetadata   *ImageMetadata `gorm:"foreignKey:FileID"`
 	CreatedAt       time.Time      `gorm:"column:created_at"`
 	UpdatedAt       time.Time      `gorm:"column:updated_at"`

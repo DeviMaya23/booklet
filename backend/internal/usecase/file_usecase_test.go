@@ -64,13 +64,20 @@ func (f *fakeFileRepository) List(_ context.Context, userID uuid.UUID, unassigne
 	return result, nil
 }
 
-func (f *fakeFileRepository) Update(_ context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) error {
+func (f *fakeFileRepository) Update(_ context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string, isVisible *bool) error {
 	file, ok := f.files[id]
 	if !ok || file.UserID != userID {
 		return gorm.ErrRecordNotFound
 	}
-	file.Name = name
-	file.Notes = notes
+	if isVisible == nil || name != nil {
+		file.Name = name
+	}
+	if isVisible == nil || notes != nil {
+		file.Notes = notes
+	}
+	if isVisible != nil {
+		file.IsVisible = *isVisible
+	}
 	return nil
 }
 
@@ -113,8 +120,27 @@ func (f *fakeJobInserter) Insert(_ context.Context, args river.JobArgs, _ *river
 	return &rivertype.JobInsertResult{}, f.insertErr
 }
 
+type spyCoverReassigner struct {
+	calls []reassignCall
+	err   error
+}
+
+type reassignCall struct {
+	artpieceID uuid.UUID
+	fileID     uuid.UUID
+}
+
+func (s *spyCoverReassigner) ReassignCoverIfCurrent(_ context.Context, artpieceID uuid.UUID, fileID uuid.UUID, _ uuid.UUID) error {
+	s.calls = append(s.calls, reassignCall{artpieceID: artpieceID, fileID: fileID})
+	return s.err
+}
+
 func newFileUsecase(repo *fakeFileRepository, storage *fakeFileStorageService) *usecase.FileUsecase {
-	return usecase.NewFileUsecase(repo, storage, &fakeJobInserter{}, observability.NewTelemetry(nil, nil, nil))
+	return newFileUsecaseWithReassigner(repo, &spyCoverReassigner{}, storage)
+}
+
+func newFileUsecaseWithReassigner(repo *fakeFileRepository, reassigner *spyCoverReassigner, storage *fakeFileStorageService) *usecase.FileUsecase {
+	return usecase.NewFileUsecase(repo, reassigner, storage, &fakeJobInserter{}, observability.NewTelemetry(nil, nil, nil))
 }
 
 // --- tests ---
@@ -165,9 +191,102 @@ func TestFileUsecase_Update_NotOwned(t *testing.T) {
 	repo := newFakeFileRepository()
 	uc := newFileUsecase(repo, &fakeFileStorageService{})
 
-	_, err := uc.Update(context.Background(), uuid.New(), uuid.New(), nil, nil)
+	_, err := uc.Update(context.Background(), uuid.New(), uuid.New(), nil, nil, nil)
 
 	require.ErrorIs(t, err, gorm.ErrRecordNotFound)
+}
+
+func TestFileUsecase_Update_IsVisible(t *testing.T) {
+	userID := uuid.New()
+	artpieceID := uuid.New()
+	boolPtr := func(b bool) *bool { return &b }
+
+	t.Run("returned file reflects provided is_visible", func(t *testing.T) {
+		fileID := uuid.New()
+		repo := newFakeFileRepository()
+		repo.files[fileID] = &domain.File{ID: fileID, UserID: userID, IsVisible: true}
+		uc := newFileUsecase(repo, &fakeFileStorageService{})
+
+		got, err := uc.Update(context.Background(), fileID, userID, nil, nil, boolPtr(false))
+
+		require.NoError(t, err)
+		assert.False(t, got.IsVisible)
+	})
+
+	t.Run("is_visible unchanged when omitted", func(t *testing.T) {
+		fileID := uuid.New()
+		repo := newFakeFileRepository()
+		repo.files[fileID] = &domain.File{ID: fileID, UserID: userID, IsVisible: true}
+		name := "renamed"
+		uc := newFileUsecase(repo, &fakeFileStorageService{})
+
+		got, err := uc.Update(context.Background(), fileID, userID, &name, nil, nil)
+
+		require.NoError(t, err)
+		assert.True(t, got.IsVisible)
+	})
+
+	t.Run("is_visible only leaves name and notes untouched", func(t *testing.T) {
+		fileID := uuid.New()
+		name, notes := "keep", "keep notes"
+		repo := newFakeFileRepository()
+		repo.files[fileID] = &domain.File{ID: fileID, UserID: userID, IsVisible: true, Name: &name, Notes: &notes}
+		uc := newFileUsecase(repo, &fakeFileStorageService{})
+
+		got, err := uc.Update(context.Background(), fileID, userID, nil, nil, boolPtr(false))
+
+		require.NoError(t, err)
+		require.NotNil(t, got.Name)
+		require.NotNil(t, got.Notes)
+		assert.Equal(t, "keep", *got.Name)
+		assert.Equal(t, "keep notes", *got.Notes)
+	})
+
+	t.Run("hiding an attached file triggers cover reassignment check", func(t *testing.T) {
+		fileID := uuid.New()
+		repo := newFakeFileRepository()
+		repo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID, IsVisible: true}
+		reassigner := &spyCoverReassigner{}
+		uc := newFileUsecaseWithReassigner(repo, reassigner, &fakeFileStorageService{})
+
+		_, err := uc.Update(context.Background(), fileID, userID, nil, nil, boolPtr(false))
+
+		require.NoError(t, err)
+		require.Len(t, reassigner.calls, 1)
+		assert.Equal(t, reassignCall{artpieceID: artpieceID, fileID: fileID}, reassigner.calls[0])
+	})
+
+	t.Run("no reassignment when making visible, omitted, or unattached", func(t *testing.T) {
+		attachedID, inboxID := uuid.New(), uuid.New()
+		repo := newFakeFileRepository()
+		repo.files[attachedID] = &domain.File{ID: attachedID, UserID: userID, ArtpieceID: &artpieceID}
+		repo.files[inboxID] = &domain.File{ID: inboxID, UserID: userID, IsVisible: true}
+		reassigner := &spyCoverReassigner{}
+		uc := newFileUsecaseWithReassigner(repo, reassigner, &fakeFileStorageService{})
+
+		_, err := uc.Update(context.Background(), attachedID, userID, nil, nil, boolPtr(true))
+		require.NoError(t, err)
+		name := "n"
+		_, err = uc.Update(context.Background(), attachedID, userID, &name, nil, nil)
+		require.NoError(t, err)
+		_, err = uc.Update(context.Background(), inboxID, userID, nil, nil, boolPtr(false))
+		require.NoError(t, err)
+
+		assert.Empty(t, reassigner.calls)
+	})
+
+	t.Run("reassignment failure is wrapped and returned", func(t *testing.T) {
+		fileID := uuid.New()
+		repo := newFakeFileRepository()
+		repo.files[fileID] = &domain.File{ID: fileID, UserID: userID, ArtpieceID: &artpieceID, IsVisible: true}
+		boom := errors.New("boom")
+		uc := newFileUsecaseWithReassigner(repo, &spyCoverReassigner{err: boom}, &fakeFileStorageService{})
+
+		_, err := uc.Update(context.Background(), fileID, userID, nil, nil, boolPtr(false))
+
+		require.ErrorIs(t, err, boom)
+		require.ErrorContains(t, err, "reassign cover after hiding file")
+	})
 }
 
 func TestFileUsecase_Delete_DeletesR2Object(t *testing.T) {
@@ -216,7 +335,7 @@ func TestFileUsecase_BulkDelete_AllOwned(t *testing.T) {
 	repo.files[f1ID] = &domain.File{ID: f1ID, UserID: userID, FileR2Path: "users/files/f1.jpg"}
 	repo.files[f2ID] = &domain.File{ID: f2ID, UserID: userID, FileR2Path: "users/files/f2.jpg", ThumbnailR2Path: &thumbPath}
 	inserter := &fakeJobInserter{}
-	uc := usecase.NewFileUsecase(repo, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewFileUsecase(repo, &spyCoverReassigner{}, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.BulkDelete(context.Background(), []uuid.UUID{f1ID, f2ID}, userID)
 	require.NoError(t, err)
@@ -247,7 +366,7 @@ func TestFileUsecase_BulkDelete_JobEnqueueFailureStillSucceeds(t *testing.T) {
 	repo := newFakeFileRepository()
 	repo.files[f1ID] = &domain.File{ID: f1ID, UserID: userID, FileR2Path: "users/files/f1.jpg"}
 	inserter := &fakeJobInserter{insertErr: errors.New("river unavailable")}
-	uc := usecase.NewFileUsecase(repo, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
+	uc := usecase.NewFileUsecase(repo, &spyCoverReassigner{}, &fakeFileStorageService{}, inserter, observability.NewTelemetry(nil, nil, nil))
 
 	err := uc.BulkDelete(context.Background(), []uuid.UUID{f1ID}, userID)
 	require.NoError(t, err)

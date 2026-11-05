@@ -140,7 +140,7 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece, is_reference: false }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     expect(screen.getByRole('checkbox', { name: /this is a reference/i })).not.toBeChecked()
   })
 
@@ -148,7 +148,7 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece, is_reference: true }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     expect(screen.getByRole('checkbox', { name: /this is a reference/i })).toBeChecked()
   })
 
@@ -156,7 +156,7 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece, is_reference: false }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
     await user.click(screen.getByRole('button', { name: /^save$/i }))
     expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ isReference: true }))
@@ -166,7 +166,7 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece, is_reference: true }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
     await user.click(screen.getByRole('button', { name: /^save$/i }))
     expect(mockMutateAsync).toHaveBeenCalledWith(expect.objectContaining({ isReference: false }))
@@ -176,7 +176,7 @@ describe('ArtpieceDetailView — is_reference checkbox', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece, is_reference: false }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     await user.click(screen.getByRole('checkbox', { name: /this is a reference/i }))
     expect(screen.getByText(/reference changed/i)).toBeInTheDocument()
   })
@@ -187,7 +187,7 @@ describe('ArtpieceDetailView — add artist from edit mode', () => {
     const user = userEvent.setup()
     mockArtpiece = { ...baseArtpiece }
     renderWithProviders(<ArtpieceDetailView artpieceId="ap1" onClose={() => {}} onDeleted={() => {}} />)
-    await user.click(screen.getByRole('button', { name: /edit/i }))
+    await user.click(screen.getByRole('button', { name: /^edit$/i }))
     return user
   }
 

@@ -37,6 +37,7 @@ import { apiFetch } from '@/lib/api'
 import { uploadFile, filterBySize } from '@/features/files/lib/upload'
 import ArtpieceDetailFileGrid from './ArtpieceDetailFileGrid'
 import DeleteArtpieceDialog from './DeleteArtpieceDialog'
+import ArtpieceFileDetailsModal from './ArtpieceFileDetailsModal'
 
 interface CharacterToken {
   id: string
@@ -78,6 +79,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
   const [dragOver, setDragOver] = useState(false)
   const dragEnterCount = useRef(0)
   const [viewerIndex, setViewerIndex] = useState<number | null>(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   const charactersQuery = useCharacters({ sort: 'recent' })
@@ -106,6 +108,13 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     setLocallyRemovedIds(new Set())
     setPendingCoverFileId(null)
     setMode('edit')
+  }
+
+  // A pending cover that was hidden via the details modal is no longer selectable.
+  function activePendingCoverId(): string | null {
+    if (!pendingCoverFileId || !artpiece) return null
+    const file = artpiece.files.find((f) => f.id === pendingCoverFileId)
+    return file?.is_visible ? pendingCoverFileId : null
   }
 
   const blocker = useBlocker(() => mode === 'edit' && unsavedChangesSummary() !== null)
@@ -165,8 +174,9 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         await replaceFiles.mutateAsync({ artpieceId, fileIds: workingFileIds })
       }
 
-      if (pendingCoverFileId) {
-        await setCoverMutation.mutateAsync({ artpieceId, fileId: pendingCoverFileId })
+      const pendingCover = activePendingCoverId()
+      if (pendingCover) {
+        await setCoverMutation.mutateAsync({ artpieceId, fileId: pendingCover })
       }
 
       toast.success('Artpiece updated')
@@ -227,7 +237,8 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
     const parts: string[] = []
     if (locallyRemovedIds.size > 0)
       parts.push(`${locallyRemovedIds.size} file${locallyRemovedIds.size > 1 ? 's' : ''} will be removed`)
-    if (pendingCoverFileId && pendingCoverFileId !== artpiece.cover_file_id)
+    const pendingCover = activePendingCoverId()
+    if (pendingCover && pendingCover !== artpiece.cover_file_id)
       parts.push('cover changed')
     const cachedArtists = queryClient.getQueryData<Artist[]>(ARTISTS_QUERY_KEY) ?? []
     const originalArtist = cachedArtists.find((a) => a.id === artpiece.artist_id) ?? null
@@ -264,9 +275,13 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
 
   const viewArtistPrimaryUrl = artpiece.artist_link
 
+  // Hidden files are excluded from the viewer; viewer indices refer to this list.
+  const visibleFiles = artpiece.files.filter((f) => f.is_visible)
+  const hiddenCount = artpiece.files.length - visibleFiles.length
+
   const previewThumbnail =
-    mode === 'edit' && pendingCoverFileId
-      ? (artpiece.files.find((f) => f.id === pendingCoverFileId)?.thumbnail_url ?? artpiece.thumbnail_url)
+    mode === 'edit' && activePendingCoverId()
+      ? (artpiece.files.find((f) => f.id === activePendingCoverId())?.thumbnail_url ?? artpiece.thumbnail_url)
       : artpiece.thumbnail_url
 
   const changesSummary = mode === 'edit' ? unsavedChangesSummary() : null
@@ -457,7 +472,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
             className={`aspect-square w-full overflow-hidden rounded-xl bg-muted ${mode === 'view' && previewThumbnail ? 'cursor-pointer' : ''}`}
             onClick={() => {
               if (mode !== 'view' || !previewThumbnail) return
-              const coverIndex = artpiece.files.findIndex((f) => f.id === artpiece.cover_file_id)
+              const coverIndex = visibleFiles.findIndex((f) => f.id === artpiece.cover_file_id)
               if (coverIndex !== -1) setViewerIndex(coverIndex)
             }}
           >
@@ -483,9 +498,18 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
           <p className="text-sm font-medium">
             Files{' '}
             <span className="ml-1 rounded-md bg-muted px-1.5 py-0.5 text-xs font-normal text-muted-foreground">
-              {artpiece.files.length}
+              {visibleFiles.length}
             </span>
+            {hiddenCount > 0 && (
+              <span className="ml-1 text-xs font-normal text-muted-foreground">
+                · {hiddenCount} hidden
+              </span>
+            )}
           </p>
+          <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setDetailsOpen(true)}>
+            Edit details
+          </Button>
           {mode === 'view' ? (
             <Button
               variant="outline"
@@ -513,6 +537,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               + Add files
             </Button>
           )}
+          </div>
         </div>
 
         <input
@@ -529,7 +554,10 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               files={artpiece.files}
               coverFileId={artpiece.cover_file_id}
               mode="view"
-              onOpen={(i) => setViewerIndex(i)}
+              onOpen={(fileId) => {
+                const index = visibleFiles.findIndex((f) => f.id === fileId)
+                if (index !== -1) setViewerIndex(index)
+              }}
             />
           ) : (
             <ArtpieceDetailFileGrid
@@ -537,7 +565,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
               coverFileId={artpiece.cover_file_id}
               mode="edit"
               locallyRemovedIds={locallyRemovedIds}
-              pendingCoverFileId={pendingCoverFileId}
+              pendingCoverFileId={activePendingCoverId()}
               onSetCover={(fileId) => setPendingCoverFileId(fileId)}
               onRemove={(fileId) =>
                 setLocallyRemovedIds((prev) => new Set([...prev, fileId]))
@@ -581,6 +609,13 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
         onCreated={(artist) => setEditArtist(artist)}
       />
 
+      <ArtpieceFileDetailsModal
+        open={detailsOpen}
+        onOpenChange={setDetailsOpen}
+        artpieceId={artpieceId}
+        files={artpiece.files}
+      />
+
       <DeleteArtpieceDialog
         artpieceId={artpieceId}
         open={deleteDialogOpen}
@@ -591,7 +626,7 @@ export default function ArtpieceDetailView({ artpieceId, onClose, onDeleted }: A
 
       {viewerIndex !== null && (
         <FileViewer
-          files={artpiece.files.map<ViewerFile>((f) => ({
+          files={visibleFiles.map<ViewerFile>((f) => ({
             id: f.id,
             name: f.name,
             mimeType: f.mime_type,

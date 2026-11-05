@@ -559,3 +559,25 @@ func TestArtpieceRepository_List_DeletedTagDisappearsFromResults(t *testing.T) {
 	assert.Equal(t, a.ID, all[0].ID)
 	assert.Equal(t, []uuid.UUID{keep.ID}, tagIDsOf(all[0].Tags))
 }
+
+func TestArtpieceRepository_GetFilesForArtpiece_IncludesIsVisible(t *testing.T) {
+	tx := testutil.NewTestTx(t, testDB)
+	repo := NewArtpieceRepository(tx)
+
+	user := seedUser(t, tx, "user_1")
+	artpiece := seedArtpiece(t, tx, user.ID)
+	visible := seedFile(t, tx, user.ID, "image/jpeg")
+	hidden := seedFile(t, tx, user.ID, "image/png")
+	require.NoError(t, tx.Model(visible).Update("artpiece_id", artpiece.ID).Error)
+	require.NoError(t, tx.Model(hidden).Updates(map[string]interface{}{"artpiece_id": artpiece.ID, "is_visible": false}).Error)
+
+	files, err := repo.GetFilesForArtpiece(context.Background(), artpiece.ID)
+	require.NoError(t, err)
+	require.Len(t, files, 2)
+	byID := map[uuid.UUID]bool{}
+	for _, f := range files {
+		byID[f.ID] = f.IsVisible
+	}
+	assert.True(t, byID[visible.ID])
+	assert.False(t, byID[hidden.ID])
+}

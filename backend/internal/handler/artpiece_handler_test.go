@@ -592,6 +592,37 @@ func TestGetArtpieceByID_FileExtensionInResponse(t *testing.T) {
 	require.Equal(t, "clip", fileMap["extension"])
 }
 
+func TestGetArtpieceByID_FileNotesAndIsVisibleInResponse(t *testing.T) {
+	notes := "v2 of the sketch"
+	a := makeArtpiece()
+	a.Files = []domain.File{
+		{ID: uuid.New(), UserID: testUserID, FileR2Path: "a", MimeType: "image/png", Notes: &notes, IsVisible: true},
+		{ID: uuid.New(), UserID: testUserID, FileR2Path: "b", MimeType: "image/png", IsVisible: false},
+	}
+
+	presigner := &spyPresigner{presignedURL: "https://cdn.example.com/signed"}
+	spy := &spyArtpieceUsecase{getByIDResult: a}
+	h := handler.NewArtpieceHandler(spy, presigner, observability.NewTelemetry(nil, nil, nil))
+	e := setupEcho(testUserID)
+	e.GET("/artpieces/:id", h.GetArtpieceByID)
+
+	req := httptest.NewRequest(http.MethodGet, "/artpieces/"+a.ID.String(), nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got map[string]interface{}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &got))
+	files := got["files"].([]interface{})
+	require.Len(t, files, 2)
+	first := files[0].(map[string]interface{})
+	second := files[1].(map[string]interface{})
+	require.Equal(t, notes, first["notes"])
+	require.Equal(t, true, first["is_visible"])
+	require.Nil(t, second["notes"])
+	require.Equal(t, false, second["is_visible"])
+}
+
 // --- tags ---
 
 func newArtpieceHandlerForTags(spy *spyArtpieceUsecase) *echo.Echo {

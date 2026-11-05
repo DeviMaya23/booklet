@@ -11,9 +11,15 @@ type FileRepository interface {
 	GetByIDAndUserID(ctx context.Context, id uuid.UUID, userID uuid.UUID) (*domain.File, error)
 	GetByIDsAndUserID(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) ([]*domain.File, error)
 	List(ctx context.Context, userID uuid.UUID, unassigned bool) ([]*domain.File, error)
-	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) error
+	Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string, isVisible *bool) error
 	Delete(ctx context.Context, id uuid.UUID, userID uuid.UUID) error
 	BulkDelete(ctx context.Context, ids []uuid.UUID, userID uuid.UUID) error
+}
+
+// FileCoverReassigner reassigns an artpiece's cover when the given file, which
+// stays attached, is no longer eligible to be the cover (e.g. it was hidden).
+type FileCoverReassigner interface {
+	ReassignCoverIfCurrent(ctx context.Context, artpieceID uuid.UUID, fileID uuid.UUID, userID uuid.UUID) error
 }
 
 type FileStorageService interface {

@@ -110,11 +110,23 @@ func (r *fileRepository) List(ctx context.Context, userID uuid.UUID, unassigned 
 	return files, nil
 }
 
-func (r *fileRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string) error {
+func (r *fileRepository) Update(ctx context.Context, id uuid.UUID, userID uuid.UUID, name *string, notes *string, isVisible *bool) error {
+	updates := map[string]interface{}{}
+	// When only is_visible is sent, leave name/notes untouched. Otherwise keep the
+	// existing semantics where a nil name/notes clears the column.
+	if isVisible == nil || name != nil {
+		updates["name"] = name
+	}
+	if isVisible == nil || notes != nil {
+		updates["notes"] = notes
+	}
+	if isVisible != nil {
+		updates["is_visible"] = *isVisible
+	}
 	result := dbFromContext(ctx, r.db).
 		Model(&domain.File{}).
 		Where("id = ? AND user_id = ?", id, userID).
-		Updates(map[string]interface{}{"name": name, "notes": notes})
+		Updates(updates)
 	if result.Error != nil {
 		return fmt.Errorf("update file: %w", result.Error)
 	}
