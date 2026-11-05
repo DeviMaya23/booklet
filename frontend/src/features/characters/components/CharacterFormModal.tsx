@@ -1,6 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
+import { useRef, useState } from 'react'
 import { toast } from 'sonner'
-import { Image, X } from 'lucide-react'
+import { Image } from 'lucide-react'
 import AvatarCropDialog from './AvatarCropDialog'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { useQueryClient } from '@tanstack/react-query'
@@ -26,70 +26,43 @@ import {
 } from '@/components/ui/alert-dialog'
 import { cn } from '@/lib/utils'
 import { apiFetch } from '@/lib/api'
-import { type Character, CHARACTERS_QUERY_KEY } from '../api/useCharacters'
+import { CHARACTERS_QUERY_KEY } from '../api/useCharacters'
 import { useCreateCharacter } from '../api/useCreateCharacter'
-import { useUpdateCharacter } from '../api/useUpdateCharacter'
-import { useDeleteCharacter } from '../api/useDeleteCharacter'
 import { useInitAvatarUpload } from '../api/useInitAvatarUpload'
-import { FILE_SIZE_LIMITS } from '@/features/files/lib/fileCategory'
 import { useCompleteAvatarUpload } from '../api/useCompleteAvatarUpload'
 import { usePublicFolders } from '../api/usePublicFolders'
 import { useFolderDiff } from '../api/useFolderDiff'
+import { useAvatarPicker } from '../hooks/useAvatarPicker'
+import { uploadCharacterAvatar } from '../lib/uploadCharacterAvatar'
 import { FolderList } from './FolderList'
 import { ChooseFoldersPanel } from './ChooseFoldersPanel'
-import { useVerses, type Verse } from '@/features/verses/api/useVerses'
+import { type Verse } from '@/features/verses/api/useVerses'
 import VerseCombobox from '@/features/verses/components/VerseCombobox'
 
 interface CharacterFormModalProps {
   open: boolean
   onOpenChange: (open: boolean) => void
-  character?: Character
 }
 
-export default function CharacterFormModal({
-  open,
-  onOpenChange,
-  character,
-}: CharacterFormModalProps) {
-  const isEditMode = character !== undefined
+const NO_FOLDERS: { id: string; name: string }[] = []
 
-  const [name, setName] = useState(character?.name ?? '')
-  const [notes, setNotes] = useState(character?.notes ?? '')
+export default function CharacterFormModal({ open, onOpenChange }: CharacterFormModalProps) {
+  const [name, setName] = useState('')
+  const [notes, setNotes] = useState('')
   const [verse, setVerse] = useState<Verse | null>(null)
-  const [localFile, setLocalFile] = useState<File | null>(null)
-  const [localPreviewUrl, setLocalPreviewUrl] = useState<string | null>(null)
-  const [avatarCleared, setAvatarCleared] = useState(false)
-  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [discardOpen, setDiscardOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [cropSourceUrl, setCropSourceUrl] = useState<string | null>(null)
-  const [dragActive, setDragActive] = useState(false)
   const [panelOpen, setPanelOpen] = useState(false)
 
   const fileInputRef = useRef<HTMLInputElement>(null)
   const { getToken } = useKindeAuth()
   const queryClient = useQueryClient()
 
-  const versesQuery = useVerses()
-
-  useEffect(() => {
-    if (!versesQuery.data) return
-    const match = character?.verse_id
-      ? (versesQuery.data.find((v) => v.id === character.verse_id) ?? null)
-      : null
-    setVerse(match)
-  }, [versesQuery.data, character?.verse_id])
-
   const createMutation = useCreateCharacter()
-  const updateMutation = useUpdateCharacter()
-  const deleteMutation = useDeleteCharacter()
   const initUploadMutation = useInitAvatarUpload()
   const completeUploadMutation = useCompleteAvatarUpload()
   const publicFoldersQuery = usePublicFolders()
-
-  const isPending = isSubmitting || deleteMutation.isPending
-
-  const originalFolders: { id: string; name: string }[] = character?.folders ?? []
+  const avatar = useAvatarPicker()
 
   const {
     selectedFolders,
@@ -99,54 +72,23 @@ export default function CharacterFormModal({
     removeFolder,
     dismissInvalid,
     reset: resetFolderDiff,
-  } = useFolderDiff({ originalFolders, publicFolders: publicFoldersQuery.data })
-
-  useEffect(() => {
-    return () => {
-      if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
-    }
-  }, [localPreviewUrl])
-
-  const displayUrl = localPreviewUrl ?? (avatarCleared ? null : character?.avatar_url ?? null)
-  const showClearButton = isEditMode && !avatarCleared && (localPreviewUrl !== null || character?.avatar_url != null)
+  } = useFolderDiff({ originalFolders: NO_FOLDERS, publicFolders: publicFoldersQuery.data })
 
   function resetForm() {
-    setName(character?.name ?? '')
-    setNotes(character?.notes ?? '')
-    const verses = versesQuery.data ?? []
-    setVerse(character?.verse_id ? (verses.find((v) => v.id === character.verse_id) ?? null) : null)
-    setLocalFile(null)
-    setLocalPreviewUrl(null)
-    setAvatarCleared(false)
-    setDeleteDialogOpen(false)
+    setName('')
+    setNotes('')
+    setVerse(null)
+    avatar.reset()
     resetFolderDiff()
     setPanelOpen(false)
-    if (cropSourceUrl) {
-      URL.revokeObjectURL(cropSourceUrl)
-      setCropSourceUrl(null)
-    }
-    setDragActive(false)
   }
 
   function isDirty(): boolean {
-    if (isEditMode) {
-      const originalFolderIds = originalFolders.map((f) => f.id)
-      const currentFolderIds = selectedFolders.map((f) => f.id)
-      return (
-        name !== (character?.name ?? '') ||
-        notes !== (character?.notes ?? '') ||
-        verse?.id !== (character?.verse_id ?? null) ||
-        localFile !== null ||
-        avatarCleared ||
-        currentFolderIds.length !== originalFolderIds.length ||
-        currentFolderIds.some((id) => !originalFolderIds.includes(id))
-      )
-    }
     return (
       name.trim() !== '' ||
       notes.trim() !== '' ||
       verse !== null ||
-      localFile !== null ||
+      avatar.localFile !== null ||
       selectedFolders.length > 0
     )
   }
@@ -156,81 +98,15 @@ export default function CharacterFormModal({
     onOpenChange(nextOpen)
   }
 
-  function stageFileForCrop(file: File) {
-    const imageLimit = FILE_SIZE_LIMITS['image']
-    if (file.size > imageLimit) {
-      toast.error(`Image exceeds the ${Math.round(imageLimit / (1024 * 1024))} MB limit`)
-      return
-    }
-    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
-    setCropSourceUrl(URL.createObjectURL(file))
-  }
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0]
-    if (!file) return
-    stageFileForCrop(file)
-    e.target.value = ''
-  }
-
-  function handleDrop(e: React.DragEvent) {
-    e.preventDefault()
-    setDragActive(false)
-    const file = e.dataTransfer.files?.[0]
-    if (file) stageFileForCrop(file)
-  }
-
-  function handlePaste(e: React.ClipboardEvent) {
-    if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return
-    const item = Array.from(e.clipboardData?.items ?? []).find((i) => i.type.startsWith('image/'))
-    const file = item?.getAsFile()
-    if (file) stageFileForCrop(file)
-  }
-
-  function handleCropConfirm(croppedFile: File) {
-    if (localPreviewUrl) URL.revokeObjectURL(localPreviewUrl)
-    setLocalFile(croppedFile)
-    setLocalPreviewUrl(URL.createObjectURL(croppedFile))
-    setAvatarCleared(false)
-    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
-    setCropSourceUrl(null)
-  }
-
-  function handleCropCancel() {
-    if (cropSourceUrl) URL.revokeObjectURL(cropSourceUrl)
-    setCropSourceUrl(null)
-  }
-
-  function handleClearAvatar() {
-    setLocalFile(null)
-    setLocalPreviewUrl(null)
-    setAvatarCleared(true)
-  }
-
-  async function runAvatarUpload(characterId: string, file: File) {
-    const initResult = await initUploadMutation.mutateAsync({ characterId, mimeType: file.type, fileSizeBytes: file.size })
-    const r2Res = await fetch(initResult.upload_url, {
-      method: 'PUT',
-      headers: { 'Content-Type': file.type },
-      body: file,
-    })
-    if (!r2Res.ok) throw new Error('R2 upload failed')
-    await completeUploadMutation.mutateAsync({ characterId, uploadId: initResult.id })
-  }
-
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) return
 
     setIsSubmitting(true)
     try {
-      if (isEditMode) {
-        await handleEditSubmit()
-      } else {
-        await handleCreateSubmit()
-      }
+      await handleCreateSubmit()
     } catch {
-      toast.error(isEditMode ? 'Failed to update character' : 'Failed to create character')
+      toast.error('Failed to create character')
     } finally {
       setIsSubmitting(false)
     }
@@ -245,9 +121,14 @@ export default function CharacterFormModal({
       verse_id: verse?.id ?? null,
     })
 
-    if (localFile) {
+    if (avatar.localFile) {
       try {
-        await runAvatarUpload(created.id, localFile)
+        await uploadCharacterAvatar(
+          created.id,
+          avatar.localFile,
+          initUploadMutation.mutateAsync,
+          completeUploadMutation.mutateAsync,
+        )
       } catch {
         apiFetch(`/characters/${created.id}`, getToken, { method: 'DELETE' })
         toast.error('Failed to upload avatar')
@@ -259,53 +140,6 @@ export default function CharacterFormModal({
     toast.success('Character created')
     handleOpenChange(false)
   }
-
-  async function handleEditSubmit() {
-    if (!character) return
-
-    if (localFile) {
-      try {
-        await runAvatarUpload(character.id, localFile)
-      } catch {
-        toast.error('Failed to upload avatar')
-        return
-      }
-    } else if (avatarCleared) {
-      const res = await apiFetch(`/characters/${character.id}/avatar`, getToken, { method: 'DELETE' })
-      if (!res.ok) {
-        toast.error('Failed to remove avatar')
-        return
-      }
-    }
-
-    const finalFolderIds = selectedFolders.map((f) => f.id)
-    await updateMutation.mutateAsync({
-      id: character.id,
-      name: name.trim(),
-      notes: notes.trim() || null,
-      folder_ids: finalFolderIds,
-      verse_id: verse?.id ?? null,
-    })
-
-    toast.success('Character updated')
-    handleOpenChange(false)
-  }
-
-  function handleDeleteConfirm() {
-    if (!character) return
-    deleteMutation.mutate(character.id, {
-      onSuccess: () => {
-        toast.success('Character deleted')
-        setDeleteDialogOpen(false)
-        handleOpenChange(false)
-      },
-      onError: () => {
-        toast.error('Failed to delete character')
-        setDeleteDialogOpen(false)
-      },
-    })
-  }
-
 
   return (
     <>
@@ -324,13 +158,13 @@ export default function CharacterFormModal({
             'overflow-hidden transition-[max-width] duration-200',
             panelOpen ? 'max-w-3xl' : 'max-w-md',
           )}
-          onPaste={handlePaste}
+          onPaste={avatar.handlePaste}
         >
           <div className="flex min-h-0">
             {/* Left column: the form */}
             <div className={cn('flex flex-col gap-4', panelOpen ? 'w-[400px] shrink-0 pr-6' : 'w-full')}>
               <DialogHeader>
-                <DialogTitle>{isEditMode ? 'Edit character' : 'New character'}</DialogTitle>
+                <DialogTitle>New character</DialogTitle>
               </DialogHeader>
 
               <form onSubmit={handleSubmit} className="flex flex-col gap-4">
@@ -341,18 +175,16 @@ export default function CharacterFormModal({
                       type="button"
                       className={cn(
                         'relative flex size-20 cursor-pointer items-center justify-center overflow-hidden rounded-lg bg-muted transition-colors',
-                        dragActive && 'ring-2 ring-ring',
+                        avatar.dragActive && 'ring-2 ring-ring',
                       )}
                       onClick={() => fileInputRef.current?.click()}
-                      onDragOver={(e) => { e.preventDefault(); setDragActive(true) }}
-                      onDragLeave={() => setDragActive(false)}
-                      onDrop={handleDrop}
-                      disabled={isPending}
+                      {...avatar.dragHandlers}
+                      disabled={isSubmitting}
                     >
-                      {displayUrl ? (
+                      {avatar.displayUrl ? (
                         <>
                           <img
-                            src={displayUrl}
+                            src={avatar.displayUrl}
                             alt="Avatar preview"
                             className="size-full object-cover"
                           />
@@ -364,23 +196,12 @@ export default function CharacterFormModal({
                         <Image className="size-8 text-muted-foreground" />
                       )}
                     </button>
-                    {showClearButton && (
-                      <button
-                        type="button"
-                        className="absolute -right-2 -top-2 z-10 inline-flex size-5 items-center justify-center rounded-full bg-foreground text-background hover:opacity-80"
-                        onClick={handleClearAvatar}
-                        disabled={isPending}
-                        aria-label="Remove avatar"
-                      >
-                        <X className="size-3" />
-                      </button>
-                    )}
                     <input
                       ref={fileInputRef}
                       type="file"
                       accept="image/jpeg,image/png"
                       className="hidden"
-                      onChange={handleFileChange}
+                      onChange={avatar.handleFileChange}
                     />
                   </div>
 
@@ -394,7 +215,7 @@ export default function CharacterFormModal({
                       onChange={(e) => setName(e.target.value)}
                       placeholder="Character name"
                       required
-                      disabled={isPending}
+                      disabled={isSubmitting}
                     />
                   </div>
                 </div>
@@ -404,7 +225,7 @@ export default function CharacterFormModal({
                   <VerseCombobox
                     value={verse}
                     onChange={setVerse}
-                    disabled={isPending}
+                    disabled={isSubmitting}
                     inputId="character-verse"
                   />
                 </div>
@@ -419,7 +240,7 @@ export default function CharacterFormModal({
                     onChange={(e) => setNotes(e.target.value)}
                     placeholder="Notes about this character..."
                     rows={4}
-                    disabled={isPending}
+                    disabled={isSubmitting}
                   />
                 </div>
 
@@ -429,34 +250,23 @@ export default function CharacterFormModal({
                   onRemove={removeFolder}
                   onDismissInvalid={dismissInvalid}
                   onOpenPanel={() => setPanelOpen(true)}
-                  disabled={isPending}
+                  disabled={isSubmitting}
                 />
               </form>
 
               <DialogFooter>
-                {isEditMode && (
-                  <Button
-                    variant="destructive"
-                    type="button"
-                    onClick={() => setDeleteDialogOpen(true)}
-                    disabled={isPending}
-                    className="mr-auto"
-                  >
-                    Delete
-                  </Button>
-                )}
                 <Button
                   variant="outline"
                   type="button"
                   onClick={() => handleOpenChange(false)}
-                  disabled={isPending}
+                  disabled={isSubmitting}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="submit"
                   onClick={handleSubmit}
-                  disabled={isPending || !name.trim()}
+                  disabled={isSubmitting || !name.trim()}
                 >
                   Save
                 </Button>
@@ -475,6 +285,7 @@ export default function CharacterFormModal({
                   isLoading={publicFoldersQuery.isLoading}
                   isError={publicFoldersQuery.isError && !publicFoldersQuery.data}
                   onRefresh={() => publicFoldersQuery.refetch()}
+                  updatedAt={publicFoldersQuery.dataUpdatedAt}
                 />
               </div>
             )}
@@ -482,35 +293,14 @@ export default function CharacterFormModal({
         </DialogContent>
       </Dialog>
 
-      {cropSourceUrl && (
+      {avatar.cropSourceUrl && (
         <AvatarCropDialog
-          open={!!cropSourceUrl}
-          sourceUrl={cropSourceUrl}
-          onCrop={handleCropConfirm}
-          onCancel={handleCropCancel}
+          open={!!avatar.cropSourceUrl}
+          sourceUrl={avatar.cropSourceUrl}
+          onCrop={avatar.confirmCrop}
+          onCancel={avatar.cancelCrop}
         />
       )}
-
-      <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete character?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              variant="destructive"
-              onClick={handleDeleteConfirm}
-              disabled={deleteMutation.isPending}
-            >
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
 
       <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
         <AlertDialogContent>

@@ -23,11 +23,11 @@ function makeImages(count: number) {
   }))
 }
 
-function renderPreview() {
+function renderPreview(shareUrl?: string) {
   const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } })
   return render(
     <QueryClientProvider client={qc}>
-      <FolderPreview folderID="f1" />
+      <FolderPreview folderID="f1" shareUrl={shareUrl} />
     </QueryClientProvider>,
   )
 }
@@ -53,17 +53,29 @@ describe('FolderPreview', () => {
     expect(screen.queryByText('Show more')).not.toBeInTheDocument()
   })
 
-  it('shows Show more when there are more than 15 images and appends 15 on click', async () => {
+  it('shows the first 24 images with a caption, then 24 more on Show more', async () => {
     mockApiFetch.mockResolvedValue({
       ok: true,
-      json: async () => ({ images: makeImages(20) }),
+      json: async () => ({ images: makeImages(30) }),
     } as Response)
     renderPreview()
-    await waitFor(() => expect(screen.getAllByAltText('thumbnail')).toHaveLength(15))
-    expect(screen.getByRole('button', { name: /show more/i })).toBeInTheDocument()
+    await waitFor(() => expect(screen.getAllByAltText('thumbnail')).toHaveLength(24))
+    expect(screen.getByText('Showing the first 24')).toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: /show more/i }))
-    expect(screen.getAllByAltText('thumbnail')).toHaveLength(20)
+    expect(screen.getAllByAltText('thumbnail')).toHaveLength(30)
     expect(screen.queryByRole('button', { name: /show more/i })).not.toBeInTheDocument()
+    expect(screen.getByText('Showing all 30')).toBeInTheDocument()
+  })
+
+  it('links to the folder in Bookleaf in a new tab when a share URL is given', async () => {
+    mockApiFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ images: makeImages(3) }),
+    } as Response)
+    renderPreview('https://bookleaf.test/share/tok-1')
+    const link = await screen.findByRole('link', { name: /view all in bookleaf/i })
+    expect(link).toHaveAttribute('href', 'https://bookleaf.test/share/tok-1')
+    expect(link).toHaveAttribute('target', '_blank')
   })
 
   it('shows error message and Retry button when fetch fails', async () => {
