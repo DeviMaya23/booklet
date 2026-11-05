@@ -2,6 +2,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useKindeAuth } from '@kinde-oss/kinde-auth-react'
 import { apiFetch } from '@/lib/api'
 import { CHARACTERS_QUERY_KEY, type Character } from './useCharacters'
+import { characterQueryKey } from './useCharacter'
 
 export interface UpdateCharacterInput {
   id: string
@@ -29,7 +30,10 @@ export function useUpdateCharacter() {
       }
       return res.json() as Promise<Character>
     },
-    onSuccess: () => {
+    onSuccess: (updated, { id }) => {
+      // The PUT response is the full character: show it right away instead of
+      // rendering the old cached copy until the refetch below lands.
+      queryClient.setQueryData(characterQueryKey(id), updated)
       queryClient.invalidateQueries({ queryKey: CHARACTERS_QUERY_KEY })
     },
   })

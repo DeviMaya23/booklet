@@ -6,6 +6,7 @@ import AppShell from './components/AppShell'
 import HomePage from './pages/HomePage'
 import CallbackPage from './pages/CallbackPage'
 import CharactersPage from './pages/CharactersPage'
+import CharacterDetailPage from './pages/CharacterDetailPage'
 import ArtistsPage from './pages/ArtistsPage'
 import FilesPage from './pages/FilesPage'
 import ArtpiecesPage from './pages/ArtpiecesPage'
@@ -33,6 +34,7 @@ export const router = createBrowserRouter([
               { path: '/app', element: <Navigate to="/app/dashboard" replace /> },
               { path: '/app/dashboard', element: <DashboardPage /> },
               { path: '/app/characters', element: <CharactersPage /> },
+              { path: '/app/characters/:id', element: <CharacterDetailPage /> },
               { path: '/app/artists', element: <ArtistsPage /> },
               { path: '/app/tags', element: <TagsPage /> },
               { path: '/app/files', element: <FilesPage /> },

@@ -1,6 +1,6 @@
-import { render, screen } from '@testing-library/react'
+import { act, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, afterEach } from 'vitest'
 import { ChooseFoldersPanel } from './ChooseFoldersPanel'
 import type { PublicFolder } from '../api/usePublicFolders'
 
@@ -23,6 +23,10 @@ function renderPanel(overrides: Partial<Parameters<typeof ChooseFoldersPanel>[0]
   }
   return render(<ChooseFoldersPanel {...defaults} {...overrides} />)
 }
+
+afterEach(() => {
+  vi.useRealTimers()
+})
 
 describe('ChooseFoldersPanel', () => {
   it('renders all folders with unchecked checkboxes when none are selected', () => {
@@ -96,5 +100,29 @@ describe('ChooseFoldersPanel', () => {
     renderPanel({ onClose })
     await userEvent.click(screen.getByRole('button', { name: /close folder panel/i }))
     expect(onClose).toHaveBeenCalled()
+  })
+
+  it('shows when the folder list was last updated and keeps it current', () => {
+    vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] })
+    vi.setSystemTime(new Date('2026-01-01T12:00:00Z'))
+    renderPanel({ updatedAt: new Date('2026-01-01T11:57:00Z').getTime() })
+    expect(screen.getByText('Updated 3 minutes ago')).toBeInTheDocument()
+
+    act(() => {
+      vi.advanceTimersByTime(60_000)
+    })
+    expect(screen.getByText('Updated 4 minutes ago')).toBeInTheDocument()
+  })
+
+  it('omits the updated label when no fetch time is known', () => {
+    renderPanel()
+    expect(screen.queryByText(/^Updated/)).not.toBeInTheDocument()
+  })
+
+  it('calls onRefresh when the refresh button is clicked', async () => {
+    const onRefresh = vi.fn()
+    renderPanel({ onRefresh })
+    await userEvent.click(screen.getByRole('button', { name: /refresh folder list/i }))
+    expect(onRefresh).toHaveBeenCalled()
   })
 })

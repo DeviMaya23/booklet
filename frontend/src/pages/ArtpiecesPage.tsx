@@ -26,7 +26,8 @@ import ArtpieceDetailView from '@/features/artpieces/components/ArtpieceDetailVi
 import SaveFilterModal from '@/features/artpieces/components/SaveFilterModal'
 import { useArtpiecesFilter, type SortMode } from '@/features/artpieces/hooks/useArtpiecesFilter'
 import { type SavedFilter } from '@/features/artpieces/api/useCreateSavedFilter'
-import FileViewer, { type ViewerFile } from '@/features/files/components/FileViewer'
+import FileViewer from '@/features/files/components/FileViewer'
+import { toViewerFiles } from '@/features/artpieces/lib/toViewerFiles'
 
 const SORT_LABELS: Record<SortMode, string> = {
   newest: 'Newest first',
@@ -225,13 +226,7 @@ export default function ArtpiecesPage() {
     )
   ) : undefined
 
-  const viewerFiles: ViewerFile[] = filtered.map((a) => ({
-    id: a.cover_file_id ?? a.id,
-    name: a.title ?? a.cover_file_name ?? 'Untitled',
-    mimeType: a.cover_file_mime_type ?? 'application/octet-stream',
-    thumbnailUrl: a.thumbnail_url,
-    previewUrl: a.cover_file_url ?? '',
-  }))
+  const viewerFiles = toViewerFiles(filtered)
 
   function handleSuccess() {
     queryClient.invalidateQueries({ queryKey: ARTPIECES_QUERY_KEY })

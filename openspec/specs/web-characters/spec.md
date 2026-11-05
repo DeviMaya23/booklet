@@ -56,13 +56,6 @@ Each character card SHALL expose a `(...)` menu in the top-right corner. The men
 - **WHEN** a user cancels deletion in the dialog
 - **THEN** the dialog SHALL close and the character list SHALL remain unchanged
 
-### Requirement: Click character card to edit
-Each character card SHALL be clickable. Clicking the card body (outside the `(...)` menu) SHALL open `CharacterFormModal` in edit mode, pre-populated with the character's current data.
-
-#### Scenario: Card click opens modal in edit mode
-- **WHEN** a user clicks a character card body
-- **THEN** `CharacterFormModal` SHALL open with the title "Edit character" and form fields pre-populated with the character's `name`, `notes`, and `avatar_url`
-
 ### Requirement: CharacterFormModal — create character
 `CharacterFormModal` in create mode SHALL allow the user to enter a name (required) and notes (optional), optionally pick an avatar image (jpg/png only), and submit. On submit:
 1. `POST /characters` is called with `name` and `notes`
@@ -92,85 +85,6 @@ The modal footer SHALL contain: Cancel (left-aligned or secondary), Save (primar
 - **WHEN** a user clicks Cancel
 - **THEN** the modal closes and no network call is made; any picked avatar preview is discarded
 
-### Requirement: CharacterFormModal — edit character
-`CharacterFormModal` in edit mode SHALL allow the user to update name, notes, and avatar. On Save:
-- If a new avatar was picked: init → R2 PUT → complete runs first, then `PUT /characters/:id`
-- If the avatar was cleared: `DELETE /characters/:id/avatar` runs first, then `PUT /characters/:id`
-- If only metadata changed: `PUT /characters/:id` is called
-On success: modal closes, character list is refetched, success toast shown.
-
-The modal footer SHALL contain: Delete (destructive, left-aligned), Cancel, Save.
-
-#### Scenario: Save metadata only
-- **WHEN** a user edits name or notes without changing the avatar and clicks Save
-- **THEN** `PUT /characters/:id` is called with the updated fields; on success the modal closes and a success toast is shown
-
-#### Scenario: Save with new avatar
-- **WHEN** a user picks a new avatar and clicks Save
-- **THEN** avatar init → R2 PUT → complete runs before `PUT /characters/:id`; on full success the modal closes and a success toast is shown
-
-#### Scenario: Save after clearing avatar
-- **WHEN** a user removes the existing avatar preview and clicks Save
-- **THEN** `DELETE /characters/:id/avatar` is called before `PUT /characters/:id`; on success the modal closes and a success toast is shown
-
-#### Scenario: Delete opens confirmation dialog
-- **WHEN** a user clicks the Delete button in the modal footer
-- **THEN** a confirmation AlertDialog opens asking the user to confirm deletion
-
-#### Scenario: Delete confirmed
-- **WHEN** a user confirms deletion in the AlertDialog
-- **THEN** `DELETE /characters/:id` is called; on success the modal closes, the list is refetched, and a success toast is shown
-
-#### Scenario: Delete cancelled
-- **WHEN** a user dismisses the confirmation AlertDialog
-- **THEN** the AlertDialog closes and the character is unchanged
-
-### Requirement: CharacterFormModal — avatar picker
-The modal SHALL display a compact avatar thumbnail beside the Name field. The thumbnail shows the current avatar if one exists; clicking it or dropping a file onto it opens the crop flow. When an avatar exists, a "Change" label overlay SHALL appear on the thumbnail. When no avatar exists, the thumbnail area SHALL show a placeholder indicating the user can click or drag to upload. Only `image/jpeg` and `image/png` are accepted.
-
-When a file is selected or dropped, the system SHALL:
-1. Open `AvatarCropDialog` with the source file
-2. On crop confirmation, set `localFile` to the cropped JPEG `File` and display a local preview via `URL.createObjectURL`
-3. On crop cancellation, make no changes to `localFile` or the displayed preview
-
-The preview SHALL be revoked when the modal closes. In edit mode, an X button SHALL allow the user to remove the current avatar (local state only — not committed until Save).
-
-#### Scenario: Avatar area shows placeholder when no avatar
-- **WHEN** the modal opens for a character with `avatar_url: null` (or create mode)
-- **THEN** the thumbnail area SHALL display a placeholder indicating the user can upload
-
-#### Scenario: Avatar area shows current avatar in edit mode
-- **WHEN** the modal opens for a character with a non-null `avatar_url`
-- **THEN** the thumbnail SHALL display the existing avatar image with a "Change" overlay
-
-#### Scenario: File picker opens on avatar area click
-- **WHEN** a user clicks the avatar thumbnail
-- **THEN** a file picker opens accepting only `.jpg`/`.jpeg` and `.png` files
-
-#### Scenario: Drop accepted on avatar area
-- **WHEN** a user drags and drops an image file onto the avatar thumbnail
-- **THEN** the file is accepted as if it were picked via the file picker
-
-#### Scenario: Drag-active state shown while hovering
-- **WHEN** a user drags a file over the avatar thumbnail
-- **THEN** the thumbnail displays a visual drag-active indicator
-
-#### Scenario: Crop dialog opens after file is picked
-- **WHEN** a user picks or drops a file
-- **THEN** `AvatarCropDialog` opens with that file as the source image
-
-#### Scenario: Local preview shown after crop confirmed
-- **WHEN** a user confirms the crop in `AvatarCropDialog`
-- **THEN** the avatar thumbnail SHALL display a local preview of the cropped image
-
-#### Scenario: Crop cancelled leaves avatar unchanged
-- **WHEN** a user cancels the crop in `AvatarCropDialog`
-- **THEN** the thumbnail displays whatever it showed before the file was picked
-
-#### Scenario: Avatar removed locally in edit mode
-- **WHEN** a user clicks the X button on the avatar thumbnail in edit mode
-- **THEN** the thumbnail reverts to the placeholder; no network call is made until Save
-
 ### Requirement: ResourceCard onClick
 `ResourceCard` SHALL accept an optional `onClick` prop. When provided, clicking the card body (the area outside the `(...)` dropdown trigger) SHALL invoke it.
 
@@ -181,3 +95,49 @@ The preview SHALL be revoked when the modal closes. In edit mode, an X button SH
 #### Scenario: Dropdown interaction does not trigger onClick
 - **WHEN** a user opens or interacts with the `(...)` dropdown menu
 - **THEN** the `onClick` handler is NOT called
+
+### Requirement: Character card opens the detail page
+Each character card SHALL be clickable. Clicking the card body (outside the `(...)` menu) SHALL navigate to the character's detail page at `/app/characters/:id`. It SHALL NOT open `CharacterFormModal`.
+
+#### Scenario: Card click navigates to the detail page
+- **WHEN** a user clicks a character card body
+- **THEN** the browser navigates to `/app/characters/:id` for that character and no modal opens
+
+#### Scenario: Dropdown interaction does not navigate
+- **WHEN** a user opens or interacts with the `(...)` menu on a card
+- **THEN** the browser does not navigate
+
+### Requirement: CharacterFormModal — create-mode avatar picker
+The create modal SHALL display a compact avatar thumbnail beside the Name field. Clicking it or dropping a file onto it opens the crop flow. Once a cropped avatar is chosen, a "Change" overlay SHALL appear; before that, a placeholder is shown. Only `image/jpeg` and `image/png` are accepted. The preview SHALL be revoked when the modal closes.
+
+#### Scenario: Placeholder shown before an avatar is chosen
+- **WHEN** the modal opens
+- **THEN** the thumbnail area displays a placeholder indicating the user can upload
+
+#### Scenario: Chosen avatar shows a Change overlay
+- **WHEN** the user has confirmed a crop
+- **THEN** the thumbnail displays the cropped preview with a "Change" overlay
+
+#### Scenario: Picker opens on thumbnail click
+- **WHEN** a user clicks the avatar thumbnail
+- **THEN** a file picker opens accepting only `.jpg`/`.jpeg` and `.png` files
+
+#### Scenario: Drop accepted on thumbnail
+- **WHEN** a user drops an image file onto the avatar thumbnail
+- **THEN** the file is accepted as if it were picked via the file picker
+
+#### Scenario: Drag-active indicator while hovering
+- **WHEN** a user drags a file over the avatar thumbnail
+- **THEN** the thumbnail displays a visual drag-active indicator
+
+#### Scenario: Crop dialog opens after a file is picked
+- **WHEN** a user picks or drops a file
+- **THEN** `AvatarCropDialog` opens with that file as the source image
+
+#### Scenario: Preview shown after crop confirmed
+- **WHEN** a user confirms the crop
+- **THEN** the thumbnail displays a local preview of the cropped image
+
+#### Scenario: Crop cancelled leaves the thumbnail unchanged
+- **WHEN** a user cancels the crop
+- **THEN** the thumbnail displays whatever it showed before the file was picked
