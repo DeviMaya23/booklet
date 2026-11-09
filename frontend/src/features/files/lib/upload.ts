@@ -55,16 +55,16 @@ export async function uploadFile(
       width = thumb.width
       height = thumb.height
       await Promise.all([
-        fetch(init.upload_url, { method: 'PUT', body: file }),
+        fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } }),
         fetch(init.thumbnail_upload_url, { method: 'PUT', body: thumb.blob, headers: { 'Content-Type': thumb.blob.type } }),
       ])
       thumbnailBlob = thumb.blob
       thumbnailUploaded = true
     } catch {
-      await fetch(init.upload_url, { method: 'PUT', body: file })
+      await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
     }
   } else {
-    await fetch(init.upload_url, { method: 'PUT', body: file })
+    await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
   }
 
   await completeMutate({ pendingId: init.id, width, height, thumbnailUploaded })
