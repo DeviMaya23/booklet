@@ -34,8 +34,25 @@ describe('uploadFile — non-image', () => {
     await uploadFile(makeFile('artwork.psd', 'image/vnd.adobe.photoshop'), initMutate, completeMutate)
 
     expect(mockFetch).toHaveBeenCalledOnce()
-    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', { method: 'PUT', body: expect.any(File) })
+    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', {
+      method: 'PUT',
+      body: expect.any(File),
+      headers: { 'Content-Type': 'image/vnd.adobe.photoshop' },
+    })
     expect(completeMutate).toHaveBeenCalledWith({ pendingId: 'file-123', width: undefined, height: undefined, thumbnailUploaded: false })
+  })
+
+  it('sends the signed application/octet-stream Content-Type when file.type is empty', async () => {
+    const initMutate = vi.fn().mockResolvedValue(makeInitResult(null))
+    const completeMutate = vi.fn().mockResolvedValue(undefined)
+
+    await uploadFile(makeFile('artwork.clip', ''), initMutate, completeMutate)
+
+    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', {
+      method: 'PUT',
+      body: expect.any(File),
+      headers: { 'Content-Type': 'application/octet-stream' },
+    })
   })
 
   it('returns null thumbnailBlob for a non-image', async () => {
@@ -59,7 +76,11 @@ describe('uploadFile — image with thumbnail URL', () => {
 
     expect(generateThumbnail).toHaveBeenCalledOnce()
     expect(mockFetch).toHaveBeenCalledTimes(2)
-    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', { method: 'PUT', body: expect.any(File) })
+    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', {
+      method: 'PUT',
+      body: expect.any(File),
+      headers: { 'Content-Type': 'image/jpeg' },
+    })
     expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/thumb', {
       method: 'PUT',
       body: thumbnailBlob,
@@ -89,7 +110,11 @@ describe('uploadFile — thumbnail generation failure', () => {
     await uploadFile(makeFile('photo.heic', 'image/heic'), initMutate, completeMutate)
 
     expect(mockFetch).toHaveBeenCalledOnce()
-    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', { method: 'PUT', body: expect.any(File) })
+    expect(mockFetch).toHaveBeenCalledWith('https://r2.example.com/upload', {
+      method: 'PUT',
+      body: expect.any(File),
+      headers: { 'Content-Type': 'image/heic' },
+    })
     expect(completeMutate).toHaveBeenCalledWith({ pendingId: 'file-123', width: undefined, height: undefined, thumbnailUploaded: false })
   })
 
