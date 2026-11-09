@@ -129,6 +129,54 @@ describe('uploadFile — thumbnail generation failure', () => {
   })
 })
 
+describe('uploadFile — R2 PUT failure', () => {
+  it('rejects and does not call completeMutate when a non-image PUT returns a non-ok response', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 403 })
+    const initMutate = vi.fn().mockResolvedValue(makeInitResult(null))
+    const completeMutate = vi.fn().mockResolvedValue(undefined)
+
+    await expect(uploadFile(makeFile('artwork.psd', 'image/vnd.adobe.photoshop'), initMutate, completeMutate)).rejects.toThrow('R2 upload failed')
+
+    expect(completeMutate).not.toHaveBeenCalled()
+  })
+
+  it('rejects and does not call completeMutate when the fallback PUT after thumbnail failure is non-ok', async () => {
+    vi.mocked(generateThumbnail).mockRejectedValueOnce(new Error('Unsupported format'))
+    mockFetch.mockResolvedValue({ ok: false, status: 500 })
+    const initMutate = vi.fn().mockResolvedValue(makeInitResult('https://r2.example.com/thumb'))
+    const completeMutate = vi.fn().mockResolvedValue(undefined)
+
+    await expect(uploadFile(makeFile('photo.heic', 'image/heic'), initMutate, completeMutate)).rejects.toThrow('R2 upload failed')
+
+    expect(completeMutate).not.toHaveBeenCalled()
+  })
+
+  it('rejects when the main PUT is non-ok on both the parallel and retry attempts for an image', async () => {
+    mockFetch.mockResolvedValue({ ok: false, status: 403 })
+    const initMutate = vi.fn().mockResolvedValue(makeInitResult('https://r2.example.com/thumb'))
+    const completeMutate = vi.fn().mockResolvedValue(undefined)
+
+    await expect(uploadFile(makeFile('photo.jpg', 'image/jpeg'), initMutate, completeMutate)).rejects.toThrow('R2 upload failed')
+
+    expect(mockFetch).toHaveBeenCalledTimes(3)
+    expect(completeMutate).not.toHaveBeenCalled()
+  })
+
+  it('falls back to a single PUT with thumbnailUploaded false when only the thumbnail PUT is non-ok', async () => {
+    mockFetch
+      .mockResolvedValueOnce({ ok: true })
+      .mockResolvedValueOnce({ ok: false, status: 403 })
+      .mockResolvedValueOnce({ ok: true })
+    const initMutate = vi.fn().mockResolvedValue(makeInitResult('https://r2.example.com/thumb'))
+    const completeMutate = vi.fn().mockResolvedValue(undefined)
+
+    const result = await uploadFile(makeFile('photo.jpg', 'image/jpeg'), initMutate, completeMutate)
+
+    expect(result.thumbnailBlob).toBeNull()
+    expect(completeMutate).toHaveBeenCalledWith({ pendingId: 'file-123', width: 1200, height: 800, thumbnailUploaded: false })
+  })
+})
+
 describe('uploadFile — file metadata', () => {
   it('passes stripped name and extension to initMutate', async () => {
     const initMutate = vi.fn().mockResolvedValue(makeInitResult(null))
