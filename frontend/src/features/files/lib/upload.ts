@@ -54,17 +54,20 @@ export async function uploadFile(
       const thumb = await generateThumbnail(file)
       width = thumb.width
       height = thumb.height
-      await Promise.all([
+      const [fileRes, thumbRes] = await Promise.all([
         fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } }),
         fetch(init.thumbnail_upload_url, { method: 'PUT', body: thumb.blob, headers: { 'Content-Type': thumb.blob.type } }),
       ])
+      if (!fileRes.ok || !thumbRes.ok) throw new Error('R2 upload failed')
       thumbnailBlob = thumb.blob
       thumbnailUploaded = true
     } catch {
-      await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
+      const res = await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
+      if (!res.ok) throw new Error('R2 upload failed')
     }
   } else {
-    await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
+    const res = await fetch(init.upload_url, { method: 'PUT', body: file, headers: { 'Content-Type': mimeType } })
+    if (!res.ok) throw new Error('R2 upload failed')
   }
 
   await completeMutate({ pendingId: init.id, width, height, thumbnailUploaded })
