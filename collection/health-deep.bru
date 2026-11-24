@@ -1,0 +1,24 @@
+meta {
+  name: Health Check (deep)
+  type: http
+  seq: 2
+}
+
+get {
+  url: {{baseUrl}}/health/deep
+  body: none
+  auth: none
+}
+
+headers {
+  X-Booklet-Internal-Secret: {{healthCheckSecret}}
+}
+
+vars:pre-request {
+  healthCheckSecret: U9ZymWXQf2FVpbIlIxMd+CgV3WHLcm8Nxg0Rm9/EhKc=
+}
+
+docs {
+  Deep readiness check. Requires the X-Booklet-Internal-Secret header to match HEALTH_CHECK_SECRET (401 otherwise).
+  Probes db, R2 and Bookleaf in parallel. Returns 503 if db or R2 fail; a Bookleaf failure is reported in the body only.
+}

@@ -59,6 +59,7 @@ jobs:
             R2_SECRET_ACCESS_KEY=BOOKLET_R2_SECRET_ACCESS_KEY:latest
             BOOKLEAF_INTERNAL_SECRET=BOOKVERSE_INTERNAL_API_SECRET:latest
             INTERNAL_API_SECRET=BOOKVERSE_INTERNAL_API_SECRET:latest
+            HEALTH_CHECK_SECRET=BOOKLET_HEALTH_CHECK_SECRET:latest
           env_vars: |
             DATABASE_HOST=ep-cold-paper-a73043qf.ap-southeast-2.aws.neon.tech
             DATABASE_USER=booklet-owner

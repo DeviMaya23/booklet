@@ -26,6 +26,7 @@ func setRequiredEnvVars(t *testing.T) {
 	t.Setenv("BOOKLEAF_HOST", "https://bookleaf.example.com")
 	t.Setenv("BOOKLEAF_INTERNAL_SECRET", "bookleaf-internal-secret")
 	t.Setenv("INTERNAL_API_SECRET", "internal-api-secret")
+	t.Setenv("HEALTH_CHECK_SECRET", "health-check-secret")
 	t.Setenv("OTEL_EXPORTER", "jaeger")
 	t.Setenv("OTEL_METRICS_EXPORTER", "prometheus")
 }
@@ -55,6 +56,8 @@ func TestLoad_AllRequiredVarsSet(t *testing.T) {
 	assert.Equal(t, "access-key-id", cfg.R2.AccessKeyID)
 	assert.Equal(t, "secret-access-key", cfg.R2.SecretAccessKey)
 	assert.Equal(t, "bucket-name", cfg.R2.BucketName)
+	assert.Equal(t, "internal-api-secret", cfg.BookletInternalSecret)
+	assert.Equal(t, "health-check-secret", cfg.HealthCheckSecret)
 	assert.True(t, cfg.Obs.OTELEnabled)
 	assert.Equal(t, "jaeger", cfg.Obs.OTELExporter)
 	assert.Equal(t, "prometheus", cfg.Obs.OTELMetricsExporter)
@@ -80,6 +83,7 @@ func TestLoad_MissingRequiredVar(t *testing.T) {
 		{"missing R2_ACCESS_KEY_ID", "R2_ACCESS_KEY_ID"},
 		{"missing R2_SECRET_ACCESS_KEY", "R2_SECRET_ACCESS_KEY"},
 		{"missing R2_BUCKET_NAME", "R2_BUCKET_NAME"},
+		{"missing HEALTH_CHECK_SECRET", "HEALTH_CHECK_SECRET"},
 	}
 
 	for _, tt := range tests {

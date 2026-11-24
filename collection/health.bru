@@ -1,5 +1,5 @@
 meta {
-  name: Health Check
+  name: Health Check (liveness)
   type: http
   seq: 1
 }
@@ -8,4 +8,9 @@ get {
   url: {{baseUrl}}/health
   body: none
   auth: none
+}
+
+docs {
+  Shallow liveness check. Public, no auth, never touches the database, R2 or Bookleaf.
+  Returns 200 {"status":"ok"} whenever the process is serving requests.
 }
