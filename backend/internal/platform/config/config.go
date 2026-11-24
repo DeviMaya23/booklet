@@ -65,6 +65,7 @@ type Config struct {
 	Maintenance           MaintenanceConfig
 	Bookleaf              BookleafConfig
 	BookletInternalSecret string
+	HealthCheckSecret     string
 	Port                  string
 	CORSAllowedOrigins    []string
 }
@@ -175,6 +176,11 @@ func loadFromEnv() (*Config, error) {
 		return nil, err
 	}
 
+	healthCheckSecret, err := requireEnv("HEALTH_CHECK_SECRET")
+	if err != nil {
+		return nil, err
+	}
+
 	otelEnabled := envWithDefault("OTEL_ENABLED", "false") == "true"
 	otelExporter := envWithDefault("OTEL_EXPORTER", "")
 	otelMetricsExporter := envWithDefault("OTEL_METRICS_EXPORTER", "")
@@ -233,6 +239,7 @@ func loadFromEnv() (*Config, error) {
 			InternalSecret: bookleafInternalSecret,
 		},
 		BookletInternalSecret: bookletInternalSecret,
+		HealthCheckSecret:     healthCheckSecret,
 		Port:                  port,
 		CORSAllowedOrigins:    strings.Split(corsAllowedOriginsRaw, ","),
 	}, nil

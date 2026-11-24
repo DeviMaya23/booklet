@@ -3,14 +3,16 @@ package handler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
+	"sync"
 	"time"
 
 	"github.com/labstack/echo/v4"
 	"gorm.io/gorm"
 )
 
-const healthProbeTimeout = 3 * time.Second
+const defaultHealthProbeTimeout = 3 * time.Second
 
 type r2Storage interface {
 	Ping(ctx context.Context) error
@@ -21,12 +23,13 @@ type bookleafClient interface {
 }
 
 type HealthHandler struct {
-	db             *gorm.DB
-	store          r2Storage
-	bookleaf       bookleafClient
-	dbProbe        func(ctx context.Context) error
-	r2Probe        func(ctx context.Context) error
-	bookleafProbe  func(ctx context.Context) error
+	db            *gorm.DB
+	store         r2Storage
+	bookleaf      bookleafClient
+	dbProbe       func(ctx context.Context) error
+	r2Probe       func(ctx context.Context) error
+	bookleafProbe func(ctx context.Context) error
+	probeTimeout  time.Duration
 }
 
 type healthResponse struct {
@@ -36,11 +39,16 @@ type healthResponse struct {
 	Bookleaf string `json:"bookleaf"`
 }
 
+type livenessResponse struct {
+	Status string `json:"status"`
+}
+
 func NewHealthHandler(db *gorm.DB, store r2Storage, bl bookleafClient) *HealthHandler {
 	h := &HealthHandler{
-		db:       db,
-		store:    store,
-		bookleaf: bl,
+		db:           db,
+		store:        store,
+		bookleaf:     bl,
+		probeTimeout: defaultHealthProbeTimeout,
 	}
 
 	h.dbProbe = func(ctx context.Context) error {
@@ -67,9 +75,39 @@ func NewHealthHandler(db *gorm.DB, store r2Storage, bl bookleafClient) *HealthHa
 	return h
 }
 
+// GetHealth is the shallow liveness check: it never touches a dependency.
 func (h *HealthHandler) GetHealth(c echo.Context) error {
-	ctx, cancel := context.WithTimeout(c.Request().Context(), healthProbeTimeout)
-	defer cancel()
+	return c.JSON(http.StatusOK, livenessResponse{Status: "ok"})
+}
+
+// GetDeepHealth probes the database, R2 and Bookleaf in parallel, each with its
+// own timeout. It returns 503 when the database or R2 probe fails. Bookleaf is
+// reported in the body but does not affect the overall status.
+func (h *HealthHandler) GetDeepHealth(c echo.Context) error {
+	var dbErr, r2Err, bookleafErr error
+
+	var wg sync.WaitGroup
+	run := func(probe func(context.Context) error, out *error) {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			// Probes run outside Echo's per-request recovery, so a panic here
+			// would take down the whole process. Report it as a probe failure.
+			defer func() {
+				if r := recover(); r != nil {
+					*out = fmt.Errorf("probe panicked: %v", r)
+				}
+			}()
+			ctx, cancel := context.WithTimeout(c.Request().Context(), h.probeTimeout)
+			defer cancel()
+			*out = probe(ctx)
+		}()
+	}
+
+	run(h.dbProbe, &dbErr)
+	run(h.r2Probe, &r2Err)
+	run(h.bookleafProbe, &bookleafErr)
+	wg.Wait()
 
 	res := healthResponse{
 		Status:   "ok",
@@ -77,21 +115,21 @@ func (h *HealthHandler) GetHealth(c echo.Context) error {
 		R2:       "ok",
 		Bookleaf: "ok",
 	}
+	code := http.StatusOK
 
-	if err := h.dbProbe(ctx); err != nil {
+	if dbErr != nil {
+		res.DB = dbErr.Error()
 		res.Status = "degraded"
-		res.DB = err.Error()
+		code = http.StatusServiceUnavailable
+	}
+	if r2Err != nil {
+		res.R2 = r2Err.Error()
+		res.Status = "degraded"
+		code = http.StatusServiceUnavailable
+	}
+	if bookleafErr != nil {
+		res.Bookleaf = bookleafErr.Error()
 	}
 
-	if err := h.r2Probe(ctx); err != nil {
-		res.Status = "degraded"
-		res.R2 = err.Error()
-	}
-
-	if err := h.bookleafProbe(ctx); err != nil {
-		res.Status = "degraded"
-		res.Bookleaf = err.Error()
-	}
-
-	return c.JSON(http.StatusOK, res)
+	return c.JSON(code, res)
 }

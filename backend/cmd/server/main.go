@@ -329,6 +329,7 @@ func initApp(ctx context.Context, cfg *config.Config, db *gorm.DB, riverPool *pg
 	userHandler := httphandler.NewUserHandler(userUsecase, tel)
 
 	e.GET("/health", healthHandler.GetHealth)
+	e.GET("/health/deep", healthHandler.GetDeepHealth, authmiddleware.NewInternalAuthMiddleware(cfg.HealthCheckSecret))
 	protected := e.Group("")
 	// protected.Use(authmiddleware.NewMaintenanceMiddleware(cfg.Maintenance))
 	protected.Use(authMiddleware)
